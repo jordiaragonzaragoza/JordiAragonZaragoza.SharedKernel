@@ -17,15 +17,15 @@
         {
             base.Load(builder);
 
-            builder.RegisterGeneric(typeof(RequestPreProcessorBehavior<,>)).As(typeof(IPipelineBehavior<,>));
-            builder.RegisterGeneric(typeof(LoggerBehaviour<>)).As(typeof(IRequestPreProcessor<>));
-            builder.RegisterGeneric(typeof(ExceptionHandlerBehaviour<,>)).As(typeof(IPipelineBehavior<,>));
-            builder.RegisterGeneric(typeof(UnitOfWorkBehaviour<,>)).As(typeof(IPipelineBehavior<,>));
-            builder.RegisterGeneric(typeof(ValidationBehaviour<,>)).As(typeof(IPipelineBehavior<,>));
-            builder.RegisterGeneric(typeof(CachingBehavior<,>)).As(typeof(IPipelineBehavior<,>));
-            builder.RegisterGeneric(typeof(InvalidateCachingBehavior<,>)).As(typeof(IPipelineBehavior<,>));
-            builder.RegisterGeneric(typeof(DomainEventsDispatcherBehaviour<,>)).As(typeof(IPipelineBehavior<,>));
-            builder.RegisterGeneric(typeof(PerformanceBehaviour<,>)).As(typeof(IPipelineBehavior<,>));
+            _ = builder.RegisterGeneric(typeof(RequestPreProcessorBehavior<,>)).As(typeof(IPipelineBehavior<,>));
+            _ = builder.RegisterGeneric(typeof(LoggerBehaviour<>)).As(typeof(IRequestPreProcessor<>));
+            _ = builder.RegisterGeneric(typeof(ExceptionHandlerBehaviour<,>)).As(typeof(IPipelineBehavior<,>));
+            _ = builder.RegisterGeneric(typeof(UnitOfWorkBehaviour<,>)).As(typeof(IPipelineBehavior<,>));
+            _ = builder.RegisterGeneric(typeof(ValidationBehaviour<,>)).As(typeof(IPipelineBehavior<,>));
+            _ = builder.RegisterGeneric(typeof(CachingBehavior<,>)).As(typeof(IPipelineBehavior<,>));
+            _ = builder.RegisterGeneric(typeof(InvalidateCachingBehavior<,>)).As(typeof(IPipelineBehavior<,>));
+            _ = builder.RegisterGeneric(typeof(DomainEventsDispatcherBehaviour<,>)).As(typeof(IPipelineBehavior<,>));
+            _ = builder.RegisterGeneric(typeof(PerformanceBehaviour<,>)).As(typeof(IPipelineBehavior<,>));
 
             builder.RegisterGenericDecorator(
                 typeof(DomainEventsHandlerDecorator<>),

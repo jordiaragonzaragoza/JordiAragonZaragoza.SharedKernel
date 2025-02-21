@@ -1,6 +1,5 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Domain.Events.Services
 {
-    using System;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading;
@@ -76,7 +75,7 @@
             foreach (var @event in events)
             {
                 // Instanciate the event notification.
-                Type eventNotificationType = typeof(IEventNotification<>);
+                var eventNotificationType = typeof(IEventNotification<>);
                 var notificationWithGenericType = eventNotificationType.MakeGenericType(@event.GetType());
                 var notification = this.scope.ResolveOptional(notificationWithGenericType, new List<Parameter>
                 {

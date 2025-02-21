@@ -31,10 +31,7 @@
             return a.Equals(b);
         }
 
-        public static bool operator !=(BaseValueObject a, BaseValueObject b)
-        {
-            return !(a == b);
-        }
+        public static bool operator !=(BaseValueObject a, BaseValueObject b) => !(a == b);
 
         public override bool Equals(object? obj)
         {

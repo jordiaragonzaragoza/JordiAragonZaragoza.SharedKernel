@@ -1,6 +1,5 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Domain.Enums
 {
-    using Ardalis.SmartEnum;
     using JordiAragonZaragoza.SharedKernel.Contracts.DependencyInjection;
     using ArdalisSmartEnum = Ardalis.SmartEnum;
 

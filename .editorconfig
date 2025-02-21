@@ -39,10 +39,23 @@ dotnet_diagnostic.CA1848.severity = none
 # CA2007: Consider calling ConfigureAwait on the awaited task
 dotnet_diagnostic.CA2007.severity = none
 
+# CA1515: Consider making public types internal
+dotnet_diagnostic.CA1515.severity = none
+
+# 'var' preferences IDE0008
+dotnet_diagnostic.IDE0008.severity = none
+
+# Use conditional expression for return (IDE0046)
+dotnet_diagnostic.IDE0046.severity = none
+
 # Csharp settings
 csharp_style_prefer_primary_constructors = false
 csharp_style_var_when_type_is_apparent = true
+csharp_style_var_elsewhere = true
+csharp_style_var_for_built_in_types = false
 csharp_using_directive_placement = inside_namespace
+csharp_style_expression_bodied_operators = when_on_single_line
+csharp_style_prefer_switch_expression = false
 
 # Resharper settings
 resharper_redundant_name_qualifier_highlighting = none

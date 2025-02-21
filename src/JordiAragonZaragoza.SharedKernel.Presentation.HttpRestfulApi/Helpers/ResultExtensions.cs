@@ -102,6 +102,15 @@
                 case ResultStatus.Forbidden: return Forbidden(controller);
                 case ResultStatus.Invalid: return BadRequest(controller, result);
                 case ResultStatus.Error: return UnprocessableEntity(controller, result);
+                case ResultStatus.Created:
+                    var createdUri = string.IsNullOrWhiteSpace(result.Location) ? null : new Uri(result.Location);
+                    return createdUri is not null
+                        ? controller.Created(createdUri, result.Value)
+                        : controller.File(result.Value.FileContents, result.Value.ContentType, result.Value.FileDownloadName);
+                case ResultStatus.NoContent: return controller.NoContent();
+                case ResultStatus.Conflict: return Conflict(controller, result);
+                case ResultStatus.CriticalError: return CriticalError(controller, result);
+                case ResultStatus.Unavailable: return Unavailable(controller, result);
                 default:
                     throw new NotSupportedException($"Result {result.Status} conversion is not supported.");
             }
@@ -112,13 +121,18 @@
             switch (result.Status)
             {
                 case ResultStatus.Ok:
-                    return (result is Result) ? (ActionResult)controller.Ok()
+                    return (result is Result) ? controller.NoContent()
                         : controller.Ok(result.GetValue());
                 case ResultStatus.NotFound: return NotFoundEntity(controller, result);
                 case ResultStatus.Unauthorized: return Unauthorized(controller);
                 case ResultStatus.Forbidden: return Forbidden(controller);
                 case ResultStatus.Invalid: return BadRequest(controller, result);
                 case ResultStatus.Error: return UnprocessableEntity(controller, result);
+                case ResultStatus.Created: return Created(controller, result);
+                case ResultStatus.NoContent: return controller.NoContent();
+                case ResultStatus.Conflict: return Conflict(controller, result);
+                case ResultStatus.CriticalError: return CriticalError(controller, result);
+                case ResultStatus.Unavailable: return Unavailable(controller, result);
                 default:
                     throw new NotSupportedException($"Result {result.Status} conversion is not supported.");
             }
@@ -157,13 +171,31 @@
 
             foreach (var error in result.Errors)
             {
-                details.Append(error);
+                _ = details.Append(error);
             }
 
             return controller.UnprocessableEntity(new ProblemDetails
             {
                 Instance = controller.HttpContext.Request.Path,
                 Type = "https://www.rfc-editor.org/rfc/rfc9110#name-422-unprocessable-content",
+                Title = "Something went wrong.",
+                Detail = details.ToString(),
+            });
+        }
+
+        private static ConflictObjectResult Conflict(ControllerBase controller, IResult result)
+        {
+            var details = new StringBuilder("Next error(s) occured: ");
+
+            foreach (var error in result.Errors)
+            {
+                _ = details.Append(error);
+            }
+
+            return controller.Conflict(new ProblemDetails
+            {
+                Instance = controller.HttpContext.Request.Path,
+                Type = "https://www.rfc-editor.org/rfc/rfc9110#name-409-conflict",
                 Title = "Something went wrong.",
                 Detail = details.ToString(),
             });
@@ -184,7 +216,7 @@
 
                 foreach (var error in result.Errors)
                 {
-                    details.Append(error);
+                    _ = details.Append(error);
                 }
 
                 problemDetails.Detail = details.ToString();
@@ -198,6 +230,63 @@
         private static ForbidResult Forbidden(ControllerBase controller)
         {
             return controller.Forbid();
+        }
+
+        private static CreatedResult Created(ControllerBase controller, IResult result)
+        {
+            var uri = string.IsNullOrWhiteSpace(result.Location) ? null : new Uri(result.Location);
+
+            return controller.Created(uri, result.GetValue());
+        }
+
+        private static ObjectResult Unavailable(ControllerBase controller, IResult result)
+        {
+            var problemDetails = new ProblemDetails
+            {
+                Instance = controller.HttpContext.Request.Path,
+                Type = "https://www.rfc-editor.org/rfc/rfc9110#name-503-service-unavailable",
+                Title = "Service Unavailable",
+                Status = 503,
+            };
+
+            if (result.Errors.Any())
+            {
+                var details = new StringBuilder("Next error(s) occured: ");
+
+                foreach (var error in result.Errors)
+                {
+                    _ = details.Append(error);
+                }
+
+                problemDetails.Detail = details.ToString();
+            }
+
+            return new ObjectResult(problemDetails);
+        }
+
+        private static ObjectResult CriticalError(ControllerBase controller, IResult result)
+        {
+            var problemDetails = new ProblemDetails
+            {
+                Instance = controller.HttpContext.Request.Path,
+                Type = "https://www.rfc-editor.org/rfc/rfc9110#name-500-internal-server-error",
+                Title = "Internal Server Error",
+                Status = 500,
+            };
+
+            if (result.Errors.Any())
+            {
+                var details = new StringBuilder("Next error(s) occured: ");
+
+                foreach (var error in result.Errors)
+                {
+                    _ = details.Append(error);
+                }
+
+                problemDetails.Detail = details.ToString();
+            }
+
+            return new ObjectResult(problemDetails);
         }
     }
 }

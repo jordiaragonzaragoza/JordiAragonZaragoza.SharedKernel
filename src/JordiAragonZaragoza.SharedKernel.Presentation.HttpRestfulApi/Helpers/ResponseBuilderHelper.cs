@@ -95,7 +95,7 @@
 
             foreach (var error in failures)
             {
-                details.Append("* ").Append(error).AppendLine();
+                _ = details.Append("* ").Append(error).AppendLine();
             }
 
             return details.ToString();

@@ -12,26 +12,26 @@
         protected override void Load(ContainerBuilder builder)
         {
             // Register Transient dependencies.
-            builder.RegisterAssemblyTypes(this.CurrentAssembly)
-                .Where(x => typeof(ITransientDependency).IsAssignableFrom(x))
-                .AsImplementedInterfaces()
-                .InstancePerDependency();
+            _ = builder.RegisterAssemblyTypes(this.CurrentAssembly)
+                    .Where(x => typeof(ITransientDependency).IsAssignableFrom(x))
+                    .AsImplementedInterfaces()
+                    .InstancePerDependency();
 
             // Register Scoped dependencies.
-            builder.RegisterAssemblyTypes(this.CurrentAssembly)
-                .Where(x => typeof(IScopedDependency).IsAssignableFrom(x))
-                .AsImplementedInterfaces()
-                .InstancePerLifetimeScope();
+            _ = builder.RegisterAssemblyTypes(this.CurrentAssembly)
+                    .Where(x => typeof(IScopedDependency).IsAssignableFrom(x))
+                    .AsImplementedInterfaces()
+                    .InstancePerLifetimeScope();
 
             // Register singleton dependencies.
-            builder.RegisterAssemblyTypes(this.CurrentAssembly)
-                .Where(x => typeof(ISingletonDependency).IsAssignableFrom(x))
-                .AsImplementedInterfaces()
-                .SingleInstance();
+            _ = builder.RegisterAssemblyTypes(this.CurrentAssembly)
+                    .Where(x => typeof(ISingletonDependency).IsAssignableFrom(x))
+                    .AsImplementedInterfaces()
+                    .SingleInstance();
 
             // Default without marker interface, register as transient.
-            builder.RegisterAssemblyTypes(this.CurrentAssembly)
-               .Where(x =>
+            _ = builder.RegisterAssemblyTypes(this.CurrentAssembly)
+                .Where(x =>
                     !typeof(ITransientDependency).IsAssignableFrom(x)
                     && !typeof(IScopedDependency).IsAssignableFrom(x)
                     && !typeof(ISingletonDependency).IsAssignableFrom(x)

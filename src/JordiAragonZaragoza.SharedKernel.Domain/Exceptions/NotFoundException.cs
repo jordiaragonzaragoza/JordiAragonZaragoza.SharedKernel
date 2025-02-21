@@ -1,7 +1,6 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Domain.Exceptions
 {
     using System;
-    using System.Runtime.Serialization;
 
     public class NotFoundException : Exception
     {

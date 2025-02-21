@@ -14,7 +14,6 @@
     public class DomainEventsHandlerDecorator<TDomainEvent> : INotificationHandlerDecorator<TDomainEvent>
         where TDomainEvent : IDomainEvent
     {
-        private readonly INotificationHandler<TDomainEvent> decoratedHandler;
         private readonly IEventsDispatcherService domainEventsDispatcher;
 
         public DomainEventsHandlerDecorator(
@@ -22,15 +21,14 @@
             INotificationHandler<TDomainEvent> decoratedHandler)
         {
             this.domainEventsDispatcher = Guard.Against.Null(domainEventsDispatcher, nameof(domainEventsDispatcher));
-            this.decoratedHandler = Guard.Against.Null(decoratedHandler, nameof(decoratedHandler));
+            this.DecoratedHandler = Guard.Against.Null(decoratedHandler, nameof(decoratedHandler));
         }
 
-        public INotificationHandler<TDomainEvent> DecoratedHandler
-            => this.decoratedHandler;
+        public INotificationHandler<TDomainEvent> DecoratedHandler { get; }
 
         public async Task Handle(TDomainEvent notification, CancellationToken cancellationToken)
         {
-            await this.decoratedHandler.Handle(notification, cancellationToken).ConfigureAwait(true);
+            await this.DecoratedHandler.Handle(notification, cancellationToken).ConfigureAwait(true);
 
             await this.domainEventsDispatcher.DispatchEventsFromAggregatesStoreAsync(cancellationToken);
         }

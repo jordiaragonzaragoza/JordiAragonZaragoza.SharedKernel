@@ -10,7 +10,7 @@
     {
         protected BaseEntityId(TIdType value)
         {
-            Guard.Against.Default(value, nameof(value));
+            _ = Guard.Against.Default(value, nameof(value));
             ArgumentNullException.ThrowIfNull(value, nameof(value));
 
             this.Value = value;
@@ -36,7 +36,9 @@
         }
 
         public override string? ToString()
-            => this.Value.ToString();
+        {
+            return this.Value.ToString();
+        }
 
         protected override IEnumerable<object> GetEqualityComponents()
         {

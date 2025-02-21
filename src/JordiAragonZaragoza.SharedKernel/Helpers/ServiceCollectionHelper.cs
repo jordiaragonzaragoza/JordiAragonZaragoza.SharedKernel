@@ -15,7 +15,7 @@
 
             if (serviceDescriptor != null)
             {
-                services.Remove(serviceDescriptor);
+                _ = services.Remove(serviceDescriptor);
             }
 
             return services;
