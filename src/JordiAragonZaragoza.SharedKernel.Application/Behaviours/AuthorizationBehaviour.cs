@@ -49,13 +49,13 @@
                 }
 
                 // Role-based authorization
-                var authorizeAttributesWithRoles = authorizeAttributes.Where(a => !string.IsNullOrWhiteSpace(a.Roles)).ToList();
+                var authorizeAttributesWithRoles = authorizeAttributes.Where(static a => !string.IsNullOrWhiteSpace(a.Roles)).ToList();
 
                 if (authorizeAttributesWithRoles.Count > 0)
                 {
                     var authorized = false;
 
-                    foreach (var roles in authorizeAttributesWithRoles.Select(a => a.Roles.Split(',')))
+                    foreach (var roles in authorizeAttributesWithRoles.Select(static a => a.Roles.Split(',')))
                     {
                         foreach (var role in roles)
                         {
@@ -83,10 +83,10 @@
                 }
 
                 // Policy-based authorization
-                var authorizeAttributesWithPolicies = authorizeAttributes.Where(a => !string.IsNullOrWhiteSpace(a.Policy)).ToList();
+                var authorizeAttributesWithPolicies = authorizeAttributes.Where(static a => !string.IsNullOrWhiteSpace(a.Policy)).ToList();
                 if (authorizeAttributesWithPolicies.Count > 0)
                 {
-                    foreach (var policy in authorizeAttributesWithPolicies.Select(a => a.Policy))
+                    foreach (var policy in authorizeAttributesWithPolicies.Select(static a => a.Policy))
                     {
                         var authorized = await this.identityService.AuthorizeAsync(this.currentUserService.UserId, policy);
 

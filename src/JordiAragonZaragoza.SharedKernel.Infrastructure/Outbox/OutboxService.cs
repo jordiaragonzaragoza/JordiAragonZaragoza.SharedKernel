@@ -41,7 +41,7 @@
                 type,
                 data);
 
-            await this.repositoryOutboxMessage.AddAsync(outboxMessage, cancellationToken);
+            _ = await this.repositoryOutboxMessage.AddAsync(outboxMessage, cancellationToken);
 
             this.logger.LogInformation("Stored Notification Event: {Event}", eventNotification.GetType().Name);
         }

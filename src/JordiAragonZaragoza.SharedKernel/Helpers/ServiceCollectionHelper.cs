@@ -10,7 +10,7 @@
         {
             ArgumentNullException.ThrowIfNull(services, nameof(services));
 
-            var serviceDescriptor = services.FirstOrDefault(d =>
+            var serviceDescriptor = services.FirstOrDefault(static d =>
                 d.ServiceType == typeof(TService));
 
             if (serviceDescriptor != null)

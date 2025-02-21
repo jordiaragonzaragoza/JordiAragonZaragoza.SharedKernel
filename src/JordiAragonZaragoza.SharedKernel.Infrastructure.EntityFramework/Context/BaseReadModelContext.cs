@@ -23,7 +23,7 @@
         {
             ArgumentNullException.ThrowIfNull(modelBuilder, nameof(modelBuilder));
 
-            modelBuilder.ApplyConfiguration(new CheckpointConfiguration());
+            _ = modelBuilder.ApplyConfiguration(new CheckpointConfiguration());
 
             base.OnModelCreating(modelBuilder);
         }

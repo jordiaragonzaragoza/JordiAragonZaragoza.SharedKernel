@@ -9,35 +9,45 @@
 
         private readonly ConcurrentDictionary<Type, string> typeNameMap = new();
 
-        public static void AddCustomMap<TStream>(string mappedStreamName) =>
+        public static void AddCustomMap<TStream>(string mappedStreamName)
+        {
             AddCustomMap(typeof(TStream), mappedStreamName);
+        }
 
         public static void AddCustomMap(Type streamType, string mappedStreamName)
         {
-            Instance.typeNameMap.AddOrUpdate(streamType, mappedStreamName, (_, _) => mappedStreamName);
+            _ = Instance.typeNameMap.AddOrUpdate(streamType, mappedStreamName, (_, _) => mappedStreamName);
         }
 
-        public static string ToStreamPrefix<TStream>() => ToStreamPrefix(typeof(TStream));
-
-        public static string ToStreamPrefix(Type streamType) => Instance.typeNameMap.GetOrAdd(streamType, type =>
+        public static string ToStreamPrefix<TStream>()
         {
-            var modulePrefix = type.Namespace!;
+            return ToStreamPrefix(typeof(TStream));
+        }
 
-            var namespaceParts = modulePrefix.Split(".");
-            if (namespaceParts.Length > 2)
+        public static string ToStreamPrefix(Type streamType)
+        {
+            return Instance.typeNameMap.GetOrAdd(streamType, static type =>
             {
-                modulePrefix = namespaceParts[2];
-            }
-            else if (namespaceParts.Length >= 1)
-            {
-                modulePrefix = namespaceParts[0];
-            }
+                var modulePrefix = type.Namespace!;
 
-            return $"{modulePrefix}_{type.Name}";
-        });
+                var namespaceParts = modulePrefix.Split(".");
+                if (namespaceParts.Length > 2)
+                {
+                    modulePrefix = namespaceParts[2];
+                }
+                else if (namespaceParts.Length >= 1)
+                {
+                    modulePrefix = namespaceParts[0];
+                }
+
+                return $"{modulePrefix}_{type.Name}";
+            });
+        }
 
         public static string ToStreamId<TStream>(object aggregateId, object? tenantId = null)
-            => ToStreamId(typeof(TStream), aggregateId, tenantId);
+        {
+            return ToStreamId(typeof(TStream), aggregateId, tenantId);
+        }
 
         /// <summary>
         /// Generates a stream id in the canonical `{category}-{aggregateId}` format.

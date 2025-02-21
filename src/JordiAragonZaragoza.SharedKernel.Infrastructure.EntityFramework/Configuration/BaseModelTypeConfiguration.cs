@@ -13,7 +13,7 @@
         {
             ArgumentNullException.ThrowIfNull(builder, nameof(builder));
 
-            builder.HasKey(x => x.Id);
+            _ = builder.HasKey(static x => x.Id);
         }
     }
 }

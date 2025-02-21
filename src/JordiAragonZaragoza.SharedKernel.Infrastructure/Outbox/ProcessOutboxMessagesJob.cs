@@ -50,7 +50,7 @@
 
             foreach (var outboxMessage in outboxMessages)
             {
-                Type? type = this.CurrentAssemblies
+                var type = this.CurrentAssemblies
                                 .Select(assembly => assembly.GetType(outboxMessage.Type))
                                 .FirstOrDefault(type => type != null);
 

@@ -16,8 +16,9 @@
         public static JsonObjectContract UsingNonDefaultConstructor(
             JsonObjectContract contract,
             Type objectType,
-            Func<ConstructorInfo, JsonPropertyCollection, IList<JsonProperty>> createConstructorParameters) =>
-            Constructors.GetOrAdd(objectType?.AssemblyQualifiedName!, _ =>
+            Func<ConstructorInfo, JsonPropertyCollection, IList<JsonProperty>> createConstructorParameters)
+        {
+            return Constructors.GetOrAdd(objectType?.AssemblyQualifiedName!, _ =>
             {
                 ArgumentNullException.ThrowIfNull(objectType, nameof(objectType));
 
@@ -38,6 +39,7 @@
 
                 return contract;
             });
+        }
 
         private static ObjectConstructor<object> GetObjectConstructor(MethodBase method)
         {
@@ -50,10 +52,10 @@
 
             if (c.GetParameters().Length == 0)
             {
-                return _ => c.Invoke(Array.Empty<object>());
+                return _ => c.Invoke([]);
             }
 
-            return a => c.Invoke(a);
+            return c.Invoke;
         }
 
         private static ConstructorInfo? GetNonDefaultConstructor(Type objectType)
@@ -78,7 +80,7 @@
 
             var constructors = objectType
                 .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .Where(c => c.GetCustomAttributes().Any(a => a.GetType() == ConstructorAttributeType)).ToList();
+                .Where(static c => c.GetCustomAttributes().Any(static a => a.GetType() == ConstructorAttributeType)).ToList();
 
             return constructors.Count switch
             {
@@ -88,10 +90,12 @@
             };
         }
 
-        private static ConstructorInfo? GetTheMostSpecificConstructor(Type objectType) =>
-            objectType
+        private static ConstructorInfo? GetTheMostSpecificConstructor(Type objectType)
+        {
+            return objectType
                 .GetConstructors(BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic)
-                .OrderByDescending(e => e.GetParameters().Length)
+                .OrderByDescending(static e => e.GetParameters().Length)
                 .FirstOrDefault();
+        }
     }
 }

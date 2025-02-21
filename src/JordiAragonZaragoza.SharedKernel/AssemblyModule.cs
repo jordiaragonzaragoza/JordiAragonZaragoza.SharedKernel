@@ -13,25 +13,25 @@
         {
             // Register Transient dependencies.
             _ = builder.RegisterAssemblyTypes(this.CurrentAssembly)
-                    .Where(x => typeof(ITransientDependency).IsAssignableFrom(x))
+                    .Where(static x => typeof(ITransientDependency).IsAssignableFrom(x))
                     .AsImplementedInterfaces()
                     .InstancePerDependency();
 
             // Register Scoped dependencies.
             _ = builder.RegisterAssemblyTypes(this.CurrentAssembly)
-                    .Where(x => typeof(IScopedDependency).IsAssignableFrom(x))
+                    .Where(static x => typeof(IScopedDependency).IsAssignableFrom(x))
                     .AsImplementedInterfaces()
                     .InstancePerLifetimeScope();
 
             // Register singleton dependencies.
             _ = builder.RegisterAssemblyTypes(this.CurrentAssembly)
-                    .Where(x => typeof(ISingletonDependency).IsAssignableFrom(x))
+                    .Where(static x => typeof(ISingletonDependency).IsAssignableFrom(x))
                     .AsImplementedInterfaces()
                     .SingleInstance();
 
             // Default without marker interface, register as transient.
             _ = builder.RegisterAssemblyTypes(this.CurrentAssembly)
-                .Where(x =>
+                .Where(static x =>
                     !typeof(ITransientDependency).IsAssignableFrom(x)
                     && !typeof(IScopedDependency).IsAssignableFrom(x)
                     && !typeof(ISingletonDependency).IsAssignableFrom(x)

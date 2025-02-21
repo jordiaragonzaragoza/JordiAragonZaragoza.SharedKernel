@@ -58,12 +58,12 @@
         {
             var handlerType = handlerInstance.GetType();
 
-            if (Array.Exists(handlerType.GetInterfaces(), i =>
+            if (Array.Exists(handlerType.GetInterfaces(), static i =>
                 i.IsGenericType &&
                 i.GetGenericTypeDefinition() == typeof(INotificationHandlerDecorator<>)))
             {
                 // This handler is a decorator
-                var decoratorInterface = Array.Find(handlerType.GetInterfaces(), i =>
+                var decoratorInterface = Array.Find(handlerType.GetInterfaces(), static i =>
                         i.IsGenericType &&
                         i.GetGenericTypeDefinition() == typeof(INotificationHandlerDecorator<>));
 

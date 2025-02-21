@@ -56,7 +56,7 @@
             if (!this.cachedHashCode.HasValue)
             {
                 this.cachedHashCode = this.GetEqualityComponents()
-                    .Aggregate(1, (current, obj) =>
+                    .Aggregate(1, static (current, obj) =>
                     {
                         unchecked
                         {

@@ -153,8 +153,8 @@
         private static BadRequestObjectResult BadRequest(ControllerBase controller, IResult result)
         {
             var errors = result.ValidationErrors
-                .GroupBy(x => x.Identifier, x => x.ErrorMessage)
-                .ToDictionary(g => g.Key, g => g.ToArray());
+                .GroupBy(static x => x.Identifier, static x => x.ErrorMessage)
+                .ToDictionary(static g => g.Key, static g => g.ToArray());
 
             return controller.BadRequest(new ValidationProblemDetails(errors)
             {

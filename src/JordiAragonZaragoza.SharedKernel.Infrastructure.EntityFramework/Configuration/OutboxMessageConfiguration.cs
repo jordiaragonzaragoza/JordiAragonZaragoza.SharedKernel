@@ -11,11 +11,11 @@
         {
             ArgumentNullException.ThrowIfNull(builder, nameof(builder));
 
-            builder.ToTable("__OutboxMessages");
+            _ = builder.ToTable("__OutboxMessages");
 
             base.Configure(builder);
 
-            builder.Property(outboxMessage => outboxMessage.Version)
+            _ = builder.Property(static outboxMessage => outboxMessage.Version)
                 .IsRowVersion();
         }
     }

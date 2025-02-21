@@ -15,11 +15,11 @@
         {
             base.Load(builder);
 
-            builder.RegisterType(typeof(CustomMediator))
+            _ = builder.RegisterType(typeof(CustomMediator))
                 .As(typeof(IMediator))
                 .InstancePerLifetimeScope();
 
-            builder.RegisterType(typeof(SequentialGuidGenerator))
+            _ = builder.RegisterType(typeof(SequentialGuidGenerator))
                 .As(typeof(IGuidGenerator))
                 .InstancePerLifetimeScope();
         }

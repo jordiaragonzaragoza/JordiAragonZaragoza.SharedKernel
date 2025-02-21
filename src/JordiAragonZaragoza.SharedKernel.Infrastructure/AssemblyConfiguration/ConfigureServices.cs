@@ -1,8 +1,6 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.AssemblyConfiguration
 {
-    using Autofac.Core;
     using EasyCaching.InMemory;
-    using EasyCaching.Redis;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Cache;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.EasyCaching;
     using Microsoft.Extensions.Configuration;
@@ -11,19 +9,19 @@
 
     public static class ConfigureServices
     {
-        public static IServiceCollection AddSharedKernelInfrastructureServices(this IServiceCollection serviceCollection, IConfiguration configuration, bool isDevelopment)
+        public static IServiceCollection AddSharedKernelInfrastructureServices(this IServiceCollection serviceCollection, IConfiguration configuration)
         {
             var cacheOptions = new CacheOptions();
             configuration.Bind(CacheOptions.Section, cacheOptions);
-            serviceCollection.AddSingleton(Options.Create(cacheOptions));
+            _ = serviceCollection.AddSingleton(Options.Create(cacheOptions));
 
             var easyCachingInMemoryOptions = new EasyCachingInMemoryOptions();
             configuration.Bind(EasyCachingInMemoryOptions.Section, easyCachingInMemoryOptions);
-            serviceCollection.AddSingleton(Options.Create(easyCachingInMemoryOptions));
+            _ = serviceCollection.AddSingleton(Options.Create(easyCachingInMemoryOptions));
 
-            serviceCollection.AddEasyCaching(options =>
+            _ = serviceCollection.AddEasyCaching(options =>
             {
-                options.UseInMemory(
+                _ = options.UseInMemory(
                     config =>
                 {
                     config.DBConfig = new InMemoryCachingOptions

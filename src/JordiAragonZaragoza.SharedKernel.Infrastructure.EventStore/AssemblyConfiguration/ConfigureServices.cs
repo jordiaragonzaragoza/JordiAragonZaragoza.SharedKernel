@@ -13,20 +13,22 @@
     {
         public static IServiceCollection AddSharedKernelEventStoreServices(this IServiceCollection serviceCollection, IConfiguration configuration)
         {
-            serviceCollection
+            _ = serviceCollection
                 .AddEventStoreDB(configuration.GetRequiredConfiguration<EventStoreDbOptions>(EventStoreDbOptions.Section))
                 .AddEventStoreDBSubscriptionToAll();
 
             return serviceCollection;
         }
 
-        private static IServiceCollection AddEventStoreDB(this IServiceCollection serviceCollection, EventStoreDbOptions eventStoreDBConfig)
 #pragma warning disable CA2000 // Dispose objects before losing scope
-            => serviceCollection
-                .AddSingleton(EventTypeMapper.Instance) // TODO: Register with autofac.
-                .AddSingleton(new EventStoreClient(EventStoreClientSettings.Create(eventStoreDBConfig.ConnectionString)))
-                .AddTransient<EventStoreDbSubscriptionToAll, EventStoreDbSubscriptionToAll>()
-                .AddSingleton(new CancellationTokenSource());
+        private static IServiceCollection AddEventStoreDB(this IServiceCollection serviceCollection, EventStoreDbOptions eventStoreDBConfig)
+        {
+            return serviceCollection
+                        .AddSingleton(EventTypeMapper.Instance) // TODO: Register with autofac.
+                        .AddSingleton(new EventStoreClient(EventStoreClientSettings.Create(eventStoreDBConfig.ConnectionString)))
+                        .AddTransient<EventStoreDbSubscriptionToAll, EventStoreDbSubscriptionToAll>()
+                        .AddSingleton(new CancellationTokenSource());
+        }
 #pragma warning restore CA2000 // Dispose objects before losing scope
 
         private static IServiceCollection AddEventStoreDBSubscriptionToAll(

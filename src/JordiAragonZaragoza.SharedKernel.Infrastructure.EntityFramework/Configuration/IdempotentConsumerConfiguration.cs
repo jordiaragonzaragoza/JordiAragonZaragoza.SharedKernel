@@ -9,7 +9,7 @@
     {
         public override void Configure(EntityTypeBuilder<IdempotentConsumer> builder)
         {
-            builder.ToTable("__IdempotentConsumers");
+            _ = builder.ToTable("__IdempotentConsumers");
 
             base.Configure(builder);
         }

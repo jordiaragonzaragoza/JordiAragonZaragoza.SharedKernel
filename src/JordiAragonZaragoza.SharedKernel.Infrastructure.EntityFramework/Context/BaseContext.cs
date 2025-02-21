@@ -27,7 +27,7 @@
         {
             ArgumentNullException.ThrowIfNull(optionsBuilder, nameof(optionsBuilder));
 
-            optionsBuilder
+            _ = optionsBuilder
                 .UseLoggerFactory(this.loggerFactory)
                 .EnableSensitiveDataLogging(this.hostEnvironment.EnvironmentName == "Development")
                 .EnableDetailedErrors(this.hostEnvironment.EnvironmentName == "Development");

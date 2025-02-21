@@ -37,10 +37,10 @@
         private static ValidationProblemDetails Invalid(IReadOnlyCollection<ValidationFailure> failures, HttpContext context, int statusCode)
         {
             return new ValidationProblemDetails(
-                failures.GroupBy(f => f.PropertyName)
+                failures.GroupBy(static f => f.PropertyName)
                     .ToDictionary(
-                        keySelector: e => e.Key,
-                        elementSelector: e => e.Select(m => m.ErrorMessage).ToArray()))
+                        keySelector: static e => e.Key,
+                        elementSelector: static e => e.Select(static m => m.ErrorMessage).ToArray()))
             {
                 Type = "https://tools.ietf.org/html/rfc7231#section-6.5.1",
                 Title = "One or more validation errors occurred.",

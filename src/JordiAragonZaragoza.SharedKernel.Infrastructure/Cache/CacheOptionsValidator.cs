@@ -6,10 +6,10 @@
     {
         public CacheOptionsValidator()
         {
-            this.RuleFor(x => x.DefaultName)
+            _ = this.RuleFor(static x => x.DefaultName)
                 .NotEmpty();
 
-            this.RuleFor(x => x.DefaultExpirationInSeconds)
+            _ = this.RuleFor(static x => x.DefaultExpirationInSeconds)
                 .GreaterThan(0);
         }
     }
