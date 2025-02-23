@@ -31,6 +31,8 @@
                 ResultStatus.CriticalError => Result<TDestination>.CriticalError(result.Errors.ToArray()),
                 ResultStatus.Unavailable => Result<TDestination>.Unavailable(result.Errors.ToArray()),
                 ResultStatus.NoContent => Result<TDestination>.NoContent(),
+                ResultStatus.Ok => throw new NotSupportedException($"Result {result.Status} conversion is not non success status."),
+                ResultStatus.Created => throw new NotSupportedException($"Result {result.Status} conversion is not non success status."),
                 _ => throw new NotSupportedException($"Result {result.Status} conversion is not supported."),
             };
         }
@@ -58,6 +60,8 @@
                 ResultStatus.CriticalError => Result<TDestination>.CriticalError(result.Errors.ToArray()),
                 ResultStatus.Unavailable => Result<TDestination>.Unavailable(result.Errors.ToArray()),
                 ResultStatus.NoContent => Result<TDestination>.NoContent(),
+                ResultStatus.Ok => throw new NotSupportedException($"Result {result.Status} conversion is not non success status."),
+                ResultStatus.Created => throw new NotSupportedException($"Result {result.Status} conversion is not non success status."),
                 _ => throw new NotSupportedException($"Result {result.Status} conversion is not supported."),
             };
         }
@@ -85,6 +89,8 @@
                 ResultStatus.CriticalError => Result.CriticalError(result.Errors.ToArray()),
                 ResultStatus.Unavailable => Result.Unavailable(result.Errors.ToArray()),
                 ResultStatus.NoContent => Result.NoContent(),
+                ResultStatus.Ok => throw new NotSupportedException($"Result {result.Status} conversion is not non success status."),
+                ResultStatus.Created => throw new NotSupportedException($"Result {result.Status} conversion is not non success status."),
                 _ => throw new NotSupportedException($"Result {result.Status} conversion is not supported."),
             };
         }
@@ -101,9 +107,29 @@
                 case ResultStatus.Forbidden: return "Forbidden.";
                 case ResultStatus.Invalid: return BadRequest(result);
                 case ResultStatus.Error: return UnprocessableEntity(result);
+                case ResultStatus.Created: return Created(result);
+                case ResultStatus.NoContent: return "No content.";
+                case ResultStatus.Conflict: return Conflict(result);
+                case ResultStatus.CriticalError: return UnprocessableEntity(result);
+                case ResultStatus.Unavailable: return Unavailable(result);
                 default:
                     throw new NotSupportedException($"Result {result.Status} conversion is not supported.");
             }
+        }
+
+        private static string Created(IResult result)
+        {
+            var details = new StringBuilder("Created. ");
+
+            var createdUri = string.IsNullOrWhiteSpace(result.Location) ? null : new Uri(result.Location);
+            if (createdUri != null)
+            {
+                _ = details.Append(string.Create(CultureInfo.InvariantCulture, $"Location: {createdUri}"));
+            }
+
+            _ = details.Append(result.GetValue());
+
+            return details.ToString();
         }
 
         private static string Success(IResult result)
@@ -115,7 +141,7 @@
                 return details.ToString();
             }
 
-            details.Append(result.GetValue());
+            _ = details.Append(result.GetValue());
 
             return details.ToString();
         }
@@ -124,17 +150,21 @@
         {
             var details = new StringBuilder("Resource not found. ");
 
-            if (result.Errors.Any())
-            {
-                details.Append("Next error(s) occured: ");
+            return AppendErrors(result, details);
+        }
 
-                foreach (var error in result.Errors)
-                {
-                    details.Append(error);
-                }
-            }
+        private static string Unavailable(IResult result)
+        {
+            var details = new StringBuilder("Unavailable. ");
 
-            return details.ToString();
+            return AppendErrors(result, details);
+        }
+
+        private static string Conflict(IResult result)
+        {
+            var details = new StringBuilder("Conflict. ");
+
+            return AppendErrors(result, details);
         }
 
         private static string BadRequest(IResult result)
@@ -142,16 +172,16 @@
             var details = new StringBuilder("Bad Request. ");
 
             var errors = result.ValidationErrors
-                .GroupBy(x => x.Identifier, x => x.ErrorMessage)
-                .ToDictionary(g => g.Key, g => g.ToArray());
+                .GroupBy(static x => x.Identifier, static x => x.ErrorMessage)
+                .ToDictionary(static g => g.Key, static g => g.ToArray());
 
             if (errors.Count > 0)
             {
-                details.Append("Next validation error(s) occured: ");
+                _ = details.Append("Next validation error(s) occured: ");
 
                 foreach (var error in errors)
                 {
-                    details.Append(CultureInfo.InvariantCulture, $"Identifier: {error.Key}. Message: {error.Value}");
+                    _ = details.Append(CultureInfo.InvariantCulture, $"Identifier: {error.Key}. Message: {error.Value}");
                 }
             }
 
@@ -162,13 +192,18 @@
         {
             var details = new StringBuilder("Error. Something went wrong. ");
 
+            return AppendErrors(result, details);
+        }
+
+        private static string AppendErrors(IResult result, StringBuilder details)
+        {
             if (result.Errors.Any())
             {
-                details.Append("Next error(s) occured: ");
+                _ = details.Append("Next error(s) occured: ");
 
                 foreach (var error in result.Errors)
                 {
-                    details.Append(error);
+                    _ = details.Append(error);
                 }
             }
 

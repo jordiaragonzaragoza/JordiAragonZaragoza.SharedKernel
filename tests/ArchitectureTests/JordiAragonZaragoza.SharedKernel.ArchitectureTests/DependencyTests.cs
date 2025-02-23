@@ -34,8 +34,8 @@
 
         public DependencyTests()
         {
-            this.allProjects = new[]
-            {
+            this.allProjects =
+            [
                 this.sharedKernelNamespace,
                 this.sharedKernelContractsNamespace,
                 this.domainNamespace,
@@ -48,7 +48,7 @@
                 this.infrastructureEventStoreNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
-            };
+            ];
         }
 
         [Fact]
@@ -84,7 +84,7 @@
                 .GetResult();
 
             // Assert.
-            testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
 
         [Fact]
@@ -121,7 +121,7 @@
                 .GetResult();
 
             // Assert.
-            testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
 
         [Fact]
@@ -156,7 +156,7 @@
                 .NotHaveDependencyOnAny(this.allProjects)
                 .GetResult();
 
-            testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
 
         [Fact]
@@ -197,7 +197,7 @@
                 .GetResult();
 
             // Assert.
-            testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
 
         [Fact]
@@ -240,7 +240,7 @@
                 .GetResult();
 
             // Assert.
-            testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
 
         [Fact]
@@ -276,7 +276,7 @@
                 .GetResult();
 
             // Assert.
-            testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
 
         [Fact]
@@ -314,7 +314,7 @@
                 .GetResult();
 
             // Assert.
-            testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
 
         [Fact]
@@ -353,7 +353,7 @@
                 .GetResult();
 
             // Assert.
-            testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
 
         [Fact]
@@ -391,7 +391,7 @@
                 .GetResult();
 
             // Assert.
-            testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
 
         [Fact]
@@ -429,7 +429,7 @@
                 .GetResult();
 
             // Assert.
-            testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
 
         [Fact]
@@ -464,7 +464,7 @@
                 .NotHaveDependencyOnAny(this.allProjects)
                 .GetResult();
 
-            testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
 
         [Fact]
@@ -503,7 +503,7 @@
                 .NotHaveDependencyOnAny(this.allProjects)
                 .GetResult();
 
-            testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
     }
 }

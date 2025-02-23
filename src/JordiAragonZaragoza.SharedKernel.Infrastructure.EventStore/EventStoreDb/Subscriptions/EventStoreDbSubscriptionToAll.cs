@@ -67,7 +67,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreD
 
             var checkpoint = await checkpointRepository.GetByIdAsync(this.SubscriptionId, cancellationToken).ConfigureAwait(false);
 
-            await this.eventStoreClient.SubscribeToAllAsync(
+            _ = await this.eventStoreClient.SubscribeToAllAsync(
                 checkpoint == null ? FromAll.Start : FromAll.After(new Position(checkpoint.Position, checkpoint.Position)),
                 this.HandleEventAsync,
                 subscriptionOptions.ResolveLinkTos,
@@ -115,7 +115,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreD
                 }
 
                 var checkpoint = new Checkpoint(this.SubscriptionId, resolvedEvent.Event.Position.CommitPosition, this.datetime.UtcNow);
-                await checkpointRepository.AddAsync(checkpoint, cancellationToken)
+                _ = await checkpointRepository.AddAsync(checkpoint, cancellationToken)
                     .ConfigureAwait(false);
 
                 this.logger.LogInformation("Added checkpoint: {Checkpoint}", checkpoint);
@@ -227,7 +227,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreD
         private IEventNotification<IEvent> CreateEventNotification(IEvent @event)
         {
             // Instanciate the event notification.
-            Type eventNotificationType = typeof(IEventNotification<>);
+            var eventNotificationType = typeof(IEventNotification<>);
             var notificationWithGenericType = eventNotificationType.MakeGenericType(@event.GetType());
             var notification = this.lifetimeScope.ResolveOptional(notificationWithGenericType, new List<Parameter>
                 {

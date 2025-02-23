@@ -28,17 +28,14 @@
             public static bool operator !=(Disposable left, Disposable right) =>
                 !(left == right);
 
-            public void Dispose() =>
+            public void Dispose()
+            {
                 SynchronizationContext.SetSynchronizationContext(this.synchronizationContext);
+            }
 
             public override bool Equals(object? obj)
             {
-                if (obj is Disposable other)
-                {
-                    return this.Equals(other);
-                }
-
-                return false;
+                return obj is Disposable other && this.Equals(other);
             }
 
             public bool Equals(Disposable other)

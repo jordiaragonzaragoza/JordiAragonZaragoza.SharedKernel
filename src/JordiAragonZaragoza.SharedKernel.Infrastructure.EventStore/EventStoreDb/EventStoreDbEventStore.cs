@@ -105,7 +105,7 @@
 
         private async Task StoreAsync(IEventSourcedAggregateRoot<IEntityId> aggregate, CancellationToken cancellationToken)
         {
-            var events = aggregate.Events.AsEnumerable().Select(@event => SerializerHelper.Serialize(@event)).ToArray();
+            var events = aggregate.Events.AsEnumerable().Select(static @event => SerializerHelper.Serialize(@event)).ToArray();
 
             if (events.Length == 0)
             {
@@ -122,7 +122,7 @@
                 this.logger.LogInformation("Persisting event: {Event} for stream: {StreamName}", @event.ToString(), streamName);
             }
 
-            await this.eventStoreClient.AppendToStreamAsync(
+            _ = await this.eventStoreClient.AppendToStreamAsync(
                 streamName,
                 nextVersion,
                 events,

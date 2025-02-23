@@ -27,8 +27,8 @@
 
         public IEnumerable<IEventsContainer<IEvent>> EventableEntities
             => this.writeContext.ChangeTracker.Entries<IEventsContainer<IDomainEvent>>()
-                            .Select(e => e.Entity)
-                            .Where(entity => entity.Events.Any());
+                            .Select(static e => e.Entity)
+                            .Where(static entity => entity.Events.Any());
 
         public async Task<TResponse> ExecuteInTransactionAsync<TResponse>(Func<Task<TResponse>> operation)
             where TResponse : IResult
@@ -38,10 +38,7 @@
             return await strategy.ExecuteAsync(async () =>
             {
                 // Start transaction inside strategy
-                if (this.transaction == null)
-                {
-                    this.transaction = await this.writeContext.Database.BeginTransactionAsync();
-                }
+                this.transaction ??= await this.writeContext.Database.BeginTransactionAsync();
 
                 try
                 {

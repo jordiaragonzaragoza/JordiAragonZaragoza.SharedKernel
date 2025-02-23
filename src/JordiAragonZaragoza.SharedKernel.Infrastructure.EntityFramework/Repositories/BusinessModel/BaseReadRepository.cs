@@ -10,7 +10,7 @@
     using JordiAragonZaragoza.SharedKernel.Domain.Entities;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Context;
 
-    public abstract class BaseReadRepository<TEntity, TId> : RepositoryBase<TEntity>,  ISpecificationReadRepository<TEntity, TId>, IScopedDependency
+    public abstract class BaseReadRepository<TEntity, TId> : RepositoryBase<TEntity>, ISpecificationReadRepository<TEntity, TId>, IScopedDependency
         where TEntity : class, IEntity<TId>
         where TId : class, IEntityId
     {

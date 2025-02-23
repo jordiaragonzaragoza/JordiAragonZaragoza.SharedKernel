@@ -11,9 +11,9 @@
         {
             ArgumentNullException.ThrowIfNull(builder, nameof(builder));
 
-            builder.ToTable("__Checkpoints");
+            _ = builder.ToTable("__Checkpoints");
 
-            builder.HasKey(ckeckpoint => ckeckpoint.Id);
+            _ = builder.HasKey(static ckeckpoint => ckeckpoint.Id);
         }
     }
 }

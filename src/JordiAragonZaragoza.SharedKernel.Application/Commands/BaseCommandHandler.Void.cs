@@ -15,8 +15,14 @@
 
         public abstract Task<Result> Handle(TCommand request, CancellationToken cancellationToken);
 
-        public void ClearEvents() => this.applicationEvents.Clear();
+        public void ClearEvents()
+        {
+            this.applicationEvents.Clear();
+        }
 
-        protected void RegisterApplicationEvent(IApplicationEvent applicationEvent) => this.applicationEvents.Add(applicationEvent);
+        protected void RegisterApplicationEvent(IApplicationEvent applicationEvent)
+        {
+            this.applicationEvents.Add(applicationEvent);
+        }
     }
 }

@@ -11,7 +11,7 @@
         {
             ArgumentNullException.ThrowIfNull(entry, nameof(entry));
 
-            return entry.References.Any(referenceEntry =>
+            return entry.References.Any(static referenceEntry =>
                 referenceEntry.TargetEntry != null &&
                 referenceEntry.TargetEntry.Metadata.IsOwned() &&
                 (referenceEntry.TargetEntry.State == EntityState.Added || referenceEntry.TargetEntry.State == EntityState.Modified));

@@ -13,34 +13,43 @@
         private readonly ConcurrentDictionary<Type, string> typeNameMap = new();
 
         public void AddCustomMap<T>(string eventTypeName)
-            => this.AddCustomMap(typeof(T), eventTypeName);
+        {
+            this.AddCustomMap(typeof(T), eventTypeName);
+        }
 
         public void AddCustomMap(Type eventType, string eventTypeName)
         {
-            this.typeNameMap.AddOrUpdate(eventType, eventTypeName, (_, typeName) => typeName);
-            this.typeMap.AddOrUpdate(eventTypeName, eventType, (_, type) => type);
+            _ = this.typeNameMap.AddOrUpdate(eventType, eventTypeName, static (_, typeName) => typeName);
+            _ = this.typeMap.AddOrUpdate(eventTypeName, eventType, static (_, type) => type);
         }
 
         public string ToName<TEventType>()
-            => this.ToName(typeof(TEventType));
+        {
+            return this.ToName(typeof(TEventType));
+        }
 
         public string ToName(Type eventType)
-            => this.typeNameMap.GetOrAdd(eventType, type =>
         {
-            var eventTypeName = type.FullName!;
+            return this.typeNameMap.GetOrAdd(eventType, type =>
+                {
+                    var eventTypeName = type.FullName!;
 
-            this.typeMap.TryAdd(eventTypeName, type);
+                    _ = this.typeMap.TryAdd(eventTypeName, type);
 
-            return eventTypeName;
-        });
+                    return eventTypeName;
+                });
+        }
 
-        public Type ToType(string eventTypeName) => this.typeMap.GetOrAdd(eventTypeName, typeName =>
+        public Type ToType(string eventTypeName)
         {
-            var type = TypeHelper.GetFirstMatchingTypeFromCurrentDomainAssembly(typeName);
+            return this.typeMap.GetOrAdd(eventTypeName, typeName =>
+            {
+                var type = TypeHelper.GetFirstMatchingTypeFromCurrentDomainAssembly(typeName);
 
-            this.typeNameMap.TryAdd(type, typeName);
+                _ = this.typeNameMap.TryAdd(type, typeName);
 
-            return type;
-        });
+                return type;
+            });
+        }
     }
 }

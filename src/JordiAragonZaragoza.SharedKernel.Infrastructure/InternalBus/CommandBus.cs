@@ -17,10 +17,14 @@
         }
 
         public Task<Result> SendAsync(ICommand command, CancellationToken cancellationToken = default)
-            => this.sender.Send(command, cancellationToken);
+        {
+            return this.sender.Send(command, cancellationToken);
+        }
 
         public Task<Result<TResponse>> SendAsync<TResponse>(ICommand<TResponse> command, CancellationToken cancellationToken = default)
             where TResponse : notnull
-            => this.sender.Send(command, cancellationToken);
+        {
+            return this.sender.Send(command, cancellationToken);
+        }
     }
 }
