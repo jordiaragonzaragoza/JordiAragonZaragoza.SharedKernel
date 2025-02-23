@@ -6,7 +6,7 @@
     {
         public EventStoreDbOptionsValidator()
         {
-            this.RuleFor(x => x.ConnectionString)
+            _ = this.RuleFor(static x => x.ConnectionString)
                 .NotEmpty();
         }
     }

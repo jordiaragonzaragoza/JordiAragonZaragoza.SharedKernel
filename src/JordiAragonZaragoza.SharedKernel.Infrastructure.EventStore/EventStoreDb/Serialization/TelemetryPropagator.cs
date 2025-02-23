@@ -14,7 +14,9 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreD
         public static void UseDefaultCompositeTextMapPropagator()
         {
             propagator =
+#pragma warning disable IDE0300
                 new CompositeTextMapPropagator(new TextMapPropagator[]
+#pragma warning restore IDE0300
                 {
                     new TraceContextPropagator(),
                     new BaggagePropagator(),
@@ -25,18 +27,24 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreD
             this PropagationContext context,
             T carrier,
             Action<T, string, string> setter)
-            => propagator.Inject(context, carrier, setter);
+        {
+            propagator.Inject(context, carrier, setter);
+        }
 
         public static PropagationContext Extract<T>(
             T carrier,
             Func<T, string, IEnumerable<string>> getter)
-            => propagator.Extract(default, carrier, getter);
+        {
+            return propagator.Extract(default, carrier, getter);
+        }
 
         public static PropagationContext Extract<T>(
             PropagationContext context,
             T carrier,
             Func<T, string, IEnumerable<string>> getter)
-            => propagator.Extract(context, carrier, getter);
+        {
+            return propagator.Extract(context, carrier, getter);
+        }
 
         public static PropagationContext? Propagate<T>(this Activity activity, T carrier, Action<T, string, string> setter)
         {

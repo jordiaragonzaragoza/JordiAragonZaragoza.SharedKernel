@@ -24,7 +24,10 @@
         [NotMapped]
         public IEnumerable<IDomainEvent> Events => this.domainEvents.AsReadOnly();
 
-        public void ClearEvents() => this.domainEvents.Clear();
+        public void ClearEvents()
+        {
+            this.domainEvents.Clear();
+        }
 
         protected void Apply(IDomainEvent domainEvent)
         {

@@ -26,7 +26,7 @@
                 .GetResult();
 
             // Assert.
-            testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
     }
 }

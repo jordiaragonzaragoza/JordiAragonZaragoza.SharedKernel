@@ -105,16 +105,6 @@
         Task<int> CountAsync(ISpecification<TModel> specification, CancellationToken cancellationToken = default);
 
         /// <summary>
-        /// Returns the total number of records.
-        /// </summary>
-        /// <param name="cancellationToken">A <see cref="CancellationToken" /> to observe while waiting for the task to complete.</param>
-        /// <returns>
-        /// A task that represents the asynchronous operation. The task result contains the
-        /// number of elements in the input sequence.
-        /// </returns>
-        Task<int> CountAsync(CancellationToken cancellationToken = default);
-
-        /// <summary>
         /// Returns a boolean that represents whether any model satisfy the encapsulated query logic
         /// of the <paramref name="specification"/> or not.
         /// </summary>

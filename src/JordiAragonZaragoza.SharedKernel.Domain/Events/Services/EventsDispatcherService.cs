@@ -1,6 +1,5 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Domain.Events.Services
 {
-    using System;
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading;
@@ -56,12 +55,12 @@
 
         private async Task DispatchEventsAsync(List<IEventsContainer<IEvent>> eventables, CancellationToken cancellationToken)
         {
-            var events = eventables.SelectMany(x => x.Events).Where(e => !e.IsPublished).OrderBy(e => e.DateOccurredOnUtc).ToList();
+            var events = eventables.SelectMany(static x => x.Events).Where(static e => !e.IsPublished).OrderBy(static e => e.DateOccurredOnUtc).ToList();
 
             // Filter to not include IEventSourcedAggregateRoot events.
             // This event notifications will come from event store subscription.
-            var aggregateEvents = eventables.Where(entity => entity is not IEventSourcedAggregateRoot<IEntityId>)
-                .SelectMany(x => x.Events).Where(e => !e.IsPublished).OrderBy(e => e.DateOccurredOnUtc).ToList();
+            var aggregateEvents = eventables.Where(static entity => entity is not IEventSourcedAggregateRoot<IEntityId>)
+                .SelectMany(static x => x.Events).Where(static e => !e.IsPublished).OrderBy(static e => e.DateOccurredOnUtc).ToList();
 
             var eventNotifications = this.CreateEventNotifications(aggregateEvents);
 
@@ -76,7 +75,7 @@
             foreach (var @event in events)
             {
                 // Instanciate the event notification.
-                Type eventNotificationType = typeof(IEventNotification<>);
+                var eventNotificationType = typeof(IEventNotification<>);
                 var notificationWithGenericType = eventNotificationType.MakeGenericType(@event.GetType());
                 var notification = this.scope.ResolveOptional(notificationWithGenericType, new List<Parameter>
                 {

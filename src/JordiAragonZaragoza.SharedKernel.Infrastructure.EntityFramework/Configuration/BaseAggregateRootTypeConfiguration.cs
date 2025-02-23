@@ -15,11 +15,11 @@
 
             base.Configure(builder);
 
-            builder.Property(aggregateRoot => aggregateRoot.Version)
+            _ = builder.Property(static aggregateRoot => aggregateRoot.Version)
                 .IsRowVersion();
 
-            builder.Property<bool>("IsDeleted");
-            builder.HasQueryFilter(b => !EF.Property<bool>(b, "IsDeleted"));
+            _ = builder.Property<bool>("IsDeleted");
+            _ = builder.HasQueryFilter(static b => !EF.Property<bool>(b, "IsDeleted"));
         }
     }
 }

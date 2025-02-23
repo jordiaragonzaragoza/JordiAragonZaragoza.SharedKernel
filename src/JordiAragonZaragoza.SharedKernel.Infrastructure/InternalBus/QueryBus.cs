@@ -17,6 +17,8 @@
         }
 
         public Task<Result<TResponse>> SendAsync<TResponse>(IQuery<TResponse> query, CancellationToken cancellationToken = default)
-            => this.sender.Send(query, cancellationToken);
+        {
+            return this.sender.Send(query, cancellationToken);
+        }
     }
 }

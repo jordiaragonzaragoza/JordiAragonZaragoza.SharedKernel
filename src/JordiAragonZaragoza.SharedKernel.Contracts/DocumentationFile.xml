@@ -72,6 +72,16 @@
             The task result contains a <see cref="T:System.Collections.Generic.List`1" /> that contains elements from the input sequence.
             </returns>
         </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Contracts.Repositories.IReadListRepository`2.CountAsync(System.Threading.CancellationToken)">
+            <summary>
+            Returns the total number of records.
+            </summary>
+            <param name="cancellationToken">A <see cref="T:System.Threading.CancellationToken" /> to observe while waiting for the task to complete.</param>
+            <returns>
+            A task that represents the asynchronous operation. The task result contains the
+            number of elements in the input sequence.
+            </returns>
+        </member>
         <member name="M:JordiAragonZaragoza.SharedKernel.Contracts.Repositories.IReadListRepository`2.AnyAsync(System.Threading.CancellationToken)">
             <summary>
             Returns a boolean whether any model exists or not.
@@ -192,16 +202,6 @@
             of the <paramref name="specification"/>.
             </summary>
             <param name="specification">The encapsulated query logic.</param>
-            <param name="cancellationToken">A <see cref="T:System.Threading.CancellationToken" /> to observe while waiting for the task to complete.</param>
-            <returns>
-            A task that represents the asynchronous operation. The task result contains the
-            number of elements in the input sequence.
-            </returns>
-        </member>
-        <member name="M:JordiAragonZaragoza.SharedKernel.Contracts.Repositories.ISpecificationReadRepository`2.CountAsync(System.Threading.CancellationToken)">
-            <summary>
-            Returns the total number of records.
-            </summary>
             <param name="cancellationToken">A <see cref="T:System.Threading.CancellationToken" /> to observe while waiting for the task to complete.</param>
             <returns>
             A task that represents the asynchronous operation. The task result contains the

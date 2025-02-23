@@ -35,7 +35,7 @@
             }
 
             var entries = context.ChangeTracker.Entries()
-                .Where(entity => entity.State == EntityState.Deleted);
+                .Where(static entity => entity.State == EntityState.Deleted);
 
             foreach (var entry in entries)
             {

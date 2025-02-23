@@ -33,7 +33,10 @@
 
         public IEnumerable<IApplicationEvent> Events { get; init; }
 
-        public void ClearEvents() => this.decorated.ClearEvents();
+        public void ClearEvents()
+        {
+            this.decorated.ClearEvents();
+        }
 
         public async Task<Result<TResponse>> Handle(TCommand request, CancellationToken cancellationToken)
         {

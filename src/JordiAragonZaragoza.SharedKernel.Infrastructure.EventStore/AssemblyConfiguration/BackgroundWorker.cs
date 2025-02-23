@@ -22,16 +22,18 @@
         }
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken)
-            => Task.Run(
-                async () =>
-                {
-                    await Task.Yield();
-                    this.logger.LogInformation("Background worker started");
+        {
+            return Task.Run(
+                        async () =>
+                        {
+                            await Task.Yield();
+                            this.logger.LogInformation("Background worker started");
 
-                    await this.perform(stoppingToken).ConfigureAwait(false);
+                            await this.perform(stoppingToken).ConfigureAwait(false);
 
-                    this.logger.LogInformation("Background worker stopped");
-                },
-                stoppingToken);
+                            this.logger.LogInformation("Background worker stopped");
+                        },
+                        stoppingToken);
+        }
     }
 }

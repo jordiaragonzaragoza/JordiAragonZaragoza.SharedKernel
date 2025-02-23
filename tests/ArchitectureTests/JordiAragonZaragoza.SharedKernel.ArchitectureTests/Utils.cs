@@ -7,7 +7,7 @@
     {
         public static string GetFailingTypes(TestResult result)
         {
-            Guard.Against.Null(result, nameof(result));
+            _ = Guard.Against.Null(result, nameof(result));
 
             return result.FailingTypeNames != null ?
                 string.Join(", ", result.FailingTypeNames) :

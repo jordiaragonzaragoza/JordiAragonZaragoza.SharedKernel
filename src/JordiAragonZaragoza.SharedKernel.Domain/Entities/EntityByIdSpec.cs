@@ -12,8 +12,8 @@
         {
             ArgumentNullException.ThrowIfNull(entityId);
 
-            this.Query
-                .Where(entity => entity.Id == entityId);
+            _ = this.Query
+                    .Where(entity => entity.Id == entityId);
         }
     }
 }

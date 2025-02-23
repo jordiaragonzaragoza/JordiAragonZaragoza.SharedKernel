@@ -13,7 +13,7 @@
         {
             base.Load(builder);
 
-            builder.RegisterType<SoftDeleteEntitySaveChangesInterceptor>()
+            _ = builder.RegisterType<SoftDeleteEntitySaveChangesInterceptor>()
                 .InstancePerLifetimeScope();
         }
     }
