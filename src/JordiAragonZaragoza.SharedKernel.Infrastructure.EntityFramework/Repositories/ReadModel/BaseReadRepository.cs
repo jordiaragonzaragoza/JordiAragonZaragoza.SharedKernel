@@ -34,7 +34,9 @@
             var totalCount = await this.ApplySpecification(paginatedSpecification).CountAsync(cancellationToken);
             if (totalCount == 0)
             {
+#pragma warning disable IDE0028
                 return new PaginatedCollectionOutputDto<TReadModel>(default, default, totalCount, new List<TReadModel>());
+#pragma warning restore IDE0028
             }
 
             var totalPages = request.PageSize > 0 ? (int)Math.Ceiling(totalCount / (double)request.PageSize) : 1;

@@ -1,4 +1,4 @@
-﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.IIdGenerator.VoloAbpGuids
+﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.IdGenerator.VoloAbpGuids
 {
     using System;
     using Ardalis.GuardClauses;
@@ -16,6 +16,8 @@
         }
 
         public Guid Create()
-            => this.guidGenerator.Create();
+        {
+            return this.guidGenerator.Create();
+        }
     }
 }

@@ -32,8 +32,8 @@
         {
             ArgumentNullException.ThrowIfNull(modelBuilder, nameof(modelBuilder));
 
-            modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
-            modelBuilder.ApplyConfiguration(new IdempotentConsumerConfiguration());
+            _ = modelBuilder.ApplyConfiguration(new OutboxMessageConfiguration());
+            _ = modelBuilder.ApplyConfiguration(new IdempotentConsumerConfiguration());
 
             base.OnModelCreating(modelBuilder);
         }
@@ -42,7 +42,7 @@
         {
             ArgumentNullException.ThrowIfNull(optionsBuilder, nameof(optionsBuilder));
 
-            optionsBuilder.AddInterceptors(this.softDeleteEntitySaveChangesInterceptor);
+            _ = optionsBuilder.AddInterceptors(this.softDeleteEntitySaveChangesInterceptor);
 
             base.OnConfiguring(optionsBuilder);
         }

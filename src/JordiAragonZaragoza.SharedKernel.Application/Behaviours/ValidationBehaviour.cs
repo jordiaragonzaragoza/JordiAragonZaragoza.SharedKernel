@@ -60,10 +60,10 @@
                     this.logger.LogInformation("Bad Request: {RequestName} User ID: {@UserId} Request Data: {RequestSerialized} Validation Errors: {ErrorsSerialized}", requestName, userId, requestSerialized, errorsSerialized);
 
                     // Get Ardalis.Result.Invalid(List<ValidationError> validationErrors) or Ardalis.Result<T>.Invalid(List<ValidationError> validationErrors) method.
-                    var resultInvalidMethod = typeof(TResponse).GetMethod("Invalid", BindingFlags.Static | BindingFlags.Public, null, new[] { typeof(List<ValidationError>) }, null)
+                    var resultInvalidMethod = typeof(TResponse).GetMethod("Invalid", BindingFlags.Static | BindingFlags.Public, null, [typeof(List<ValidationError>)], null)
                         ?? throw new InvalidOperationException("The 'Invalid' method was not found on type " + typeof(TResponse).FullName);
 
-                    var result = resultInvalidMethod.Invoke(null, new object[] { errors })
+                    var result = resultInvalidMethod.Invoke(null, [errors])
                         ?? throw new InvalidOperationException("The 'Invalid' method returned null.");
 
                     return (TResponse)result;

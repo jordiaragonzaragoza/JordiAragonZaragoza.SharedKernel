@@ -31,10 +31,7 @@
             return a.Equals(b);
         }
 
-        public static bool operator !=(BaseValueObject a, BaseValueObject b)
-        {
-            return !(a == b);
-        }
+        public static bool operator !=(BaseValueObject a, BaseValueObject b) => !(a == b);
 
         public override bool Equals(object? obj)
         {
@@ -59,7 +56,7 @@
             if (!this.cachedHashCode.HasValue)
             {
                 this.cachedHashCode = this.GetEqualityComponents()
-                    .Aggregate(1, (current, obj) =>
+                    .Aggregate(1, static (current, obj) =>
                     {
                         unchecked
                         {

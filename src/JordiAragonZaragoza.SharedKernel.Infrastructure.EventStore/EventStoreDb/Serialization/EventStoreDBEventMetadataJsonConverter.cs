@@ -2,7 +2,6 @@
 {
     using System;
     using System.Collections.Generic;
-    using System.Linq;
     using Newtonsoft.Json;
     using Newtonsoft.Json.Linq;
     using OpenTelemetry.Context.Propagation;
@@ -67,13 +66,13 @@
             try
             {
                 return headers.TryGetValue(key, out var value) && value != null
-                    ? new[] { value }
-                    : Enumerable.Empty<string>();
+                    ? [value]
+                    : [];
             }
             catch (Exception ex)
             {
                 Console.WriteLine($"Failed to extract trace context: {ex}");
-                return Enumerable.Empty<string>();
+                return [];
             }
         }
     }

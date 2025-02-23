@@ -8,12 +8,12 @@
     {
         protected BasePaginatedQueryValidator()
         {
-            this.RuleFor(x => x.PageNumber)
-                .Must(pageNumber => pageNumber >= 0)
+            _ = this.RuleFor(static x => x.PageNumber)
+                .Must(static pageNumber => pageNumber >= 0)
                 .WithMessage("PageNumber must be greater than or equal to 0.");
 
-            this.RuleFor(x => x.PageSize)
-                .Must(pageSize => pageSize >= 0)
+            _ = this.RuleFor(static x => x.PageSize)
+                .Must(static pageSize => pageSize >= 0)
                 .WithMessage("PageSize must be greater than or equal to 0.");
         }
     }

@@ -6,13 +6,13 @@
     {
         public RabbitMqOptionsValidator()
         {
-            this.RuleFor(x => x.Host)
+            _ = this.RuleFor(static x => x.Host)
                 .NotEmpty();
 
-            this.RuleFor(x => x.Username)
+            _ = this.RuleFor(static x => x.Username)
                 .NotEmpty();
 
-            this.RuleFor(x => x.Password)
+            _ = this.RuleFor(static x => x.Password)
                 .NotEmpty();
         }
     }

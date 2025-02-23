@@ -12,7 +12,7 @@
             using var stream = InfrastructureAssemblyReference.Assembly.GetManifestResourceStream(resourcePath);
             if (stream != null)
             {
-                configurationBuilder.AddJsonStream(stream);
+                _ = configurationBuilder.AddJsonStream(stream);
             }
 
             return configurationBuilder;

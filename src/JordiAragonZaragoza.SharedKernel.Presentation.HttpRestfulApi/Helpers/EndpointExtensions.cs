@@ -31,7 +31,8 @@
                     break;
 
                 case ResultStatus.Created:
-                    await endpoint.HttpContext.Response.SendCreatedAtAsync<IEndpoint>(routeValues: default!, responseBody: result.GetValue(), cancellation: cancellationToken);
+                    var uri = string.IsNullOrWhiteSpace(result.Location) ? null : new Uri(result.Location);
+                    await endpoint.HttpContext.Response.SendCreatedAtAsync<IEndpoint>(routeValues: uri, responseBody: result.GetValue(), cancellation: cancellationToken);
                     break;
 
                 case ResultStatus.Error:
@@ -75,6 +76,9 @@
                     PrepareValidationFailures(endpoint, result.Errors);
                     await endpoint.HttpContext.Response.SendErrorsAsync(endpoint.ValidationFailures, statusCode: (int)HttpStatusCode.ServiceUnavailable, cancellation: cancellationToken);
                     break;
+
+                default:
+                    throw new NotSupportedException($"Result {result.Status} conversion is not supported.");
             }
         }
 

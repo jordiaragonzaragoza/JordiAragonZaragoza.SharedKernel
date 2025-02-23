@@ -33,7 +33,7 @@
 
         public async Task MarkAsProcessedAsync(Guid messageId, string consumerFullName, CancellationToken cancellationToken)
         {
-            await this.repository.AddAsync(new IdempotentConsumer(Guid.NewGuid(), messageId, consumerFullName), cancellationToken);
+            _ = await this.repository.AddAsync(new IdempotentConsumer(Guid.NewGuid(), messageId, consumerFullName), cancellationToken);
         }
     }
 }
