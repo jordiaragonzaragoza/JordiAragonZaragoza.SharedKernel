@@ -20,13 +20,9 @@ Loving it? Please show your support by giving this project a star!
 - [![JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi - NuGet](https://img.shields.io/nuget/v/JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.svg?label=JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi%20-%20nuget)](https://www.nuget.org/packages/JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi)
 [![JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts - NuGet](https://img.shields.io/nuget/v/JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts.svg?label=JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts%20-%20nuget)](https://www.nuget.org/packages/JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts)
 
-## Dependency graph: 👨‍💻
-
-![JordiAragonZaragoza.SharedKernel - Dependency graph](./docs/ArchitectureDiagram.jpg)
-
 ## How to debug: 🐛
 
-- You will need the latest Visual Studio 2022 and the latest .NET Core SDK (at least .NET 8 SDK)
+- You will need the latest Visual Studio 2022 and the latest .NET Core SDK (at least .NET 9 SDK)
 - All the projects library are contained in JordiAragonZaragoza.SharedKernel.sln solution file.
 
 ## Used libraries: ⚒️
@@ -103,7 +99,8 @@ Special thanks to all these authors for sharing their knowledge and expertise:
 
 ## Versions
 
-The main branch is now on .NET 8 The following previous versions are available:
+The main branch is now on .NET 9 The following previous versions are available:
+* [.NET 8](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.SharedKernel/tree/net8.0)
 * [.NET 7](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.SharedKernel/tree/net7.0)
 
 ## About: 🧐
