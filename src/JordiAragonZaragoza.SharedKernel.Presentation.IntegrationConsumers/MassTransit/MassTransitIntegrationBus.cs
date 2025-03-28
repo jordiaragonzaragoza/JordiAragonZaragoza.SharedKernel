@@ -1,4 +1,4 @@
-﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.ExternalBus.MassTransit
+﻿namespace JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.MassTransit
 {
     using System;
     using System.Threading;
@@ -10,17 +10,17 @@
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
     using Microsoft.Extensions.Logging;
 
-    public class MassTransitExternalBus : IExternalBus, IScopedDependency
+    public class MassTransitIntegrationBus : IIntegrationBus, IScopedDependency
     {
         private readonly IPublishEndpoint publishEndPoint;
         private readonly ISendEndpointProvider sendEndpointProvider;
-        private readonly ILogger<MassTransitExternalBus> logger;
+        private readonly ILogger<MassTransitIntegrationBus> logger;
         private readonly IDateTime dateTime;
 
-        public MassTransitExternalBus(
+        public MassTransitIntegrationBus(
             IPublishEndpoint publishEndPoint,
             ISendEndpointProvider sendEndpointProvider,
-            ILogger<MassTransitExternalBus> logger,
+            ILogger<MassTransitIntegrationBus> logger,
             IDateTime dateTime)
         {
             this.publishEndPoint = publishEndPoint ?? throw new ArgumentNullException(nameof(publishEndPoint));

@@ -13,6 +13,8 @@
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore;
     using JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi;
     using JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts;
+    using JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers;
+    using JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.Contracts;
     using NetArchTest.Rules;
     using Xunit;
 
@@ -30,6 +32,8 @@
         private readonly string infrastructureEventStoreNamespace = InfrastructureEventStoreAssemblyReference.Assembly.GetName().Name!;
         private readonly string httpRestfulApiNamespace = HttpRestfulApiAssemblyReference.Assembly.GetName().Name!;
         private readonly string httpRestfulApiContractsNamespace = HttpRestfulApiContractsAssemblyReference.Assembly.GetName().Name!;
+        private readonly string integrationConsumersNamespace = IntegrationConsumersAssemblyReference.Assembly.GetName().Name!;
+        private readonly string integrationConsumersContractsNamespace = IntegrationConsumersContractsAssemblyReference.Assembly.GetName().Name!;
         private readonly string[] allProjects;
 
         public DependencyTests()
@@ -48,6 +52,8 @@
                 this.infrastructureEventStoreNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
+                this.integrationConsumersNamespace,
+                this.integrationConsumersContractsNamespace,
             ];
         }
 
@@ -70,6 +76,8 @@
                 this.infrastructureEventStoreNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
+                this.integrationConsumersNamespace,
+                this.integrationConsumersContractsNamespace,
             };
 
             // Act.
@@ -105,6 +113,8 @@
                 this.infrastructureEventStoreNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
+                this.integrationConsumersNamespace,
+                this.integrationConsumersContractsNamespace,
             };
 
             // Act.
@@ -141,6 +151,8 @@
                 this.infrastructureEventStoreNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
+                this.integrationConsumersNamespace,
+                this.integrationConsumersContractsNamespace,
             };
 
             // Act.
@@ -175,6 +187,8 @@
                 this.infrastructureEventStoreNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
+                this.integrationConsumersNamespace,
+                this.integrationConsumersContractsNamespace,
             };
 
             var dependencies = new[]
@@ -217,6 +231,8 @@
                 this.infrastructureEventStoreNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
+                this.integrationConsumersNamespace,
+                this.integrationConsumersContractsNamespace,
             };
 
             var dependencies = new[]
@@ -262,6 +278,8 @@
                 this.infrastructureEventStoreNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
+                this.integrationConsumersNamespace,
+                this.integrationConsumersContractsNamespace,
             };
 
             // Act.
@@ -292,6 +310,8 @@
                 this.infrastructureEventStoreNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
+                this.integrationConsumersNamespace,
+                this.integrationConsumersContractsNamespace,
             };
 
             var otherProjects = new[]
@@ -331,6 +351,8 @@
                 this.infrastructureEventStoreNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
+                this.integrationConsumersNamespace,
+                this.integrationConsumersContractsNamespace,
             };
 
             var otherProjects = new[]
@@ -368,6 +390,8 @@
                 this.infrastructureEventStoreNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
+                this.integrationConsumersNamespace,
+                this.integrationConsumersContractsNamespace,
             };
 
             var dependencies = new[]
@@ -406,6 +430,8 @@
                 this.infrastructureEntityFrameworkNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
+                this.integrationConsumersNamespace,
+                this.integrationConsumersContractsNamespace,
             };
 
             var dependencies = new[]
@@ -451,6 +477,8 @@
                 this.infrastructureEntityFrameworkNamespace,
                 this.infrastructureEventStoreNamespace,
                 this.httpRestfulApiNamespace,
+                this.integrationConsumersNamespace,
+                this.integrationConsumersContractsNamespace,
             };
 
             // Act.
@@ -481,6 +509,8 @@
                 this.infrastructureNamespace,
                 this.infrastructureEntityFrameworkNamespace,
                 this.infrastructureEventStoreNamespace,
+                this.integrationConsumersNamespace,
+                this.integrationConsumersContractsNamespace,
             };
 
             var dependencies = new[]
@@ -497,6 +527,89 @@
                 .NotHaveDependencyOnAny(forbiddenDependencies)
                 .Or()
                 .HaveDependencyOn(this.httpRestfulApiNamespace)
+                .Or()
+                .HaveDependencyOnAny(dependencies)
+                .Or()
+                .NotHaveDependencyOnAny(this.allProjects)
+                .GetResult();
+
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+        }
+
+        [Fact]
+        public void IntegrationConsumersContracts_Should_Not_HaveDependencyOnOtherProjects()
+        {
+            // Arrange.
+            var assembly = IntegrationConsumersContractsAssemblyReference.Assembly;
+
+            var forbiddenDependencies = new[]
+            {
+                this.sharedKernelNamespace,
+                this.sharedKernelContractsNamespace,
+                this.domainNamespace,
+                this.domainContractsNamespace,
+                this.applicationNamespace,
+                this.infrastructureNamespace,
+                this.infrastructureEntityFrameworkNamespace,
+                this.infrastructureEventStoreNamespace,
+                this.httpRestfulApiNamespace,
+                this.httpRestfulApiContractsNamespace,
+                this.integrationConsumersNamespace,
+            };
+
+            var dependencies = new[]
+            {
+                this.applicationContractsNamespace,
+            };
+
+            // Act.
+            var testResult = Types
+                .InAssembly(assembly)
+                .Should()
+                .NotHaveDependencyOnAny(forbiddenDependencies)
+                .Or()
+                .HaveDependencyOn(this.integrationConsumersContractsNamespace)
+                .Or()
+                .HaveDependencyOnAny(dependencies)
+                .Or()
+                .NotHaveDependencyOnAny(this.allProjects)
+                .GetResult();
+
+            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
+        }
+
+        [Fact]
+        public void IntegrationConsumers_Should_Not_HaveDependencyOnOtherProjects()
+        {
+            // Arrange.
+            var assembly = IntegrationConsumersAssemblyReference.Assembly;
+
+            var forbiddenDependencies = new[]
+            {
+                this.domainNamespace,
+                this.domainContractsNamespace,
+                this.applicationNamespace,
+                this.infrastructureNamespace,
+                this.infrastructureEntityFrameworkNamespace,
+                this.infrastructureEventStoreNamespace,
+                this.httpRestfulApiNamespace,
+                this.httpRestfulApiContractsNamespace,
+            };
+
+            var dependencies = new[]
+            {
+                this.applicationContractsNamespace,
+                this.sharedKernelNamespace,
+                this.integrationConsumersContractsNamespace,
+            };
+
+            // Act.
+            var testResult = Types
+                .InAssembly(assembly)
+                .Should()
+                .NotHaveDependencyOnAny(forbiddenDependencies)
+                .Or()
+                .HaveDependencyOn(this.integrationConsumersNamespace)
                 .Or()
                 .HaveDependencyOnAny(dependencies)
                 .Or()

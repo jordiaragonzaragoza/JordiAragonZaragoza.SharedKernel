@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+		<PackageId>JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.Contracts</PackageId>
+		<Title>JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.Contracts</Title>
+		<AssemblyName>JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.Contracts</AssemblyName>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="MassTransit" />
+	</ItemGroup>
+	<ItemGroup>
+	  <ProjectReference Include="..\JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages\JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages.csproj" />
+	</ItemGroup>
+</Project>
