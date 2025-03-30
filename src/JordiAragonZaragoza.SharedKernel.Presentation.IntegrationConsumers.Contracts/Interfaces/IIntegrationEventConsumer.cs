@@ -3,7 +3,7 @@
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages.Interfaces;
     using MassTransit;
 
-    public interface IEventConsumer<in TEvent> : IConsumer<TEvent>
+    public interface IIntegrationEventConsumer<in TEvent> : IConsumer<TEvent>
         where TEvent : class, IIntegrationEvent
     {
     }

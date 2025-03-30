@@ -4,10 +4,42 @@
         <name>JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages</name>
     </assembly>
     <members>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages.Interfaces.IIntegrationCommand">
+            <summary>
+            Represents an integration command that can be sent through a messaging system.
+            Commands express intent and are typically processed by a single recipient.
+            <para>
+            ⚠️ Warning: A bounded context should not send commands to another bounded context
+            to enforce state changes. Doing so introduces strong coupling and violates the principle
+            of autonomy in distributed architectures. Instead, consider using integration events
+            to notify other contexts about relevant changes without enforcing direct modifications.
+            </para>
+            </summary>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages.Interfaces.IIntegrationCommandBus">
+            <summary>
+            Provides a mechanism for sending integration commands through a messaging bus.
+            <para>
+            ⚠️ Warning: Using this interface may introduce strong coupling between different bounded contexts,
+            which can be considered an anti-pattern in distributed architectures based on DDD.
+            It is recommended to evaluate alternatives such as integration events to reduce coupling.
+            </para>
+            </summary>
+        </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages.Interfaces.IIntegrationMessage">
             <summary>
             Integration Message is an event that is used to communicate with other systems outside the problem domain.
             The IntegrationMessage is a public event, part of the Published Language.
+            </summary>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages.Interfaces.IIntegrationQueryBus">
+            <summary>
+            Provides a mechanism for sending integration querys through a messaging bus.
+            <para>
+            ⚠️ Warning: Using this interface may introduce strong coupling between different bounded contexts,
+            which can be considered an anti-pattern in distributed architectures based on DDD.
+            It is recommended to evaluate alternatives such as integration events to reduce coupling.
+            </para>
             </summary>
         </member>
     </members>
