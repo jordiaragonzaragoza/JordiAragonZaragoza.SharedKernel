@@ -11,8 +11,8 @@
     {
         Task<IEnumerable<TModel>> AddRangeAsync(IEnumerable<TModel> entities, CancellationToken cancellationToken = default);
 
-        Task UpdateRangeAsync(IEnumerable<TModel> entities, CancellationToken cancellationToken = default);
+        Task<int> UpdateRangeAsync(IEnumerable<TModel> entities, CancellationToken cancellationToken = default);
 
-        Task DeleteRangeAsync(IEnumerable<TModel> aggregates, CancellationToken cancellationToken = default);
+        Task<int> DeleteRangeAsync(IEnumerable<TModel> aggregates, CancellationToken cancellationToken = default);
     }
 }

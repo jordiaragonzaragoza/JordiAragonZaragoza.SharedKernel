@@ -10,8 +10,8 @@
     {
         Task<TModel> AddAsync(TModel aggregate, CancellationToken cancellationToken = default);
 
-        Task UpdateAsync(TModel aggregate, CancellationToken cancellationToken = default);
+        Task<int> UpdateAsync(TModel aggregate, CancellationToken cancellationToken = default);
 
-        Task DeleteAsync(TModel aggregate, CancellationToken cancellationToken = default);
+        Task<int> DeleteAsync(TModel aggregate, CancellationToken cancellationToken = default);
     }
 }
