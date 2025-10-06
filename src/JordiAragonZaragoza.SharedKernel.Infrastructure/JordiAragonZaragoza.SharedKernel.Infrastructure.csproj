@@ -10,6 +10,7 @@
 		<PackageReference Include="EasyCaching.InMemory" />
 		<PackageReference Include="EasyCaching.Redis" />
 		<PackageReference Include="FluentValidation" />
+		<PackageReference Include="MassTransit" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" />
 		<PackageReference Include="Newtonsoft.Json" />
 		<PackageReference Include="Polly" />

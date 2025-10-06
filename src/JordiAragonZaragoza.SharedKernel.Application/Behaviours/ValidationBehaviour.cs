@@ -70,7 +70,7 @@
                 }
             }
 
-            return await next();
+            return await next(cancellationToken);
         }
     }
 }

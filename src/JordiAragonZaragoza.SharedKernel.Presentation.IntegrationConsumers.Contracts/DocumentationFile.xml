@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.Contracts</name>
+    </assembly>
+    <members>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.Contracts.Interfaces.IIntegrationCommandConsumer`1">
+            <summary>
+            Defines a consumer for handling integration commands within a messaging system.
+            <para>
+            ⚠️ Warning: A bounded context should not consume commands from another bounded context
+            to enforce state changes. Doing so introduces strong coupling and violates the principle
+            of autonomy in distributed architectures. Instead, consider using integration events
+            to react to state changes without enforcing direct modifications.
+            </para>
+            </summary>
+            <typeparam name="TCommand">The type of the integration command to be consumed.</typeparam>
+        </member>
+    </members>
+</doc>

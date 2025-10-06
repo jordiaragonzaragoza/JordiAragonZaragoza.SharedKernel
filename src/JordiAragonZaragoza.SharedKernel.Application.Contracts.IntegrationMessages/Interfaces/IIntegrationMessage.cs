@@ -14,6 +14,6 @@
 
         public DateTimeOffset DateOccurredOnUtc { get; }
 
-        public DateTimeOffset? DatePublishedOnUtc { get; set; }
+        public DateTimeOffset? DateDispatchedOnUtc { get; set; }
     }
 }

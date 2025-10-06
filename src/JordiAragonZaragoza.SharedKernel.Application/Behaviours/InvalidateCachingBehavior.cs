@@ -28,7 +28,7 @@
         {
             ArgumentNullException.ThrowIfNull(next, nameof(next));
 
-            var response = await next();
+            var response = await next(cancellationToken);
 
             var cacheKey = request.PrefixCacheKey;
             await this.cacheService.RemoveByPrefixAsync(cacheKey, cancellationToken);
