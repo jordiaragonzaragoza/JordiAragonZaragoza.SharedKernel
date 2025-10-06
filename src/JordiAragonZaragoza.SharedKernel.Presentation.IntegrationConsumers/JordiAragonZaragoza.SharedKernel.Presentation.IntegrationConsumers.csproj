@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+		<PackageId>JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers</PackageId>
+		<Title>JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers</Title>
+		<AssemblyName>JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers</AssemblyName>
+	</PropertyGroup>
+	<ItemGroup>
+	  <ProjectReference Include="..\JordiAragonZaragoza.SharedKernel\JordiAragonZaragoza.SharedKernel.csproj" />
+	  <ProjectReference Include="..\JordiAragonZaragoza.SharedKernel.Application.Contracts\JordiAragonZaragoza.SharedKernel.Application.Contracts.csproj" />
+	  <ProjectReference Include="..\JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.Contracts\JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.Contracts.csproj" />
+	</ItemGroup>
+</Project>

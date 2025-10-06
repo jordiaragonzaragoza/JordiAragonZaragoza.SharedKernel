@@ -1,4 +1,5 @@
-﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.ExternalBus
+﻿// TODO: Temporal remove till review options pattern with validations
+/*namespace JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers
 {
     using FluentValidation;
 
@@ -16,4 +17,4 @@
                 .NotEmpty();
         }
     }
-}
+}*/

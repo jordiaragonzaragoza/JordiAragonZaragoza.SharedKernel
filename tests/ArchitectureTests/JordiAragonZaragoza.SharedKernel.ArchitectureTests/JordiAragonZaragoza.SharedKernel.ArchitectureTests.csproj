@@ -22,6 +22,7 @@
 		</PackageReference>
 	</ItemGroup>
 	<ItemGroup>
+	  <ProjectReference Include="..\..\..\src\JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers\JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.csproj" />
 	  <ProjectReference Include="..\..\..\src\JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi\JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.csproj" />
 	  <ProjectReference Include="..\..\..\src\JordiAragonZaragoza.SharedKernel.Application\JordiAragonZaragoza.SharedKernel.Application.csproj" />
 	  <ProjectReference Include="..\..\..\src\JordiAragonZaragoza.SharedKernel.Infrastructure\JordiAragonZaragoza.SharedKernel.Infrastructure.csproj" />

@@ -50,32 +50,40 @@
             return response;
         }
 
-        public override async Task UpdateAsync(TAggregate entity, CancellationToken cancellationToken = default)
+        public override async Task<int> UpdateAsync(TAggregate entity, CancellationToken cancellationToken = default)
         {
-            await base.UpdateAsync(entity, cancellationToken);
+            var result = await base.UpdateAsync(entity, cancellationToken);
 
             await this.CacheServiceRemoveByPrefixAsync(cancellationToken);
+
+            return result;
         }
 
-        public override async Task UpdateRangeAsync(IEnumerable<TAggregate> entities, CancellationToken cancellationToken = default)
+        public override async Task<int> UpdateRangeAsync(IEnumerable<TAggregate> entities, CancellationToken cancellationToken = default)
         {
-            await base.UpdateRangeAsync(entities, cancellationToken);
+            var result = await base.UpdateRangeAsync(entities, cancellationToken);
 
             await this.CacheServiceRemoveByPrefixAsync(cancellationToken);
+
+            return result;
         }
 
-        public override async Task DeleteAsync(TAggregate entity, CancellationToken cancellationToken = default)
+        public override async Task<int> DeleteAsync(TAggregate entity, CancellationToken cancellationToken = default)
         {
-            await base.DeleteAsync(entity, cancellationToken);
+            var result = await base.DeleteAsync(entity, cancellationToken);
 
             await this.CacheServiceRemoveByPrefixAsync(cancellationToken);
+
+            return result;
         }
 
-        public override async Task DeleteRangeAsync(IEnumerable<TAggregate> entities, CancellationToken cancellationToken = default)
+        public override async Task<int> DeleteRangeAsync(IEnumerable<TAggregate> entities, CancellationToken cancellationToken = default)
         {
-            await base.DeleteRangeAsync(entities, cancellationToken);
+            var result = await base.DeleteRangeAsync(entities, cancellationToken);
 
             await this.CacheServiceRemoveByPrefixAsync(cancellationToken);
+
+            return result;
         }
 
         public override async Task<TAggregate?> GetByIdAsync(TId id, CancellationToken cancellationToken = default)
