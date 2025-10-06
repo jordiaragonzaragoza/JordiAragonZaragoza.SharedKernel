@@ -36,7 +36,7 @@
                 return cachedResponse.Value;
             }
 
-            var response = await next();
+            var response = await next(cancellationToken);
 
             await this.cacheService.SetAsync(cacheKey, response, request.AbsoluteExpirationInSeconds, cancellationToken);
 

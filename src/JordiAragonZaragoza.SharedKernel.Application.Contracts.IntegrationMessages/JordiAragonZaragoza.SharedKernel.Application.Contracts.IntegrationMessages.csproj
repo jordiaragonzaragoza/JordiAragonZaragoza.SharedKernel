@@ -5,7 +5,4 @@
 		<Title>JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages</Title>
 		<AssemblyName>JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages</AssemblyName>
 	</PropertyGroup>
-	<ItemGroup>
-		<PackageReference Include="MassTransit" />
-	</ItemGroup>
 </Project>

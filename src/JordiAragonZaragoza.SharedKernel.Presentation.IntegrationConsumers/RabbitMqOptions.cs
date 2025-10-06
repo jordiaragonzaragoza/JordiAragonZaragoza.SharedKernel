@@ -1,4 +1,4 @@
-﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.ExternalBus
+﻿namespace JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers
 {
     public class RabbitMqOptions
     {

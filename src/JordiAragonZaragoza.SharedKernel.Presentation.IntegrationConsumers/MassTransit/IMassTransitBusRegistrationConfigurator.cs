@@ -1,7 +1,7 @@
-﻿namespace JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces
+﻿namespace JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.MassTransit
 {
     using System;
-    using MassTransit;
+    using global::MassTransit;
 
     public interface IMassTransitBusRegistrationConfigurator
     {

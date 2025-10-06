@@ -37,7 +37,7 @@
         {
             ArgumentNullException.ThrowIfNull(next, nameof(next));
 
-            var response = await next();
+            var response = await next(cancellationToken);
 
             await this.domainEventsDispatcher.DispatchEventsFromAggregatesStoreAsync(cancellationToken);
 
