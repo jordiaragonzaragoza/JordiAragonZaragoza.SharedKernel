@@ -1,15 +1,30 @@
 namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb.Subscriptions
 {
+    using System.Threading;
+    using System.Threading.Tasks;
+    using Microsoft.Extensions.DependencyInjection;
+
+    public class EventStoreDbSubscriptionToAll
+    {
+#pragma warning disable S2325 // Methods and properties that don't access instance data should be static
+
+        public Task SubscribeToAllAsync(IServiceScopeFactory serviceScopeFactory, EventStoreDbSubscriptionToAllOptions subscriptionOptions, CancellationToken cancellationToken)
+#pragma warning restore S2325 // Methods and properties that don't access instance data should be static
+{
+            throw new System.NotImplementedException();
+        }
+    }
+}
+
+/*namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb.Subscriptions
+{
     using System;
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
-    using Ardalis.GuardClauses;
-    using Autofac;
-    using Autofac.Core;
     using global::EventStore.Client;
     using Grpc.Core;
-    using JordiAragonZaragoza.SharedKernel.Contracts.DependencyInjection;
+    using JordiAragonZaragoza.SharedKernel.Contracts;
     using JordiAragonZaragoza.SharedKernel.Contracts.Events;
     using JordiAragonZaragoza.SharedKernel.Contracts.Repositories;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
@@ -19,7 +34,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreD
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
 
-    public class EventStoreDbSubscriptionToAll : ITransientDependency
+    public class EventStoreDbSubscriptionToAll
     {
         private readonly EventStoreClient eventStoreClient;
         private readonly EventTypeMapper eventTypeMapper;
@@ -39,11 +54,11 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreD
             ILogger<EventStoreDbSubscriptionToAll> logger,
             IDateTime datetime)
         {
-            this.lifetimeScope = Guard.Against.Null(lifetimeScope, nameof(lifetimeScope));
-            this.eventStoreClient = Guard.Against.Null(eventStoreClient, nameof(eventStoreClient));
-            this.eventTypeMapper = Guard.Against.Null(eventTypeMapper, nameof(eventTypeMapper));
-            this.logger = Guard.Against.Null(logger, nameof(logger));
-            this.datetime = Guard.Against.Null(datetime, nameof(datetime));
+            this.lifetimeScope = lifetimeScope ?? throw new ArgumentNullException(nameof(lifetimeScope));
+            this.eventStoreClient = eventStoreClient ?? throw new ArgumentNullException(nameof(eventStoreClient));
+            this.eventTypeMapper = eventTypeMapper ?? throw new ArgumentNullException(nameof(eventTypeMapper));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            this.datetime = datetime ?? throw new ArgumentNullException(nameof(datetime));
         }
 
         private Guid SubscriptionId => this.subscriptionOptions.SubscriptionId;
@@ -237,4 +252,4 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreD
             return (IEventNotification<IEvent>)notification;
         }
     }
-}
+}*/

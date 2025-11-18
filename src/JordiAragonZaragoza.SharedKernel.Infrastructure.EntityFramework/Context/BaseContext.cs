@@ -1,7 +1,6 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Context
 {
     using System;
-    using Ardalis.GuardClauses;
     using Microsoft.EntityFrameworkCore;
     using Microsoft.Extensions.Hosting;
     using Microsoft.Extensions.Logging;
@@ -19,8 +18,8 @@
             IHostEnvironment hostEnvironment)
             : base(options)
         {
-            this.loggerFactory = Guard.Against.Null(loggerFactory, nameof(loggerFactory));
-            this.hostEnvironment = Guard.Against.Null(hostEnvironment, nameof(hostEnvironment));
+            this.loggerFactory = loggerFactory ?? throw new ArgumentNullException(nameof(loggerFactory));
+            this.hostEnvironment = hostEnvironment ?? throw new ArgumentNullException(nameof(hostEnvironment));
         }
 
         protected override void OnConfiguring(DbContextOptionsBuilder optionsBuilder)

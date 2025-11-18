@@ -2,7 +2,7 @@
 {
     using System;
     using System.Text;
-    using global::EventStore.Client;
+    using global::KurrentDB.Client;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
     using Newtonsoft.Json;
 

@@ -7,7 +7,5 @@
     public interface IEventBus
     {
         Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default);
-
-        Task PublishAsync(IEventNotification eventNotification, CancellationToken cancellationToken = default);
     }
 }

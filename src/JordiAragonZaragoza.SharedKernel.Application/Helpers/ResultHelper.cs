@@ -10,7 +10,7 @@
     {
         public static Result<TDestination> HandleNonSuccessStatus<TSource, TDestination>(this Result<TSource> result)
         {
-            ArgumentNullException.ThrowIfNull(result, nameof(result));
+            ArgumentNullException.ThrowIfNull(result);
 
             return result.Status switch
             {
@@ -39,7 +39,7 @@
 
         public static Result<TDestination> HandleNonSuccessStatus<TDestination>(this Result result)
         {
-            ArgumentNullException.ThrowIfNull(result, nameof(result));
+            ArgumentNullException.ThrowIfNull(result);
 
             return result.Status switch
             {
@@ -68,7 +68,7 @@
 
         public static Result HandleNonSuccessStatus<TSource>(this Result<TSource> result)
         {
-            ArgumentNullException.ThrowIfNull(result, nameof(result));
+            ArgumentNullException.ThrowIfNull(result);
 
             return result.Status switch
             {
@@ -97,7 +97,7 @@
 
         public static string ResultDetails(this IResult result)
         {
-            ArgumentNullException.ThrowIfNull(result, nameof(result));
+            ArgumentNullException.ThrowIfNull(result);
 
             switch (result.Status)
             {

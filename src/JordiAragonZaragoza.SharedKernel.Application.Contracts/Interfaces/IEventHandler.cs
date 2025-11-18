@@ -1,10 +1,10 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces
 {
     using JordiAragonZaragoza.SharedKernel.Contracts.Events;
-    using MediatR;
+    using MassTransit;
 
-    public interface IEventHandler<in TEvent> : INotificationHandler<TEvent>
-        where TEvent : IEvent
+    public interface IEventHandler<in TEvent> : IBaseEventHandler<TEvent>, IConsumer<TEvent>
+        where TEvent : class, IEvent
     {
     }
 }

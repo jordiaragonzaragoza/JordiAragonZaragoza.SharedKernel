@@ -10,5 +10,8 @@
 
         Task<Result<TResponse>> SendAsync<TResponse>(ICommand<TResponse> command, CancellationToken cancellationToken = default)
             where TResponse : notnull;
+
+        Task<Result> SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
+            where TCommand : class, IAsyncCommand;
     }
 }

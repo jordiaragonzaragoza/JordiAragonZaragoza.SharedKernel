@@ -1,20 +1,19 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.ArchitectureTests
 {
-    using FluentAssertions;
     using JordiAragonZaragoza.SharedKernel;
     using JordiAragonZaragoza.SharedKernel.Application;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts;
-    using JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages;
+    using JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration;
     using JordiAragonZaragoza.SharedKernel.Contracts;
     using JordiAragonZaragoza.SharedKernel.Domain;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts;
     using JordiAragonZaragoza.SharedKernel.Infrastructure;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore;
+    ////using JordiAragonZaragoza.SharedKernel.Infrastructure.MongoDb;
     using JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi;
     using JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts;
-    using JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers;
-    using JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.Contracts;
+    using JordiAragonZaragoza.SharedKernel.Presentation.Integration;
+    using JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts;
+    using AwesomeAssertions;
     using NetArchTest.Rules;
     using Xunit;
 
@@ -26,14 +25,14 @@
         private readonly string domainContractsNamespace = DomainContractsAssemblyReference.Assembly.GetName().Name!;
         private readonly string applicationNamespace = ApplicationAssemblyReference.Assembly.GetName().Name!;
         private readonly string applicationContractsNamespace = ApplicationContractsAssemblyReference.Assembly.GetName().Name!;
-        private readonly string applicationContractsIntegrationMessagesNamespace = ApplicationContractsIntegrationMessagesAssemblyReference.Assembly.GetName().Name!;
+        private readonly string applicationContractsIntegrationNamespace = ApplicationContractsIntegrationAssemblyReference.Assembly.GetName().Name!;
         private readonly string infrastructureNamespace = InfrastructureAssemblyReference.Assembly.GetName().Name!;
-        private readonly string infrastructureEntityFrameworkNamespace = InfrastructureEntityFrameworkAssemblyReference.Assembly.GetName().Name!;
-        private readonly string infrastructureEventStoreNamespace = InfrastructureEventStoreAssemblyReference.Assembly.GetName().Name!;
+        ////private readonly string infrastructureMongoDbNamespace = InfrastructureMongoDbAssemblyReference.Assembly.GetName().Name!;
+        private readonly string infrastructureMongoDbNamespace = string.Empty;
         private readonly string httpRestfulApiNamespace = HttpRestfulApiAssemblyReference.Assembly.GetName().Name!;
         private readonly string httpRestfulApiContractsNamespace = HttpRestfulApiContractsAssemblyReference.Assembly.GetName().Name!;
-        private readonly string integrationConsumersNamespace = IntegrationConsumersAssemblyReference.Assembly.GetName().Name!;
-        private readonly string integrationConsumersContractsNamespace = IntegrationConsumersContractsAssemblyReference.Assembly.GetName().Name!;
+        private readonly string integrationNamespace = IntegrationAssemblyReference.Assembly.GetName().Name!;
+        private readonly string integrationContractsNamespace = IntegrationContractsAssemblyReference.Assembly.GetName().Name!;
         private readonly string[] allProjects;
 
         public DependencyTests()
@@ -46,14 +45,13 @@
                 this.domainContractsNamespace,
                 this.applicationNamespace,
                 this.applicationContractsNamespace,
-                this.applicationContractsIntegrationMessagesNamespace,
+                this.applicationContractsIntegrationNamespace,
                 this.infrastructureNamespace,
-                this.infrastructureEntityFrameworkNamespace,
-                this.infrastructureEventStoreNamespace,
+                this.infrastructureMongoDbNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
-                this.integrationConsumersNamespace,
-                this.integrationConsumersContractsNamespace,
+                this.integrationNamespace,
+                this.integrationContractsNamespace,
             ];
         }
 
@@ -70,14 +68,13 @@
                 this.domainContractsNamespace,
                 this.applicationNamespace,
                 this.applicationContractsNamespace,
-                this.applicationContractsIntegrationMessagesNamespace,
+                this.applicationContractsIntegrationNamespace,
                 this.infrastructureNamespace,
-                this.infrastructureEntityFrameworkNamespace,
-                this.infrastructureEventStoreNamespace,
+                this.infrastructureMongoDbNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
-                this.integrationConsumersNamespace,
-                this.integrationConsumersContractsNamespace,
+                this.integrationNamespace,
+                this.integrationContractsNamespace,
             };
 
             // Act.
@@ -107,14 +104,13 @@
                 this.domainContractsNamespace,
                 this.applicationNamespace,
                 this.applicationContractsNamespace,
-                this.applicationContractsIntegrationMessagesNamespace,
+                this.applicationContractsIntegrationNamespace,
                 this.infrastructureNamespace,
-                this.infrastructureEntityFrameworkNamespace,
-                this.infrastructureEventStoreNamespace,
+                this.infrastructureMongoDbNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
-                this.integrationConsumersNamespace,
-                this.integrationConsumersContractsNamespace,
+                this.integrationNamespace,
+                this.integrationContractsNamespace,
             };
 
             // Act.
@@ -145,14 +141,13 @@
                 this.domainNamespace,
                 this.applicationNamespace,
                 this.applicationContractsNamespace,
-                this.applicationContractsIntegrationMessagesNamespace,
+                this.applicationContractsIntegrationNamespace,
                 this.infrastructureNamespace,
-                this.infrastructureEntityFrameworkNamespace,
-                this.infrastructureEventStoreNamespace,
+                this.infrastructureMongoDbNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
-                this.integrationConsumersNamespace,
-                this.integrationConsumersContractsNamespace,
+                this.integrationNamespace,
+                this.integrationContractsNamespace,
             };
 
             // Act.
@@ -181,14 +176,13 @@
             {
                 this.applicationNamespace,
                 this.applicationContractsNamespace,
-                this.applicationContractsIntegrationMessagesNamespace,
+                this.applicationContractsIntegrationNamespace,
                 this.infrastructureNamespace,
-                this.infrastructureEntityFrameworkNamespace,
-                this.infrastructureEventStoreNamespace,
+                this.infrastructureMongoDbNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
-                this.integrationConsumersNamespace,
-                this.integrationConsumersContractsNamespace,
+                this.integrationNamespace,
+                this.integrationContractsNamespace,
             };
 
             var dependencies = new[]
@@ -227,17 +221,16 @@
                 this.applicationNamespace,
                 this.applicationContractsNamespace,
                 this.infrastructureNamespace,
-                this.infrastructureEntityFrameworkNamespace,
-                this.infrastructureEventStoreNamespace,
+                this.infrastructureMongoDbNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
-                this.integrationConsumersNamespace,
-                this.integrationConsumersContractsNamespace,
+                this.integrationNamespace,
+                this.integrationContractsNamespace,
             };
 
             var dependencies = new[]
             {
-                this.applicationContractsIntegrationMessagesNamespace,
+                this.applicationContractsIntegrationNamespace,
                 this.domainContractsNamespace,
                 this.sharedKernelContractsNamespace,
             };
@@ -263,7 +256,7 @@
         public void ApplicationContractsIntegrationMessages_Should_Not_HaveDependencyOnOtherProjects()
         {
             // Arrange.
-            var assembly = ApplicationContractsIntegrationMessagesAssemblyReference.Assembly;
+            var assembly = ApplicationContractsIntegrationAssemblyReference.Assembly;
 
             var otherProjects = new[]
             {
@@ -274,12 +267,11 @@
                 this.applicationNamespace,
                 this.applicationContractsNamespace,
                 this.infrastructureNamespace,
-                this.infrastructureEntityFrameworkNamespace,
-                this.infrastructureEventStoreNamespace,
+                this.infrastructureMongoDbNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
-                this.integrationConsumersNamespace,
-                this.integrationConsumersContractsNamespace,
+                this.integrationNamespace,
+                this.integrationContractsNamespace,
             };
 
             // Act.
@@ -288,7 +280,7 @@
                 .Should()
                 .NotHaveDependencyOnAny(otherProjects)
                 .Or()
-                .HaveDependencyOn(this.applicationContractsIntegrationMessagesNamespace)
+                .HaveDependencyOn(this.applicationContractsIntegrationNamespace)
                 .Or()
                 .NotHaveDependencyOnAny(this.allProjects)
                 .GetResult();
@@ -306,12 +298,11 @@
             var forbiddenDependencies = new[]
             {
                 this.infrastructureNamespace,
-                this.infrastructureEntityFrameworkNamespace,
-                this.infrastructureEventStoreNamespace,
+                this.infrastructureMongoDbNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
-                this.integrationConsumersNamespace,
-                this.integrationConsumersContractsNamespace,
+                this.integrationNamespace,
+                this.integrationContractsNamespace,
             };
 
             var otherProjects = new[]
@@ -347,12 +338,11 @@
             {
                 this.domainNamespace,
                 this.applicationNamespace,
-                this.infrastructureEntityFrameworkNamespace,
-                this.infrastructureEventStoreNamespace,
+                this.infrastructureMongoDbNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
-                this.integrationConsumersNamespace,
-                this.integrationConsumersContractsNamespace,
+                this.integrationNamespace,
+                this.integrationContractsNamespace,
             };
 
             var otherProjects = new[]
@@ -378,24 +368,23 @@
             _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
 
-        [Fact]
-        public void InfrastructureEntityFramework_Should_Not_HaveDependencyOnOtherProjects()
+        /*[Fact]
+        public void InfrastructureMongoDb_Should_Not_HaveDependencyOnOtherProjects()
         {
             // Arrange.
-            var assembly = InfrastructureEntityFrameworkAssemblyReference.Assembly;
+            var assembly = InfrastructureMongoDbAssemblyReference.Assembly;
 
             var forbiddenDependencies = new[]
             {
-                this.infrastructureNamespace,
-                this.infrastructureEventStoreNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
-                this.integrationConsumersNamespace,
-                this.integrationConsumersContractsNamespace,
+                this.integrationNamespace,
+                this.integrationContractsNamespace,
             };
 
             var dependencies = new[]
             {
+                this.infrastructureNamespace,
                 this.applicationContractsNamespace,
                 this.sharedKernelNamespace,
                 this.domainNamespace,
@@ -407,7 +396,7 @@
                 .Should()
                 .NotHaveDependencyOnAny(forbiddenDependencies)
                 .Or()
-                .HaveDependencyOn(this.infrastructureEntityFrameworkNamespace)
+                .HaveDependencyOn(this.infrastructureMongoDbNamespace)
                 .Or()
                 .HaveDependencyOnAny(dependencies)
                 .Or()
@@ -416,29 +405,31 @@
 
             // Assert.
             _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
-        }
+        }*/
 
         [Fact]
-        public void InfrastructureEventStore_Should_Not_HaveDependencyOnOtherProjects()
+        public void Integration_Should_Not_HaveDependencyOnOtherProjects()
         {
             // Arrange.
-            var assembly = InfrastructureEventStoreAssemblyReference.Assembly;
+            var assembly = IntegrationAssemblyReference.Assembly;
 
             var forbiddenDependencies = new[]
             {
+                this.domainNamespace,
+                this.applicationNamespace,
                 this.infrastructureNamespace,
-                this.infrastructureEntityFrameworkNamespace,
+                this.infrastructureMongoDbNamespace,
                 this.httpRestfulApiNamespace,
                 this.httpRestfulApiContractsNamespace,
-                this.integrationConsumersNamespace,
-                this.integrationConsumersContractsNamespace,
+                this.integrationNamespace,
+                this.integrationContractsNamespace,
             };
 
             var dependencies = new[]
             {
+                this.applicationContractsIntegrationNamespace,
                 this.applicationContractsNamespace,
-                this.sharedKernelNamespace,
-                this.domainNamespace,
+                this.domainContractsNamespace,
             };
 
             // Act.
@@ -447,7 +438,7 @@
                 .Should()
                 .NotHaveDependencyOnAny(forbiddenDependencies)
                 .Or()
-                .HaveDependencyOn(this.infrastructureEventStoreNamespace)
+                .HaveDependencyOn(this.integrationNamespace)
                 .Or()
                 .HaveDependencyOnAny(dependencies)
                 .Or()
@@ -472,13 +463,12 @@
                 this.domainContractsNamespace,
                 this.applicationNamespace,
                 this.applicationContractsNamespace,
-                this.applicationContractsIntegrationMessagesNamespace,
+                this.applicationContractsIntegrationNamespace,
                 this.infrastructureNamespace,
-                this.infrastructureEntityFrameworkNamespace,
-                this.infrastructureEventStoreNamespace,
+                this.infrastructureMongoDbNamespace,
                 this.httpRestfulApiNamespace,
-                this.integrationConsumersNamespace,
-                this.integrationConsumersContractsNamespace,
+                this.integrationNamespace,
+                this.integrationContractsNamespace,
             };
 
             // Act.
@@ -507,10 +497,9 @@
                 this.domainContractsNamespace,
                 this.applicationNamespace,
                 this.infrastructureNamespace,
-                this.infrastructureEntityFrameworkNamespace,
-                this.infrastructureEventStoreNamespace,
-                this.integrationConsumersNamespace,
-                this.integrationConsumersContractsNamespace,
+                this.infrastructureMongoDbNamespace,
+                this.integrationNamespace,
+                this.integrationContractsNamespace,
             };
 
             var dependencies = new[]
@@ -527,89 +516,6 @@
                 .NotHaveDependencyOnAny(forbiddenDependencies)
                 .Or()
                 .HaveDependencyOn(this.httpRestfulApiNamespace)
-                .Or()
-                .HaveDependencyOnAny(dependencies)
-                .Or()
-                .NotHaveDependencyOnAny(this.allProjects)
-                .GetResult();
-
-            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
-        }
-
-        [Fact]
-        public void IntegrationConsumersContracts_Should_Not_HaveDependencyOnOtherProjects()
-        {
-            // Arrange.
-            var assembly = IntegrationConsumersContractsAssemblyReference.Assembly;
-
-            var forbiddenDependencies = new[]
-            {
-                this.sharedKernelNamespace,
-                this.sharedKernelContractsNamespace,
-                this.domainNamespace,
-                this.domainContractsNamespace,
-                this.applicationNamespace,
-                this.infrastructureNamespace,
-                this.infrastructureEntityFrameworkNamespace,
-                this.infrastructureEventStoreNamespace,
-                this.httpRestfulApiNamespace,
-                this.httpRestfulApiContractsNamespace,
-                this.integrationConsumersNamespace,
-            };
-
-            var dependencies = new[]
-            {
-                this.applicationContractsNamespace,
-            };
-
-            // Act.
-            var testResult = Types
-                .InAssembly(assembly)
-                .Should()
-                .NotHaveDependencyOnAny(forbiddenDependencies)
-                .Or()
-                .HaveDependencyOn(this.integrationConsumersContractsNamespace)
-                .Or()
-                .HaveDependencyOnAny(dependencies)
-                .Or()
-                .NotHaveDependencyOnAny(this.allProjects)
-                .GetResult();
-
-            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
-        }
-
-        [Fact]
-        public void IntegrationConsumers_Should_Not_HaveDependencyOnOtherProjects()
-        {
-            // Arrange.
-            var assembly = IntegrationConsumersAssemblyReference.Assembly;
-
-            var forbiddenDependencies = new[]
-            {
-                this.domainNamespace,
-                this.domainContractsNamespace,
-                this.applicationNamespace,
-                this.infrastructureNamespace,
-                this.infrastructureEntityFrameworkNamespace,
-                this.infrastructureEventStoreNamespace,
-                this.httpRestfulApiNamespace,
-                this.httpRestfulApiContractsNamespace,
-            };
-
-            var dependencies = new[]
-            {
-                this.applicationContractsNamespace,
-                this.sharedKernelNamespace,
-                this.integrationConsumersContractsNamespace,
-            };
-
-            // Act.
-            var testResult = Types
-                .InAssembly(assembly)
-                .Should()
-                .NotHaveDependencyOnAny(forbiddenDependencies)
-                .Or()
-                .HaveDependencyOn(this.integrationConsumersNamespace)
                 .Or()
                 .HaveDependencyOnAny(dependencies)
                 .Or()

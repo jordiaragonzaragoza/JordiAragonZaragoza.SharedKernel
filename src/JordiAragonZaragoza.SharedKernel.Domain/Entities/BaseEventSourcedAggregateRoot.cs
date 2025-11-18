@@ -18,7 +18,7 @@
 
         public void Load(IEnumerable<IDomainEvent> history)
         {
-            ArgumentNullException.ThrowIfNull(history, nameof(history));
+            ArgumentNullException.ThrowIfNull(history);
             this.Version = 0;
 
             foreach (var @event in history)

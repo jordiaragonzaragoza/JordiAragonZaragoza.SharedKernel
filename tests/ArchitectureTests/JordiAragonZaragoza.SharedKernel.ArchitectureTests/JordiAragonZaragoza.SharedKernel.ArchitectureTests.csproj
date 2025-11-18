@@ -4,7 +4,7 @@
 		<IsPackable>false</IsPackable>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="FluentAssertions" />
+		<PackageReference Include="AwesomeAssertions" />
 		<PackageReference Include="Microsoft.NET.Test.Sdk" />
 		<PackageReference Include="NetArchTest.Rules" />
 		<PackageReference Include="xunit" />
@@ -22,10 +22,12 @@
 		</PackageReference>
 	</ItemGroup>
 	<ItemGroup>
-	  <ProjectReference Include="..\..\..\src\JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers\JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.csproj" />
+	  <ProjectReference Include="..\..\..\src\JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration\JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration.csproj" />
 	  <ProjectReference Include="..\..\..\src\JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi\JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.csproj" />
 	  <ProjectReference Include="..\..\..\src\JordiAragonZaragoza.SharedKernel.Application\JordiAragonZaragoza.SharedKernel.Application.csproj" />
 	  <ProjectReference Include="..\..\..\src\JordiAragonZaragoza.SharedKernel.Infrastructure\JordiAragonZaragoza.SharedKernel.Infrastructure.csproj" />
+	  <ProjectReference Include="..\..\..\src\JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts\JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts.csproj" />
+	  <ProjectReference Include="..\..\..\src\JordiAragonZaragoza.SharedKernel.Presentation.Integration\JordiAragonZaragoza.SharedKernel.Presentation.Integration.csproj" />
 	  <ProjectReference Include="..\..\..\src\JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework\JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.csproj" />
 	  <ProjectReference Include="..\..\..\src\JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore\JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.csproj" />
 	</ItemGroup>

@@ -9,10 +9,10 @@
         where TModel : class, IBaseModel<TId>
         where TId : notnull
     {
-        Task<IEnumerable<TModel>> AddRangeAsync(IEnumerable<TModel> entities, CancellationToken cancellationToken = default);
+        Task<IEnumerable<TModel>> AddRangeAsync(IEnumerable<TModel> models, CancellationToken cancellationToken = default);
 
-        Task<int> UpdateRangeAsync(IEnumerable<TModel> entities, CancellationToken cancellationToken = default);
+        Task<int> UpdateRangeAsync(IEnumerable<TModel> models, CancellationToken cancellationToken = default);
 
-        Task<int> DeleteRangeAsync(IEnumerable<TModel> aggregates, CancellationToken cancellationToken = default);
+        Task<int> DeleteRangeAsync(IEnumerable<TModel> models, CancellationToken cancellationToken = default);
     }
 }

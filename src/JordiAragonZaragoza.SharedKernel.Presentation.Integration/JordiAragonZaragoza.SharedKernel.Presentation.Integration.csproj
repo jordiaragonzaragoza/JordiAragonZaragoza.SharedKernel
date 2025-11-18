@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+   <PackageId>JordiAragonZaragoza.SharedKernel.Presentation.Integration</PackageId>
+   <Title>JordiAragonZaragoza.SharedKernel.Presentation.Integration</Title>
+   <AssemblyName>JordiAragonZaragoza.SharedKernel.Presentation.Integration</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MassTransit.RabbitMQ" />
+    <PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+    <PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts\JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts.csproj" />
+    <ProjectReference Include="..\JordiAragonZaragoza.SharedKernel\JordiAragonZaragoza.SharedKernel.csproj" />
+  </ItemGroup>
+</Project>

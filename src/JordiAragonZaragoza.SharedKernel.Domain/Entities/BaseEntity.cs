@@ -2,17 +2,15 @@
 {
     using System;
     using System.Collections.Generic;
-    using Ardalis.GuardClauses;
-    using JordiAragonZaragoza.SharedKernel.Contracts.DependencyInjection;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Domain.Exceptions;
 
-    public abstract class BaseEntity<TId> : IEqualityComparer<BaseEntity<TId>>, IEntity<TId>, IIgnoreDependency
+    public abstract class BaseEntity<TId> : IEqualityComparer<BaseEntity<TId>>, IEntity<TId>
         where TId : class, IEntityId
     {
         protected BaseEntity(TId id)
         {
-            this.Id = Guard.Against.Null(id, nameof(id));
+            this.Id = id ?? throw new ArgumentNullException(nameof(id));
         }
 
         // Required by EF
@@ -49,7 +47,7 @@
 
         protected static void CheckRule(IBusinessRule rule)
         {
-            ArgumentNullException.ThrowIfNull(rule, nameof(rule));
+            ArgumentNullException.ThrowIfNull(rule);
 
             if (rule.IsBroken())
             {

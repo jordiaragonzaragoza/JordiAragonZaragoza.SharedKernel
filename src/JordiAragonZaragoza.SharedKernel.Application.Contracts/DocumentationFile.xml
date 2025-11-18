@@ -4,32 +4,69 @@
         <name>JordiAragonZaragoza.SharedKernel.Application.Contracts</name>
     </assembly>
     <members>
-        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IApplicationEvent">
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IAsyncCommandHandler">
             <summary>
-            The Application Event is an event that occurs within the problem domain (living inside a bounded context)
-            and is used to communicate a change in the state of the aggregate.
-            This is a private event, not persisted, part of Ubiquitous Language.
+            Marker interface for an async command handler.
             </summary>
         </member>
-        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IBaseCommand">
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IBaseEventHandler`1">
             <summary>
-            Marker interface to allow generic type constraints of objects implementing <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand"/> or <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand`1"/>.
+            Defines a common contract for handling events,
+            regardless of the underlying event bus implementation (in-memory or external).
             </summary>
+            <typeparam name="TEvent">The type of event to handle, which must implement <see cref="T:JordiAragonZaragoza.SharedKernel.Contracts.Events.IEvent"/>.</typeparam>
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand`1">
             <summary>
-            Command with response operation. To see pure DDD commands check <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand"/>.
+            Transactional Command with response operation. To see pure DDD commands check <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand"/>.
             </summary>
             <typeparam name="TResponse">The response operation.</typeparam>
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand">
             <summary>
-            Pure DDD command. Commands will not use response operation check impure alternative <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand`1"/>.
+            Pure DDD transactional command. Commands will not use response operation check impure alternative <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand`1"/>.
+            </summary>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.INonTransactionalCommand`1">
+            <summary>
+            Command that operate on a single aggregate. Aggregate boundary is expected to be the unit of work.
+            ⚠️ Warning. Using this type of commands domain events must be created/published by database infraestructure.
+            Command with response operation. To see pure DDD commands check <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.INonTransactionalCommand"/>.
+            </summary>
+            <typeparam name="TResponse">The response operation.</typeparam>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.INonTransactionalCommand">
+            <summary>
+            Commands that operate on a single aggregate. Aggregate boundary is expected to be the unit of work.
+            ⚠️ Warning. Using this type of commands domain events must be created/published by database infraestructure.
+            Pure DDD command. Commands will not use response operation check impure alternative <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.INonTransactionalCommand`1"/>.
             </summary>
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IReadModel">
             <summary>
             Generic abstraction for a application read model.
+            </summary>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ISanitizableRequest">
+            <summary>
+            Defines a contract for requests that contain sensitive information
+            and require secure representation for logging or traceability purposes.
+            Implement this interface for commands or queries that need to hide,
+            anonymize, or transform part of their data before logging it.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ISanitizableRequest.GetSanitized">
+            <summary>
+            Returns a secure representation of the current object,
+            removing or anonymizing sensitive information for logging purposes.
+            </summary>
+            <returns>
+            An object that securely represents the current request, with its sensitive fields processed.
+            </returns>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ITransactionalCommand">
+            <summary>
+            Marker interface to allow generic type constraints of objects implementing <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand"/> or <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand`1"/>.
             </summary>
         </member>
     </members>

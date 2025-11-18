@@ -8,10 +8,10 @@
         where TModel : class, IBaseModel<TId>
         where TId : notnull
     {
-        Task<TModel> AddAsync(TModel aggregate, CancellationToken cancellationToken = default);
+        Task<TModel> AddAsync(TModel model, CancellationToken cancellationToken = default);
 
-        Task<int> UpdateAsync(TModel aggregate, CancellationToken cancellationToken = default);
+        Task<int> UpdateAsync(TModel model, CancellationToken cancellationToken = default);
 
-        Task<int> DeleteAsync(TModel aggregate, CancellationToken cancellationToken = default);
+        Task<int> DeleteAsync(TModel model, CancellationToken cancellationToken = default);
     }
 }

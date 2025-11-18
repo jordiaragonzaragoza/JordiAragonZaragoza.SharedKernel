@@ -1,7 +1,6 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.ProjectionCheckpoint
 {
     using System;
-    using Ardalis.GuardClauses;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
 
     public sealed record class Checkpoint : IReadModel
@@ -11,9 +10,24 @@
             ulong position,
             DateTimeOffset checkpointedAtOnUtc)
         {
-            this.Id = Guard.Against.Default(id, nameof(id));
-            this.Position = Guard.Against.Default(position, nameof(position));
-            this.CheckpointedAtOnUtc = Guard.Against.Default(checkpointedAtOnUtc, nameof(checkpointedAtOnUtc));
+            if (id == Guid.Empty)
+            {
+                throw new ArgumentException("Id must not be empty.", nameof(id));
+            }
+
+            if (position == default)
+            {
+                throw new ArgumentException("Position must not be zero.", nameof(position));
+            }
+
+            if (checkpointedAtOnUtc == default)
+            {
+                throw new ArgumentException("CheckpointedAtOnUtc must not be default value.", nameof(checkpointedAtOnUtc));
+            }
+
+            this.Id = id;
+            this.Position = position;
+            this.CheckpointedAtOnUtc = checkpointedAtOnUtc;
         }
 
         public Guid Id { get; }
@@ -21,5 +35,7 @@
         public ulong Position { get; set; }
 
         public DateTimeOffset CheckpointedAtOnUtc { get; set; }
+
+        public uint Version { get; set; }
     }
 }

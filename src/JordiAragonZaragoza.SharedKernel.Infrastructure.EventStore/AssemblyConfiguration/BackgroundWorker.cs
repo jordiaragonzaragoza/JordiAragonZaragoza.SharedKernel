@@ -3,12 +3,10 @@
     using System;
     using System.Threading;
     using System.Threading.Tasks;
-    using Ardalis.GuardClauses;
-    using JordiAragonZaragoza.SharedKernel.Contracts.DependencyInjection;
     using Microsoft.Extensions.Hosting;
     using Microsoft.Extensions.Logging;
 
-    public sealed class BackgroundWorker : BackgroundService, IIgnoreDependency
+    public sealed class BackgroundWorker : BackgroundService
     {
         private readonly ILogger<BackgroundWorker> logger;
         private readonly Func<CancellationToken, Task> perform;
@@ -17,8 +15,8 @@
             ILogger<BackgroundWorker> logger,
             Func<CancellationToken, Task> perform)
         {
-            this.logger = Guard.Against.Null(logger, nameof(logger));
-            this.perform = Guard.Against.Null(perform, nameof(perform));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
+            this.perform = perform ?? throw new ArgumentNullException(nameof(perform));
         }
 
         protected override Task ExecuteAsync(CancellationToken stoppingToken)

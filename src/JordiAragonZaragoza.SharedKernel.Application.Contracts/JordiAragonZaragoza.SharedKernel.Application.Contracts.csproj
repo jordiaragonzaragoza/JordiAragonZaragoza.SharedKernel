@@ -8,9 +8,9 @@
 	<ItemGroup>
 		<PackageReference Include="Ardalis.Result" />
 		<PackageReference Include="MediatR" />
+		<PackageReference Include="MassTransit" />
     </ItemGroup>
 	<ItemGroup>
-	  <ProjectReference Include="..\JordiAragonZaragoza.SharedKernel.Domain.Contracts\JordiAragonZaragoza.SharedKernel.Domain.Contracts.csproj" />
-	  <ProjectReference Include="..\JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages\JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages.csproj" />
+	  <ProjectReference Include="..\JordiAragonZaragoza.SharedKernel.Contracts\JordiAragonZaragoza.SharedKernel.Contracts.csproj" />
 	</ItemGroup>
 </Project>

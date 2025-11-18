@@ -4,7 +4,6 @@
     using System.IO;
     using System.Text;
 
-    // TODO: Remove. Not used.
     public static class StringHelper
     {
         public static Stream ConvertStreamFromText(this string text)

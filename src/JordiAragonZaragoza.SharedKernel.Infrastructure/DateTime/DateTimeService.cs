@@ -1,10 +1,9 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.DateTime
 {
     using System;
-    using JordiAragonZaragoza.SharedKernel.Contracts.DependencyInjection;
-    using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
+    using JordiAragonZaragoza.SharedKernel.Contracts;
 
-    public class DateTimeService : IDateTime, ISingletonDependency
+    public class DateTimeService : IDateTime
     {
         public DateTimeOffset UtcNow => DateTimeOffset.UtcNow;
     }

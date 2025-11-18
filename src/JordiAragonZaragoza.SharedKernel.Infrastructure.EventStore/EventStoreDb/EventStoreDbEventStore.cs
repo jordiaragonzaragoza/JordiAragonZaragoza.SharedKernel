@@ -5,28 +5,26 @@
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
-    using Ardalis.GuardClauses;
     using Ardalis.Result;
-    using global::EventStore.Client;
+    using global::KurrentDB.Client;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
-    using JordiAragonZaragoza.SharedKernel.Contracts.DependencyInjection;
     using JordiAragonZaragoza.SharedKernel.Contracts.Events;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb.Serialization;
     using Microsoft.Extensions.Logging;
 
-    public class EventStoreDbEventStore : IEventStore, IUnitOfWork, IScopedDependency
+    public class EventStoreDbEventStore : IEventStore, IUnitOfWork
     {
         private readonly List<IEventSourcedAggregateRoot<IEntityId>> pendingChanges = [];
-        private readonly EventStoreClient eventStoreClient;
+        private readonly KurrentDBClient eventStoreClient;
         private readonly ILogger<EventStoreDbEventStore> logger;
 
         public EventStoreDbEventStore(
-            EventStoreClient eventStoreClient,
+            KurrentDBClient eventStoreClient,
             ILogger<EventStoreDbEventStore> logger)
         {
-            this.eventStoreClient = Guard.Against.Null(eventStoreClient, nameof(eventStoreClient));
-            this.logger = Guard.Against.Null(logger, nameof(logger));
+            this.eventStoreClient = eventStoreClient ?? throw new ArgumentNullException(nameof(eventStoreClient));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public IEnumerable<IEventsContainer<IEvent>> EventableEntities
@@ -86,7 +84,7 @@
             this.pendingChanges.Clear();
         }
 
-        public async Task<TResponse> ExecuteInTransactionAsync<TResponse>(Func<Task<TResponse>> operation)
+        public async Task<TResponse> ExecuteInTransactionAsync<TResponse>(Func<Task<TResponse>> operation, CancellationToken cancellationToken = default)
             where TResponse : IResult
         {
             ArgumentNullException.ThrowIfNull(operation, nameof(operation));
@@ -97,7 +95,7 @@
             var isSuccessResponse = typeof(TResponse).GetProperty("IsSuccess")?.GetValue(response, null) ?? false;
             if ((bool)isSuccessResponse)
             {
-                await this.SaveChangesAsync();
+                await this.SaveChangesAsync(cancellationToken);
             }
 
             return response;
@@ -114,8 +112,9 @@
 
             var streamName = StreamNameMapper.ToStreamId(aggregate.GetType(), aggregate.Id);
 
-            long version = aggregate.Version == default ? -1 : aggregate.Version;
-            var nextVersion = StreamRevision.FromInt64(version);
+            var expectedState = aggregate.Version == default
+                ? StreamState.NoStream
+                : StreamState.StreamRevision((ulong)aggregate.Version);
 
             foreach (var @event in events)
             {
@@ -124,7 +123,7 @@
 
             _ = await this.eventStoreClient.AppendToStreamAsync(
                 streamName,
-                nextVersion,
+                expectedState,
                 events,
                 cancellationToken: cancellationToken);
 
