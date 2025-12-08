@@ -13,9 +13,10 @@
     {
         public static IServiceCollection AddSharedKernelInfrastructureEventStoreDbBusiness(this IServiceCollection serviceCollection, IConfiguration configuration)
         {
-            serviceCollection.AddScoped<IEventStore, EventStoreDbEventStore>();
-            serviceCollection.AddScoped<IAggregateStore, EventStoreDbEventStore>();
-            serviceCollection.AddScoped<IUnitOfWork, EventStoreDbEventStore>();
+            serviceCollection.AddScoped<EventStoreDbEventStore>();
+            serviceCollection.AddScoped<IEventStore>(sp => sp.GetRequiredService<EventStoreDbEventStore>());
+            serviceCollection.AddScoped<IAggregateStore>(sp => sp.GetRequiredService<EventStoreDbEventStore>());
+            serviceCollection.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<EventStoreDbEventStore>());
 
             _ = serviceCollection
                 .AddEventStoreDB();

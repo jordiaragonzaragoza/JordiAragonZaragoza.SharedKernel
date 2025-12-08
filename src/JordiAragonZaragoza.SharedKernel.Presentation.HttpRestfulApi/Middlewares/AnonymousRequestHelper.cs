@@ -20,10 +20,14 @@
             }
 
             // TODO: REMOVE! TEMPORAL TILL AUTH IS IMPLEMENTED
-            if (path.Equals("/api/payment193expenses/create", StringComparison.OrdinalIgnoreCase) ||
-                path.Equals("/api/payment193expenses/update", StringComparison.OrdinalIgnoreCase) ||
-                path.Equals("/api/payment193expenses/delete", StringComparison.OrdinalIgnoreCase) ||
-                path.Equals("/api/exampleReactions", StringComparison.OrdinalIgnoreCase))
+            if (path.Equals("/api/v1/auditoriums", StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("/api/v2/auditoriums", StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("/api/v1/movies", StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("/api/v2/movies", StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("/api/v2/showtimes", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith("/api/v2/showtimes/", StringComparison.OrdinalIgnoreCase) ||
+                path.Equals("/api/v2/users", StringComparison.OrdinalIgnoreCase) ||
+                path.StartsWith("/api/v2/users/", StringComparison.OrdinalIgnoreCase))
             {
                 return true;
             }
