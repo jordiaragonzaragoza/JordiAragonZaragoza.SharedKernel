@@ -2,6 +2,6 @@
 {
     public interface IOptimisticLockable
     {
-        uint Version { get; }
+        uint? Version { get; }
     }
 }

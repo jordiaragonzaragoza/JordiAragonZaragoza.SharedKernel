@@ -112,7 +112,7 @@
 
             var streamName = StreamNameMapper.ToStreamId(aggregate.GetType(), aggregate.Id);
 
-            var expectedState = aggregate.Version == default
+            var expectedState = aggregate.Version is null
                 ? StreamState.NoStream
                 : StreamState.StreamRevision((ulong)aggregate.Version);
 
