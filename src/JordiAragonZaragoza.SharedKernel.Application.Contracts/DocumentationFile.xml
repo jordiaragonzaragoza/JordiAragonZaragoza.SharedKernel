@@ -4,11 +4,6 @@
         <name>JordiAragonZaragoza.SharedKernel.Application.Contracts</name>
     </assembly>
     <members>
-        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IAsyncCommandHandler">
-            <summary>
-            Marker interface for an async command handler.
-            </summary>
-        </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IBaseEventHandler`1">
             <summary>
             Defines a common contract for handling events,

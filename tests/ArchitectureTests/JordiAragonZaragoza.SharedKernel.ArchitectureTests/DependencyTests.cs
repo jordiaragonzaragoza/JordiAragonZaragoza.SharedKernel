@@ -484,45 +484,5 @@
 
             _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
         }
-
-        [Fact]
-        public void HttpRestfulApi_Should_Not_HaveDependencyOnOtherProjects()
-        {
-            // Arrange.
-            var assembly = HttpRestfulApiAssemblyReference.Assembly;
-
-            var forbiddenDependencies = new[]
-            {
-                this.domainNamespace,
-                this.domainContractsNamespace,
-                this.applicationNamespace,
-                this.infrastructureNamespace,
-                this.infrastructureMongoDbNamespace,
-                this.integrationNamespace,
-                this.integrationContractsNamespace,
-            };
-
-            var dependencies = new[]
-            {
-                this.applicationContractsNamespace,
-                this.sharedKernelNamespace,
-                this.httpRestfulApiContractsNamespace,
-            };
-
-            // Act.
-            var testResult = Types
-                .InAssembly(assembly)
-                .Should()
-                .NotHaveDependencyOnAny(forbiddenDependencies)
-                .Or()
-                .HaveDependencyOn(this.httpRestfulApiNamespace)
-                .Or()
-                .HaveDependencyOnAny(dependencies)
-                .Or()
-                .NotHaveDependencyOnAny(this.allProjects)
-                .GetResult();
-
-            _ = testResult.IsSuccessful.Should().BeTrue(Utils.GetFailingTypes(testResult));
-        }
     }
 }

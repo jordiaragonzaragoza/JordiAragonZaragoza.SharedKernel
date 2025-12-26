@@ -3,7 +3,7 @@
     using System;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
 
-    public sealed record class Checkpoint : IReadModel
+    public sealed record class Checkpoint : IReadModel // TODO: Change to IDataEntity
     {
         public Checkpoint(
             Guid id,
