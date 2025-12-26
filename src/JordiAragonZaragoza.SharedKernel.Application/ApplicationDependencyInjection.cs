@@ -32,5 +32,11 @@
 
             return services;
         }
+
+        public static IServiceCollection AddSharedKernelApplicationProjectionsEventBus(this IServiceCollection services)
+        {
+            // TODO: Complete with projections event bus crosscutting services.
+            return services;
+        }
     }
 }

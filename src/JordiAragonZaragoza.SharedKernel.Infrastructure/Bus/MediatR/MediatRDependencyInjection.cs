@@ -50,5 +50,18 @@
 
             return services;
         }
+
+        public static IServiceCollection AddMediatRRegistrationsProjectionBus(
+            this IServiceCollection services)
+        {
+            services.AddMediatR(options =>
+            {
+                options.RegisterServicesFromAssembly(typeof(MediatRDependencyInjection).Assembly);
+            });
+
+            services.AddScoped<IMediator, Mediator>();
+
+            return services;
+        }
     }
 }

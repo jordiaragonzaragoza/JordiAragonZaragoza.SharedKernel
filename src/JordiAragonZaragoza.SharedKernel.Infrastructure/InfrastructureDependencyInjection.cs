@@ -2,8 +2,8 @@
 {
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Contracts;
+    using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Bus;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.Bus.MassTransit;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Bus.MediatR;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Cache;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Context.Partition;
@@ -46,14 +46,11 @@
             return services;
         }
 
-        public static IServiceCollection AddSharedKernelInfrastructureProjections(this IServiceCollection services, string targetHostName)
+        public static IServiceCollection AddSharedKernelInfrastructureProjections(
+            this IServiceCollection services)
         {
-            services.AddSingleton<IDateTime, DateTimeService>();
-            services.AddSingleton<IIdGenerator, IdGeneratorService>();
-            services.AddSingleton<IPartitionContextService, PartitionContextService>();
-            services.AddSingleton<IUserContextService, UserContextService>();
-
-            services.AddMassTransitInternalBusRegistrations(targetHostName);
+            services.AddMediatRRegistrationsProjectionBus();
+            services.AddTransient<IEventBus, InMemoryEventBus>();
 
             return services;
         }

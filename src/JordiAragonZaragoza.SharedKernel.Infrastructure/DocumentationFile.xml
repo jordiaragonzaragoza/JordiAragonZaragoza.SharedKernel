@@ -4,14 +4,6 @@
         <name>JordiAragonZaragoza.SharedKernel.Infrastructure</name>
     </assembly>
     <members>
-        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.Bus.MassTransit.MassTransitInternalBusConsumersRegistrationConfigurator.Configure(MassTransit.IBusRegistrationConfigurator)">
-            <summary>
-            Applies custom MassTransit bus configuration, such as registering consumers,
-            sagas, or activities. This method delegates the configuration logic defined
-            at the host level to avoid get same configuration to all host when not needed.
-            </summary>
-            <param name="configurator">The <see cref="T:MassTransit.IBusRegistrationConfigurator"/> instance used to configure MassTransit.</param>
-        </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.Bus.MediatR.Behaviours.DomainEventsDispatcherBehaviour`2">
             <summary>
             The deferred approach to raise and dispatch events

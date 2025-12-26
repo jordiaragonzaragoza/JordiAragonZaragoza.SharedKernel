@@ -9,7 +9,7 @@
     using global::MediatR;
     using Microsoft.Extensions.Logging;
 
-    public class InMemoryEventBus : IInMemoryEventBus
+    public class InMemoryEventBus : IEventBus
     {
         private readonly IPublisher publisher;
         private readonly ILogger<InMemoryEventBus> logger;
