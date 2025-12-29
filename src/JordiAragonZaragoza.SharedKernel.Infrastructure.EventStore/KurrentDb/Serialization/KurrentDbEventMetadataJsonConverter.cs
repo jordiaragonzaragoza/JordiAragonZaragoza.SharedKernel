@@ -1,4 +1,4 @@
-﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb.Serialization
+﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Serialization
 {
     using System;
     using System.Collections.Generic;
@@ -6,7 +6,7 @@
     using Newtonsoft.Json.Linq;
     using OpenTelemetry.Context.Propagation;
 
-    public class EventStoreDBEventMetadataJsonConverter : JsonConverter
+    public class KurrentDbEventMetadataJsonConverter : JsonConverter
     {
         private const string CorrelationIdPropertyName = "$correlationId";
         private const string CausationIdPropertyName = "$causationId";

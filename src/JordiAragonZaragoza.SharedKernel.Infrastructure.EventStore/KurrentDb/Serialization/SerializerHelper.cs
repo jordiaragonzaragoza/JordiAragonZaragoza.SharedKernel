@@ -1,4 +1,4 @@
-﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb.Serialization
+﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Serialization
 {
     using System;
     using System.Text;
@@ -11,7 +11,7 @@
         private static readonly JsonSerializerSettings SerializerSettings = new()
         {
             ContractResolver = new NonDefaultConstructorContractResolver(),
-            Converters = { new EventStoreDBEventMetadataJsonConverter() },
+            Converters = { new KurrentDbEventMetadataJsonConverter() },
         };
 
         public static EventData Serialize(IDomainEvent @event, object? metadata = null)

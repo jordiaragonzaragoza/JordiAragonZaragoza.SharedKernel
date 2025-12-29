@@ -3,8 +3,8 @@
     using System.Threading;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb.Subscriptions;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions;
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
@@ -13,10 +13,10 @@
     {
         public static IServiceCollection AddSharedKernelInfrastructureEventStoreDbBusiness(this IServiceCollection serviceCollection, IConfiguration configuration)
         {
-            serviceCollection.AddScoped<EventStoreDbEventStore>();
-            serviceCollection.AddScoped<IEventStore>(sp => sp.GetRequiredService<EventStoreDbEventStore>());
-            serviceCollection.AddScoped<IAggregateStore>(sp => sp.GetRequiredService<EventStoreDbEventStore>());
-            serviceCollection.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<EventStoreDbEventStore>());
+            serviceCollection.AddScoped<KurrentDbEventStore>();
+            serviceCollection.AddScoped<IEventStore>(sp => sp.GetRequiredService<KurrentDbEventStore>());
+            serviceCollection.AddScoped<IAggregateStore>(sp => sp.GetRequiredService<KurrentDbEventStore>());
+            serviceCollection.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<KurrentDbEventStore>());
 
             _ = serviceCollection
                 .AddEventStoreDB();

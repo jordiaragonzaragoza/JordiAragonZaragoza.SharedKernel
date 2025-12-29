@@ -1,6 +1,6 @@
-﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb
+﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb
 {
-    public sealed class EventStoreDbOptions
+    public sealed class KurrentDbOptions
     {
         public const string Section = "EventStore";
 

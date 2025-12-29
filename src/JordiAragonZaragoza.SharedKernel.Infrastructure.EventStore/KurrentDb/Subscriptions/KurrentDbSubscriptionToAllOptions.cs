@@ -1,11 +1,11 @@
-﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb.Subscriptions
+﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions
 {
     using System;
     using KurrentDB.Client;
 
     using EventTypeFilter = global::KurrentDB.Client.EventTypeFilter;
 
-    public class EventStoreDbSubscriptionToAllOptions
+    public class KurrentDbSubscriptionToAllOptions
     {
         public Guid SubscriptionId { get; set; } = new Guid("cbbaeb7e-a087-44cc-75a0-08dc80991837"); // Use some random Guid as default.
 

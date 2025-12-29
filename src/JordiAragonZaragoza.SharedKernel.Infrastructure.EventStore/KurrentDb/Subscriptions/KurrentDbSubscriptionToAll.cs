@@ -1,14 +1,14 @@
-namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb.Subscriptions
+namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions
 {
     using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.Extensions.DependencyInjection;
 
-    public class EventStoreDbSubscriptionToAll
+    public class KurrentDbSubscriptionToAll
     {
 #pragma warning disable S2325 // Methods and properties that don't access instance data should be static
 
-        public Task SubscribeToAllAsync(IServiceScopeFactory serviceScopeFactory, EventStoreDbSubscriptionToAllOptions subscriptionOptions, CancellationToken cancellationToken)
+        public Task SubscribeToAllAsync(IServiceScopeFactory serviceScopeFactory, KurrentDbSubscriptionToAllOptions subscriptionOptions, CancellationToken cancellationToken)
 #pragma warning restore S2325 // Methods and properties that don't access instance data should be static
 {
             throw new System.NotImplementedException();
@@ -16,7 +16,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreD
     }
 }
 
-/*namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb.Subscriptions
+/*namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions
 {
     using System;
     using System.Collections.Generic;
@@ -29,29 +29,29 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreD
     using JordiAragonZaragoza.SharedKernel.Contracts.Repositories;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Helpers;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb.Serialization;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Serialization;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.ProjectionCheckpoint;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
 
-    public class EventStoreDbSubscriptionToAll
+    public class KurrentDbSubscriptionToAll
     {
         private readonly EventStoreClient eventStoreClient;
         private readonly EventTypeMapper eventTypeMapper;
-        private readonly ILogger<EventStoreDbSubscriptionToAll> logger;
+        private readonly ILogger<KurrentDbSubscriptionToAll> logger;
         private readonly IDateTime datetime;
         private readonly object resubscribeLock = new();
         private readonly ILifetimeScope lifetimeScope;
 
         private IServiceScopeFactory serviceScopeFactory = default!;
-        private EventStoreDbSubscriptionToAllOptions subscriptionOptions = default!;
+        private KurrentDbSubscriptionToAllOptions subscriptionOptions = default!;
         private CancellationToken cancellationToken;
 
-        public EventStoreDbSubscriptionToAll(
+        public KurrentDbSubscriptionToAll(
             ILifetimeScope lifetimeScope,
             EventStoreClient eventStoreClient,
             EventTypeMapper eventTypeMapper,
-            ILogger<EventStoreDbSubscriptionToAll> logger,
+            ILogger<KurrentDbSubscriptionToAll> logger,
             IDateTime datetime)
         {
             this.lifetimeScope = lifetimeScope ?? throw new ArgumentNullException(nameof(lifetimeScope));
@@ -63,7 +63,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreD
 
         private Guid SubscriptionId => this.subscriptionOptions.SubscriptionId;
 
-        public async Task SubscribeToAllAsync(IServiceScopeFactory serviceScopeFactory, EventStoreDbSubscriptionToAllOptions subscriptionOptions, CancellationToken cancellationToken)
+        public async Task SubscribeToAllAsync(IServiceScopeFactory serviceScopeFactory, KurrentDbSubscriptionToAllOptions subscriptionOptions, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(subscriptionOptions, nameof(subscriptionOptions));
 

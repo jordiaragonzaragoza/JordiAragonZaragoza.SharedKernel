@@ -1,4 +1,4 @@
-﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb
+﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb
 {
     using System;
     using System.Collections.Generic;
@@ -10,18 +10,18 @@
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Contracts.Events;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb.Serialization;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Serialization;
     using Microsoft.Extensions.Logging;
 
-    public class EventStoreDbEventStore : IEventStore, IUnitOfWork
+    public class KurrentDbEventStore : IEventStore, IUnitOfWork
     {
         private readonly List<IEventSourcedAggregateRoot<IEntityId>> pendingChanges = [];
         private readonly KurrentDBClient eventStoreClient;
-        private readonly ILogger<EventStoreDbEventStore> logger;
+        private readonly ILogger<KurrentDbEventStore> logger;
 
-        public EventStoreDbEventStore(
+        public KurrentDbEventStore(
             KurrentDBClient eventStoreClient,
-            ILogger<EventStoreDbEventStore> logger)
+            ILogger<KurrentDbEventStore> logger)
         {
             this.eventStoreClient = eventStoreClient ?? throw new ArgumentNullException(nameof(eventStoreClient));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));

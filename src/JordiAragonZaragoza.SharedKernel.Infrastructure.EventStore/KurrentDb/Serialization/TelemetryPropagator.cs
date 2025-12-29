@@ -1,4 +1,4 @@
-namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb.Serialization
+namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Serialization
 {
     using System;
     using System.Collections.Generic;
