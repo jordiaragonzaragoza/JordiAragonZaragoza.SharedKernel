@@ -5,7 +5,7 @@
 
     using EventTypeFilter = global::KurrentDB.Client.EventTypeFilter;
 
-    public class KurrentDbSubscriptionToAllOptions
+    public class KurrentDbAllStreamSubscriptionOptions
     {
         public Guid SubscriptionId { get; set; } = new Guid("cbbaeb7e-a087-44cc-75a0-08dc80991837"); // Use some random Guid as default.
 

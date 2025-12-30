@@ -11,20 +11,44 @@
 
     public static class ConfigureServices
     {
-        public static IServiceCollection AddSharedKernelInfrastructureEventStoreDbBusiness(this IServiceCollection serviceCollection, IConfiguration configuration)
+        public static IServiceCollection AddSharedKernelInfrastructureKurrentDbBusiness(
+            this IServiceCollection serviceCollection)
         {
             serviceCollection.AddScoped<KurrentDbEventStore>();
             serviceCollection.AddScoped<IEventStore>(sp => sp.GetRequiredService<KurrentDbEventStore>());
             serviceCollection.AddScoped<IAggregateStore>(sp => sp.GetRequiredService<KurrentDbEventStore>());
             serviceCollection.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<KurrentDbEventStore>());
-
-            _ = serviceCollection
-                .AddEventStoreDB();
-                ////AddEventStoreDBSubscriptionToAll();
+            serviceCollection.AddSingleton(EventTypeMapper.Instance);
 
             return serviceCollection;
         }
 
+        public static IServiceCollection AddSharedKernelInfrastructureKurrentDbAllStreamSubscription(
+            this IServiceCollection services)
+        {
+            // TODO: Complete registration.
+
+            /*services.AddSingleton<EventStoreDBSubscriptionsToAllCoordinator>();
+
+            return services.AddKeyedSingleton<EventStoreDBSubscriptionToAll>(
+                subscriptionOptions.SubscriptionId,
+                (sp, _) =>
+                {
+                    var subscription = new EventStoreDBSubscriptionToAll(
+                        sp.GetRequiredService<EventStoreClient>(),
+                        sp.GetRequiredService<IServiceScopeFactory>(),
+                        sp.GetRequiredService<ILogger<EventStoreDBSubscriptionToAll>>())
+                        {
+                            Options = subscriptionOptions, GetHandlers = handlers
+                        };
+
+                    return subscription;
+                });*/
+
+            return services;
+        }
+
+/*
 #pragma warning disable CA2000 // Dispose objects before losing scope
         private static IServiceCollection AddEventStoreDB(this IServiceCollection serviceCollection)
         {
@@ -35,7 +59,7 @@
                         ////.AddSingleton(new CancellationTokenSource());
         }
 #pragma warning restore CA2000 // Dispose objects before losing scope
-
+*/
         /*private static IServiceCollection AddEventStoreDBSubscriptionToAll(
             this IServiceCollection serviceCollection,
             EventStoreDbSubscriptionToAllOptions? subscriptionOptions = null)

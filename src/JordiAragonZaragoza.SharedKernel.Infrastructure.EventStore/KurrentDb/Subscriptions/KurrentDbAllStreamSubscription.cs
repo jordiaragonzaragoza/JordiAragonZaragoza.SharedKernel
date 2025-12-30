@@ -1,76 +1,50 @@
 namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions
 {
-    using System.Threading;
-    using System.Threading.Tasks;
-    using Microsoft.Extensions.DependencyInjection;
-
-    public class KurrentDbSubscriptionToAll
-    {
-#pragma warning disable S2325 // Methods and properties that don't access instance data should be static
-
-        public Task SubscribeToAllAsync(IServiceScopeFactory serviceScopeFactory, KurrentDbSubscriptionToAllOptions subscriptionOptions, CancellationToken cancellationToken)
-#pragma warning restore S2325 // Methods and properties that don't access instance data should be static
-{
-            throw new System.NotImplementedException();
-        }
-    }
-}
-
-/*namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions
-{
     using System;
-    using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
-    using global::EventStore.Client;
     using Grpc.Core;
     using JordiAragonZaragoza.SharedKernel.Contracts;
-    using JordiAragonZaragoza.SharedKernel.Contracts.Events;
     using JordiAragonZaragoza.SharedKernel.Contracts.Repositories;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Helpers;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Serialization;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.ProjectionCheckpoint;
+    using KurrentDB.Client;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
 
-    public class KurrentDbSubscriptionToAll
+    public class KurrentDbAllStreamSubscription
     {
-        private readonly EventStoreClient eventStoreClient;
-        private readonly EventTypeMapper eventTypeMapper;
-        private readonly ILogger<KurrentDbSubscriptionToAll> logger;
+        private readonly KurrentDBClient kurrentDbClient;
+        private readonly ILogger<KurrentDbAllStreamSubscription> logger;
         private readonly IDateTime datetime;
         private readonly object resubscribeLock = new();
-        private readonly ILifetimeScope lifetimeScope;
-
-        private IServiceScopeFactory serviceScopeFactory = default!;
-        private KurrentDbSubscriptionToAllOptions subscriptionOptions = default!;
+        private readonly IServiceScopeFactory serviceScopeFactory;
+        private KurrentDbAllStreamSubscriptionOptions subscriptionOptions = default!;
         private CancellationToken cancellationToken;
 
-        public KurrentDbSubscriptionToAll(
-            ILifetimeScope lifetimeScope,
-            EventStoreClient eventStoreClient,
+        public KurrentDbAllStreamSubscription(
+            IServiceScopeFactory serviceScopeFactory,
+            KurrentDBClient eventStoreClient,
             EventTypeMapper eventTypeMapper,
-            ILogger<KurrentDbSubscriptionToAll> logger,
+            ILogger<KurrentDbAllStreamSubscription> logger,
             IDateTime datetime)
         {
-            this.lifetimeScope = lifetimeScope ?? throw new ArgumentNullException(nameof(lifetimeScope));
-            this.eventStoreClient = eventStoreClient ?? throw new ArgumentNullException(nameof(eventStoreClient));
-            this.eventTypeMapper = eventTypeMapper ?? throw new ArgumentNullException(nameof(eventTypeMapper));
+            this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
+            this.kurrentDbClient = eventStoreClient ?? throw new ArgumentNullException(nameof(eventStoreClient));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.datetime = datetime ?? throw new ArgumentNullException(nameof(datetime));
         }
 
         private Guid SubscriptionId => this.subscriptionOptions.SubscriptionId;
 
-        public async Task SubscribeToAllAsync(IServiceScopeFactory serviceScopeFactory, KurrentDbSubscriptionToAllOptions subscriptionOptions, CancellationToken cancellationToken)
+        public async Task SubscribeToAllAsync(KurrentDbAllStreamSubscriptionOptions subscriptionOptions, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(subscriptionOptions, nameof(subscriptionOptions));
 
             // see: https://github.com/dotnet/runtime/issues/36063
             await Task.Yield();
-
-            this.serviceScopeFactory = serviceScopeFactory;
             this.subscriptionOptions = subscriptionOptions;
             this.cancellationToken = cancellationToken;
 
@@ -82,7 +56,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
 
             var checkpoint = await checkpointRepository.GetByIdAsync(this.SubscriptionId, cancellationToken).ConfigureAwait(false);
 
-            _ = await this.eventStoreClient.SubscribeToAllAsync(
+            _ = await this.kurrentDbClient.SubscribeToAllAsync(
                 checkpoint == null ? FromAll.Start : FromAll.After(new Position(checkpoint.Position, checkpoint.Position)),
                 this.HandleEventAsync,
                 subscriptionOptions.ResolveLinkTos,
@@ -98,13 +72,12 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
         {
             try
             {
-                if (this.IsEventWithEmptyData(resolvedEvent) || this.IsCheckpointEvent(resolvedEvent))
+                if (this.IsEventWithEmptyData(resolvedEvent))
                 {
                     return;
                 }
 
                 var domainEvent = SerializerHelper.Deserialize(resolvedEvent);
-                var eventNotification = this.CreateEventNotification(domainEvent);
 
                 // Required to get scoped services on a background service.
                 using var scope = this.serviceScopeFactory.CreateScope();
@@ -112,8 +85,9 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                 var eventBus = scope.ServiceProvider.GetRequiredService<IEventBus>();
                 var checkpointRepository = scope.ServiceProvider.GetRequiredService<IRepository<Checkpoint, Guid>>();
 
+                // TODO: Add Unit of Work pattern to commit changes to multiple repositories atomically.
                 // publish event to internal event bus
-                await eventBus.PublishAsync(eventNotification, cancellationToken);
+                await eventBus.PublishAsync(domainEvent, cancellationToken);
 
                 var existingCheckpoint = await checkpointRepository.GetByIdAsync(this.SubscriptionId, cancellationToken);
                 if (existingCheckpoint is not null)
@@ -183,7 +157,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                     // As this is a background process then we don't need to have async context here.
                     using (NoSynchronizationContextScopeHelper.Enter())
                     {
-                        this.SubscribeToAllAsync(this.serviceScopeFactory, this.subscriptionOptions, this.cancellationToken).Wait(this.cancellationToken);
+                        this.SubscribeToAllAsync(this.subscriptionOptions, this.cancellationToken).Wait(this.cancellationToken);
                     }
 
                     resubscribed = true;
@@ -226,30 +200,5 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
 
             return true;
         }
-
-        private bool IsCheckpointEvent(ResolvedEvent resolvedEvent)
-        {
-            if (resolvedEvent.Event.EventType != this.eventTypeMapper.ToName<Checkpoint>())
-            {
-                return false;
-            }
-
-            this.logger.LogInformation("Checkpoint event - ignoring");
-
-            return true;
-        }
-
-        private IEventNotification<IEvent> CreateEventNotification(IEvent @event)
-        {
-            // Instanciate the event notification.
-            var eventNotificationType = typeof(IEventNotification<>);
-            var notificationWithGenericType = eventNotificationType.MakeGenericType(@event.GetType());
-            var notification = this.lifetimeScope.ResolveOptional(notificationWithGenericType, new List<Parameter>
-                {
-                    new NamedParameter("Event", @event),
-                }) ?? throw new InvalidOperationException($"Failed to resolve event notification for event type '{@event.GetType().Name}'.");
-
-            return (IEventNotification<IEvent>)notification;
-        }
     }
-}*/
+}
