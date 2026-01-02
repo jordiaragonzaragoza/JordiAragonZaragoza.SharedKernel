@@ -6,13 +6,13 @@
     using Microsoft.Extensions.Hosting;
     using Microsoft.Extensions.Logging;
 
-    public sealed class BackgroundWorker : BackgroundService
+    public sealed class AllStreamSubscriptionBackgroundWorker : BackgroundService
     {
-        private readonly ILogger<BackgroundWorker> logger;
+        private readonly ILogger<AllStreamSubscriptionBackgroundWorker> logger;
         private readonly Func<CancellationToken, Task> perform;
 
-        public BackgroundWorker(
-            ILogger<BackgroundWorker> logger,
+        public AllStreamSubscriptionBackgroundWorker(
+            ILogger<AllStreamSubscriptionBackgroundWorker> logger,
             Func<CancellationToken, Task> perform)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -25,11 +25,11 @@
                         async () =>
                         {
                             await Task.Yield();
-                            this.logger.LogInformation("Background worker started");
+                            this.logger.LogInformation("All Stream Subscription Background worker started");
 
                             await this.perform(stoppingToken).ConfigureAwait(false);
 
-                            this.logger.LogInformation("Background worker stopped");
+                            this.logger.LogInformation("All Stream Subscription Background worker stopped");
                         },
                         stoppingToken);
         }

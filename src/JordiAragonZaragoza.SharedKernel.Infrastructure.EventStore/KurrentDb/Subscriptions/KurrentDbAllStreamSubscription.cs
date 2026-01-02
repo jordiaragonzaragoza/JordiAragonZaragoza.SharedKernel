@@ -27,7 +27,6 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
         public KurrentDbAllStreamSubscription(
             IServiceScopeFactory serviceScopeFactory,
             KurrentDBClient eventStoreClient,
-            EventTypeMapper eventTypeMapper,
             ILogger<KurrentDbAllStreamSubscription> logger,
             IDateTime datetime)
         {

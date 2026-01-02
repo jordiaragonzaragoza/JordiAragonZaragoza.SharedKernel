@@ -5,7 +5,6 @@
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions;
-    using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
 
@@ -23,12 +22,30 @@
             return serviceCollection;
         }
 
+#pragma warning disable CA2000 // Dispose objects before losing scope
         public static IServiceCollection AddSharedKernelInfrastructureKurrentDbAllStreamSubscription(
-            this IServiceCollection services)
+            this IServiceCollection serviceCollection)
         {
-            // TODO: Complete registration.
+            serviceCollection.AddTransient<KurrentDbAllStreamSubscription>();
+            serviceCollection.AddSingleton(new CancellationTokenSource());
 
-            /*services.AddSingleton<EventStoreDBSubscriptionsToAllCoordinator>();
+            return serviceCollection.AddHostedService(serviceProvider =>
+            {
+                var logger = serviceProvider.GetRequiredService<ILogger<AllStreamSubscriptionBackgroundWorker>>();
+                var kurrentDbAllStreamSubscription = serviceProvider.GetRequiredService<KurrentDbAllStreamSubscription>();
+                var cancellationTokenSource = serviceProvider.GetRequiredService<CancellationTokenSource>();
+
+                return new AllStreamSubscriptionBackgroundWorker(
+                    logger,
+                    cancellationToken =>
+                        kurrentDbAllStreamSubscription.SubscribeToAllAsync(
+                            new KurrentDbAllStreamSubscriptionOptions(),
+                            cancellationTokenSource.Token));
+            });
+        }
+#pragma warning restore CA2000 // Dispose objects before losing scope
+
+/*services.AddSingleton<EventStoreDBSubscriptionsToAllCoordinator>();
 
             return services.AddKeyedSingleton<EventStoreDBSubscriptionToAll>(
                 subscriptionOptions.SubscriptionId,
@@ -44,9 +61,6 @@
 
                     return subscription;
                 });*/
-
-            return services;
-        }
 
 /*
 #pragma warning disable CA2000 // Dispose objects before losing scope
