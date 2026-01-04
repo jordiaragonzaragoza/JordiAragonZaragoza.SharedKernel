@@ -4,6 +4,8 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
     using System.Threading;
     using System.Threading.Tasks;
     using Grpc.Core;
+    using Ardalis.Result;
+    using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Contracts;
     using JordiAragonZaragoza.SharedKernel.Contracts.Repositories;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
@@ -20,9 +22,11 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
         private readonly ILogger<KurrentDbAllStreamSubscription> logger;
         private readonly IDateTime datetime;
         private readonly object resubscribeLock = new();
+        private readonly Random resubscribeRandom = new(Environment.TickCount);
         private readonly IServiceScopeFactory serviceScopeFactory;
         private KurrentDbAllStreamSubscriptionOptions subscriptionOptions = default!;
         private CancellationToken cancellationToken;
+        private bool isSubscribed;
 
         public KurrentDbAllStreamSubscription(
             IServiceScopeFactory serviceScopeFactory,
@@ -41,6 +45,12 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
         public async Task SubscribeToAllAsync(KurrentDbAllStreamSubscriptionOptions subscriptionOptions, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(subscriptionOptions, nameof(subscriptionOptions));
+
+            if (this.isSubscribed)
+            {
+                this.logger.LogWarning("Already subscribed to all '{SubscriptionId}'", subscriptionOptions.SubscriptionId);
+                return;
+            }
 
             // see: https://github.com/dotnet/runtime/issues/36063
             await Task.Yield();
@@ -64,6 +74,8 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                 subscriptionOptions.Credentials,
                 cancellationToken).ConfigureAwait(false);
 
+            this.isSubscribed = true;
+
             this.logger.LogInformation("Subscription to all '{SubscriptionId}' started", this.SubscriptionId);
         }
 
@@ -80,33 +92,40 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
 
                 // Required to get scoped services on a background service.
                 using var scope = this.serviceScopeFactory.CreateScope();
-
+                var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
                 var eventBus = scope.ServiceProvider.GetRequiredService<IEventBus>();
                 var checkpointRepository = scope.ServiceProvider.GetRequiredService<IRepository<Checkpoint, Guid>>();
 
-                // TODO: Add Unit of Work pattern to commit changes to multiple repositories atomically.
-                // publish event to internal event bus
-                await eventBus.PublishAsync(domainEvent, cancellationToken);
+                // This transaction is required to commit changes to multiple repositories atomically.
+                await unitOfWork.ExecuteInTransactionAsync(
+                    async () =>
+                    {
+                        // publish event to internal event bus
+                        await eventBus.PublishAsync(domainEvent, cancellationToken);
 
-                var existingCheckpoint = await checkpointRepository.GetByIdAsync(this.SubscriptionId, cancellationToken);
-                if (existingCheckpoint is not null)
-                {
-                    existingCheckpoint.Position = resolvedEvent.Event.Position.CommitPosition;
-                    existingCheckpoint.CheckpointedAtOnUtc = this.datetime.UtcNow;
+                        var existingCheckpoint = await checkpointRepository.GetByIdAsync(this.SubscriptionId, cancellationToken);
+                        if (existingCheckpoint is not null)
+                        {
+                            existingCheckpoint.Position = resolvedEvent.Event.Position.CommitPosition;
+                            existingCheckpoint.CheckpointedAtOnUtc = this.datetime.UtcNow;
 
-                    await checkpointRepository.UpdateAsync(existingCheckpoint, cancellationToken)
-                    .ConfigureAwait(false);
+                            await checkpointRepository.UpdateAsync(existingCheckpoint, cancellationToken)
+                            .ConfigureAwait(false);
 
-                    this.logger.LogInformation("Added checkpoint: {Checkpoint}", existingCheckpoint);
+                            this.logger.LogInformation("Updated checkpoint: {Checkpoint}", existingCheckpoint);
 
-                    return;
-                }
+                            return Result.Success();
+                        }
 
-                var checkpoint = new Checkpoint(this.SubscriptionId, resolvedEvent.Event.Position.CommitPosition, this.datetime.UtcNow);
-                _ = await checkpointRepository.AddAsync(checkpoint, cancellationToken)
-                    .ConfigureAwait(false);
+                        var checkpoint = new Checkpoint(this.SubscriptionId, resolvedEvent.Event.Position.CommitPosition, this.datetime.UtcNow);
+                        _ = await checkpointRepository.AddAsync(checkpoint, cancellationToken)
+                            .ConfigureAwait(false);
 
-                this.logger.LogInformation("Added checkpoint: {Checkpoint}", checkpoint);
+                        this.logger.LogInformation("Added checkpoint: {Checkpoint}", checkpoint);
+
+                        return Result.Success();
+                        },
+                    cancellationToken);
             }
             catch (Exception exception)
             {
@@ -156,6 +175,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                     // As this is a background process then we don't need to have async context here.
                     using (NoSynchronizationContextScopeHelper.Enter())
                     {
+                        this.isSubscribed = false;
                         this.SubscribeToAllAsync(this.subscriptionOptions, this.cancellationToken).Wait(this.cancellationToken);
                     }
 
@@ -183,7 +203,8 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                 // Sleep between reconnections to not flood the database or not kill the CPU with infinite loop
                 // Randomness added to reduce the chance of multiple subscriptions trying to reconnect at the same time
 #pragma warning disable CA5394 // Do not use insecure randomness
-                Thread.Sleep(1000 + new Random((int)DateTime.UtcNow.Ticks).Next(1000));
+                int delayMs = 1000 + this.resubscribeRandom.Next(1000);
+                Thread.Sleep(delayMs);
 #pragma warning restore CA5394 // Do not use insecure randomness
             }
         }
