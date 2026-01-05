@@ -27,9 +27,8 @@ Loving it? Please show your support by giving this project a star!
 
 ## Used libraries: ⚒️
 
+- Entity Framework
 - MediatR
-- AutoMapper
-- Autofac
 - MassTransit
 - FastEndpoints
 - Ardalis.Result
@@ -40,8 +39,6 @@ Loving it? Please show your support by giving this project a star!
 - Serilog
 - Quartz
 - Refit
-- EasyCaching
-- Volo.Abp.Guids Generator
 - StyleCop & SonarAnalyzer
 
 ## Brief explanation per project (Pending to complete) 🤓
@@ -81,8 +78,7 @@ Special thanks to all these authors for sharing their knowledge and expertise:
 - <a href="https://www.oreilly.com/library/view/implementing-domain-driven-design/9780133039900/" target="_blank">Vaughn Vernon: Implementing Domain-Driven Design (book)</a>
 - <a href="https://kalele.io/books/ddd-destilado/" target="_blank">Vaughn Vernon: Domain-Driven Design Destilado (book)</a>
 - <a href="https://www.amazon.com/Hands-Domain-Driven-Design-NET-ebook/dp/B07C5WSR9B" target="_blank">Alexey Zimarev: Hands-on Domain-Driven Design (book)</a>
-- <a href="https://github.com/dotnet-architecture/eShopOnContainers" target="_blank">Microsoft eShopOnContainers</a>
-- <a href="https://github.com/dotnet-architecture/eShopOnWeb" target="_blank">Microsoft eShopOnWeb</a>
+- <a href="https://eventuous.dev/" target="_blank">Alexey Zimarev: Eventuous</a>
 - <a href="https://github.com/kgrzybek/sample-dotnet-core-cqrs-api" target="_blank">Kamil Grzybek: Sample .NET Core REST API CQRS</a>
 - <a href="https://github.com/kgrzybek/modular-monolith-with-ddd" target="_blank">Kamil Grzybek: Modular Monolith With DDD</a>
 - <a href="https://github.com/oskardudycz/EventSourcing.NetCore" target="_blank">Oskar Dudycz: EventSourcing .NET</a>
