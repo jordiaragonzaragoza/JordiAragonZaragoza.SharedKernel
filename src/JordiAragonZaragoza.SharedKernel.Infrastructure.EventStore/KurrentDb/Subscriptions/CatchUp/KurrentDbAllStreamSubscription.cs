@@ -3,13 +3,11 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
     using System;
     using System.Threading;
     using System.Threading.Tasks;
-    using Grpc.Core;
     using Ardalis.Result;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Contracts;
     using JordiAragonZaragoza.SharedKernel.Contracts.Repositories;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
-    using JordiAragonZaragoza.SharedKernel.Helpers;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Serialization;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.ProjectionCheckpoint;
     using KurrentDB.Client;
@@ -21,11 +19,8 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
         private readonly KurrentDBClient kurrentDbClient;
         private readonly ILogger<KurrentDbAllStreamSubscription> logger;
         private readonly IDateTime datetime;
-        private readonly object resubscribeLock = new();
-        private readonly Random resubscribeRandom = new(Environment.TickCount);
         private readonly IServiceScopeFactory serviceScopeFactory;
         private KurrentDbAllStreamSubscriptionOptions subscriptionOptions = default!;
-        private CancellationToken cancellationToken;
         private bool isSubscribed;
 
         public KurrentDbAllStreamSubscription(
@@ -55,7 +50,6 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
             // see: https://github.com/dotnet/runtime/issues/36063
             await Task.Yield();
             this.subscriptionOptions = subscriptionOptions;
-            this.cancellationToken = cancellationToken;
 
             this.logger.LogInformation("Subscription to all '{SubscriptionId}'", subscriptionOptions.SubscriptionId);
 
@@ -65,21 +59,49 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
 
             var checkpoint = await checkpointRepository.GetByIdAsync(this.SubscriptionId, cancellationToken).ConfigureAwait(false);
 
-            _ = await this.kurrentDbClient.SubscribeToAllAsync(
+            // Use the iterable subscription pattern that maintains the connection continuously
+            // This processes historical events (catch-up) and then listens for new events (live)
+            await using var subscription = this.kurrentDbClient.SubscribeToAll(
                 checkpoint == null ? FromAll.Start : FromAll.After(new Position(checkpoint.Position, checkpoint.Position)),
-                this.HandleEventAsync,
                 subscriptionOptions.ResolveLinkTos,
-                this.HandleDrop,
                 subscriptionOptions.FilterOptions,
                 subscriptionOptions.Credentials,
-                cancellationToken).ConfigureAwait(false);
+                cancellationToken);
 
             this.isSubscribed = true;
 
-            this.logger.LogInformation("Subscription to all '{SubscriptionId}' started", this.SubscriptionId);
+            this.logger.LogInformation("Subscription to all '{SubscriptionId}' started - processing catch-up and listening for live events", this.SubscriptionId);
+
+            // Process messages continuously: first the catch-up (historical), then live events
+            await foreach (var message in subscription.Messages.WithCancellation(cancellationToken))
+            {
+                await this.HandleMessageAsync(message, checkpointRepository, cancellationToken).ConfigureAwait(false);
+            }
         }
 
-        private async Task HandleEventAsync(StreamSubscription subscription, ResolvedEvent resolvedEvent, CancellationToken cancellationToken)
+        private async Task HandleMessageAsync(StreamMessage message, IRepository<Checkpoint, Guid> checkpointRepository, CancellationToken cancellationToken)
+        {
+            switch (message)
+            {
+                case StreamMessage.Event(var resolvedEvent):
+                    await this.HandleEventAsync(resolvedEvent, checkpointRepository, cancellationToken).ConfigureAwait(false);
+                    break;
+
+                case StreamMessage.CaughtUp:
+                    this.logger.LogInformation("Subscription '{SubscriptionId}' caught up - transitioning to live mode", this.SubscriptionId);
+                    break;
+
+                case StreamMessage.FellBehind:
+                    this.logger.LogWarning("Subscription '{SubscriptionId}' fell behind - processing may be slower than incoming events", this.SubscriptionId);
+                    break;
+
+                default:
+                    this.logger.LogDebug("Received message type '{MessageType}' for subscription '{SubscriptionId}'", message.GetType().Name, this.SubscriptionId);
+                    break;
+            }
+        }
+
+        private async Task HandleEventAsync(ResolvedEvent resolvedEvent, IRepository<Checkpoint, Guid> checkpointRepository, CancellationToken cancellationToken)
         {
             try
             {
@@ -94,7 +116,6 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                 using var scope = this.serviceScopeFactory.CreateScope();
                 var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
                 var eventBus = scope.ServiceProvider.GetRequiredService<IEventBus>();
-                var checkpointRepository = scope.ServiceProvider.GetRequiredService<IRepository<Checkpoint, Guid>>();
 
                 // This transaction is required to commit changes to multiple repositories atomically.
                 await unitOfWork.ExecuteInTransactionAsync(
@@ -134,78 +155,6 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                 // if you're fine with dropping some events instead of stopping subscription
                 // then you can add some logic if error should be ignored
                 throw;
-            }
-        }
-
-        private void HandleDrop(StreamSubscription subscription, SubscriptionDroppedReason reason, Exception? exception)
-        {
-            if (exception is RpcException { StatusCode: StatusCode.Cancelled })
-            {
-                this.logger.LogWarning(
-                    "Subscription to all '{SubscriptionId}' dropped by client",
-                    this.SubscriptionId);
-
-                return;
-            }
-
-            this.logger.LogError(
-                exception,
-                "Subscription to all '{SubscriptionId}' dropped with '{StatusCode}' and '{Reason}'",
-                this.SubscriptionId,
-                (exception as RpcException)?.StatusCode ?? StatusCode.Unknown,
-                reason);
-
-            this.Resubscribe();
-        }
-
-        [System.Diagnostics.CodeAnalysis.SuppressMessage("Design", "CA1031:Do not catch general exception types", Justification = "Ok for BackgroundService and Resubscribe")]
-        private void Resubscribe()
-        {
-            // You may consider adding a max resubscribe count if you want to fail process
-            // instead of retrying until database is up
-            while (true)
-            {
-                var resubscribed = false;
-                try
-                {
-                    Monitor.Enter(this.resubscribeLock);
-
-                    // No synchronization context is needed to disable synchronization context.
-                    // That enables running asynchronous method not causing deadlocks.
-                    // As this is a background process then we don't need to have async context here.
-                    using (NoSynchronizationContextScopeHelper.Enter())
-                    {
-                        this.isSubscribed = false;
-                        this.SubscribeToAllAsync(this.subscriptionOptions, this.cancellationToken).Wait(this.cancellationToken);
-                    }
-
-                    resubscribed = true;
-                }
-                catch (Exception exception)
-                {
-                    this.logger.LogWarning(
-                        exception,
-                        "Failed to resubscribe to all '{SubscriptionId}' dropped with '{ExceptionMessage}{ExceptionStackTrace}'",
-                        this.SubscriptionId,
-                        exception.Message,
-                        exception.StackTrace);
-                }
-                finally
-                {
-                    Monitor.Exit(this.resubscribeLock);
-                }
-
-                if (resubscribed)
-                {
-                    break;
-                }
-
-                // Sleep between reconnections to not flood the database or not kill the CPU with infinite loop
-                // Randomness added to reduce the chance of multiple subscriptions trying to reconnect at the same time
-#pragma warning disable CA5394 // Do not use insecure randomness
-                int delayMs = 1000 + this.resubscribeRandom.Next(1000);
-                Thread.Sleep(delayMs);
-#pragma warning restore CA5394 // Do not use insecure randomness
             }
         }
 
