@@ -1,7 +1,7 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.ArchitectureTests
 {
     using System;
-    using FluentAssertions;
+    using AwesomeAssertions;
     using JordiAragonZaragoza.SharedKernel.Application;
     using NetArchTest.Rules;
     using Xunit;

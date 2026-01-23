@@ -4,16 +4,14 @@
     using System.Collections.Generic;
     using System.Threading;
     using System.Threading.Tasks;
-    using Ardalis.GuardClauses;
     using Ardalis.Specification;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
-    using JordiAragonZaragoza.SharedKernel.Contracts.DependencyInjection;
     using JordiAragonZaragoza.SharedKernel.Contracts.Repositories;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Context;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Interfaces;
     using Microsoft.Extensions.Logging;
 
-    public abstract class BaseCachedSpecificationRepository<TDataEntity> : BaseReadRepository<TDataEntity>, ICachedSpecificationRepository<TDataEntity, Guid>, IScopedDependency
+    public abstract class BaseCachedSpecificationRepository<TDataEntity> : BaseReadRepository<TDataEntity>, ICachedSpecificationRepository<TDataEntity, Guid>
         where TDataEntity : class, IDataEntity
     {
         private readonly ICacheService cacheService;
@@ -25,8 +23,8 @@
             ICacheService cacheService)
             : base(dbContext)
         {
-            this.cacheService = Guard.Against.Null(cacheService, nameof(cacheService));
-            this.logger = Guard.Against.Null(logger, nameof(logger));
+            this.cacheService = cacheService ?? throw new ArgumentNullException(nameof(cacheService));
+            this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
         public string CacheKey => $"{typeof(TDataEntity)}";

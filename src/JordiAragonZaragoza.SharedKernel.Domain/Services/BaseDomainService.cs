@@ -8,7 +8,7 @@
     {
         protected static void CheckRule(IBusinessRule rule)
         {
-            ArgumentNullException.ThrowIfNull(rule, nameof(rule));
+            ArgumentNullException.ThrowIfNull(rule);
 
             if (rule.IsBroken())
             {

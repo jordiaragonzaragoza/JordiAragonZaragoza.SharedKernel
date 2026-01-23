@@ -5,7 +5,7 @@
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
 
     public sealed class EntityByIdSpec<TEntity, TId> : SingleResultSpecification<TEntity>
-        where TEntity : class, JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces.IEntity<TId>
+        where TEntity : class, IEntity<TId>
         where TId : class, IEntityId
     {
         public EntityByIdSpec(TId entityId)

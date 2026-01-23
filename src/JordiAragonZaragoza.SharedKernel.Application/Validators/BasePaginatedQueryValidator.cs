@@ -3,7 +3,7 @@
     using FluentValidation;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts;
 
-    public abstract class BasePaginatedQueryValidator<TQuery> : BaseValidator<TQuery>
+    public abstract class BasePaginatedQueryValidator<TQuery> : AbstractValidator<TQuery>
         where TQuery : IPaginatedQuery
     {
         protected BasePaginatedQueryValidator()

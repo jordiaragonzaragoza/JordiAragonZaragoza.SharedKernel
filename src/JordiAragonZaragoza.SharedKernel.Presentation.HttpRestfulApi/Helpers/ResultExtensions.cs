@@ -22,8 +22,8 @@
         /// <returns>The <see cref="ActionResult{T}"/> converted.</returns>
         public static ActionResult<T> ToActionResult<T>(this Result<T> result, ControllerBase controller)
         {
-            ArgumentNullException.ThrowIfNull(result, nameof(result));
-            ArgumentNullException.ThrowIfNull(controller, nameof(controller));
+            ArgumentNullException.ThrowIfNull(result);
+            ArgumentNullException.ThrowIfNull(controller);
 
             return controller.ToActionResult((IResult)result);
         }
@@ -36,8 +36,8 @@
         /// <returns>The <see cref="ActionResult"/> converted.</returns>
         public static ActionResult ToActionResult(this Result result, ControllerBase controller)
         {
-            ArgumentNullException.ThrowIfNull(result, nameof(result));
-            ArgumentNullException.ThrowIfNull(controller, nameof(controller));
+            ArgumentNullException.ThrowIfNull(result);
+            ArgumentNullException.ThrowIfNull(controller);
 
             return controller.ToActionResult((IResult)result);
         }
@@ -51,8 +51,8 @@
         /// <returns>The <see cref="ActionResult{T}"/> converted.</returns>
         public static ActionResult<T> ToActionResult<T>(this ControllerBase controller, Result<T> result)
         {
-            ArgumentNullException.ThrowIfNull(result, nameof(result));
-            ArgumentNullException.ThrowIfNull(controller, nameof(controller));
+            ArgumentNullException.ThrowIfNull(result);
+            ArgumentNullException.ThrowIfNull(controller);
 
             return controller.ToActionResult((IResult)result);
         }
@@ -65,8 +65,8 @@
         /// <returns>The <see cref="ActionResult"/> converted.</returns>
         public static ActionResult ToActionResult(this ControllerBase controller, Result result)
         {
-            ArgumentNullException.ThrowIfNull(result, nameof(result));
-            ArgumentNullException.ThrowIfNull(controller, nameof(controller));
+            ArgumentNullException.ThrowIfNull(result);
+            ArgumentNullException.ThrowIfNull(controller);
 
             return controller.ToActionResult((IResult)result);
         }
@@ -90,8 +90,8 @@
         /// <returns>The <see cref="ActionResult"/> converted.</returns>
         public static ActionResult ToFileResult(this ControllerBase controller, Result<FileResponse> result)
         {
-            ArgumentNullException.ThrowIfNull(result, nameof(result));
-            ArgumentNullException.ThrowIfNull(controller, nameof(controller));
+            ArgumentNullException.ThrowIfNull(result);
+            ArgumentNullException.ThrowIfNull(controller);
 
             switch (result.Status)
             {

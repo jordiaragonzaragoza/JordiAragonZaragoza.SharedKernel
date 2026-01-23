@@ -2,12 +2,13 @@
 {
     using System.ComponentModel;
 
-    public abstract record class PaginatedRequest
+    // TODO: Review. Use uint instead of int for PageNumber and PageSize with default values.
+    public record class PaginatedRequest
     {
         [DefaultValue(1)]
-        public int? PageNumber { get; init; }
+        public int PageNumber { get; init; }
 
         [DefaultValue(10)]
-        public int? PageSize { get; init; }
+        public int PageSize { get; init; }
     }
 }

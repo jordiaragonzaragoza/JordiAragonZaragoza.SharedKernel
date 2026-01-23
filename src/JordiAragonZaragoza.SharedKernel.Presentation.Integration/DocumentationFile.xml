@@ -1,0 +1,22 @@
+<?xml version="1.0"?>
+<doc>
+    <assembly>
+        <name>JordiAragonZaragoza.SharedKernel.Presentation.Integration</name>
+    </assembly>
+    <members>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Presentation.Integration.Consumers.MassTransit.MassTransitIntegrationBusConsumersRegistrationConfigurator.Configure(MassTransit.IBusRegistrationConfigurator)">
+            <summary>
+            Applies custom MassTransit bus configuration, such as registering consumers,
+            sagas, or activities. This method delegates the configuration logic defined
+            at the host level to avoid get same configuration to all host when not needed.
+            </summary>
+            <param name="configurator">The <see cref="T:MassTransit.IBusRegistrationConfigurator"/> instance used to configure MassTransit.</param>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.Integration.Producers.MassTransit.IIntegrationBus">
+            <summary>
+            This marker interface is required to implement MassTransit MultiBus.
+            See <a href="https://masstransit.io/documentation/configuration/multibus">this link</a> for more information.
+            </summary>
+        </member>
+    </members>
+</doc>

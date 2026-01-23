@@ -1,4 +1,4 @@
-﻿namespace JordiAragonZaragoza.SharedKernel.Helpers
+namespace JordiAragonZaragoza.SharedKernel.Helpers
 {
     using System;
     using System.Threading;

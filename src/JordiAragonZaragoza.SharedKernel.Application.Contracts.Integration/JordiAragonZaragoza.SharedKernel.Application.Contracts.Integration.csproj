@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+		<PackageId>JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration</PackageId>
+		<Title>JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration</Title>
+		<AssemblyName>JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration</AssemblyName>
+	</PropertyGroup>
+	<ItemGroup>
+		<PackageReference Include="Ardalis.Result" />
+	</ItemGroup>
+</Project>

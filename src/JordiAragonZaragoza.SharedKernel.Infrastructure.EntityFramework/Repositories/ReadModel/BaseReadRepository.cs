@@ -9,11 +9,10 @@
     using Ardalis.Specification.EntityFrameworkCore;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
-    using JordiAragonZaragoza.SharedKernel.Contracts.DependencyInjection;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Context;
     using Microsoft.EntityFrameworkCore;
 
-    public abstract class BaseReadRepository<TReadModel> : RepositoryBase<TReadModel>, IPaginatedSpecificationReadRepository<TReadModel>, IScopedDependency
+    public abstract class BaseReadRepository<TReadModel> : RepositoryBase<TReadModel>, IPaginatedSpecificationReadRepository<TReadModel>
         where TReadModel : class, IReadModel
     {
         protected BaseReadRepository(BaseReadModelContext readContext)
