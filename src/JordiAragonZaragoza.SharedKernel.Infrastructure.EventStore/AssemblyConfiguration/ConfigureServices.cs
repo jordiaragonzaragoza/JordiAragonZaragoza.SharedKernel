@@ -1,55 +1,48 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.AssemblyConfiguration
 {
     using System.Threading;
-    using global::EventStore.Client;
-    using JordiAragonZaragoza.SharedKernel.Helpers;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreDb.Subscriptions;
-    using Microsoft.Extensions.Configuration;
+    using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
+    using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
 
     public static class ConfigureServices
     {
-        public static IServiceCollection AddSharedKernelEventStoreServices(this IServiceCollection serviceCollection, IConfiguration configuration)
+        public static IServiceCollection AddSharedKernelInfrastructureKurrentDbBusiness(
+            this IServiceCollection serviceCollection)
         {
-            _ = serviceCollection
-                .AddEventStoreDB(configuration.GetRequiredConfiguration<EventStoreDbOptions>(EventStoreDbOptions.Section))
-                .AddEventStoreDBSubscriptionToAll();
+            serviceCollection.AddScoped<KurrentDbEventStore>();
+            serviceCollection.AddScoped<IEventStore>(sp => sp.GetRequiredService<KurrentDbEventStore>());
+            serviceCollection.AddScoped<IAggregateStore>(sp => sp.GetRequiredService<KurrentDbEventStore>());
+            serviceCollection.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<KurrentDbEventStore>());
+            serviceCollection.AddSingleton(EventTypeMapper.Instance);
 
             return serviceCollection;
         }
 
 #pragma warning disable CA2000 // Dispose objects before losing scope
-        private static IServiceCollection AddEventStoreDB(this IServiceCollection serviceCollection, EventStoreDbOptions eventStoreDBConfig)
+        public static IServiceCollection AddSharedKernelInfrastructureKurrentDbAllStreamSubscription(
+            this IServiceCollection serviceCollection)
         {
-            return serviceCollection
-                        .AddSingleton(EventTypeMapper.Instance) // TODO: Register with autofac.
-                        .AddSingleton(new EventStoreClient(EventStoreClientSettings.Create(eventStoreDBConfig.ConnectionString)))
-                        .AddTransient<EventStoreDbSubscriptionToAll, EventStoreDbSubscriptionToAll>()
-                        .AddSingleton(new CancellationTokenSource());
-        }
-#pragma warning restore CA2000 // Dispose objects before losing scope
+            serviceCollection.AddTransient<KurrentDbAllStreamSubscription>();
+            serviceCollection.AddSingleton(new CancellationTokenSource());
 
-        private static IServiceCollection AddEventStoreDBSubscriptionToAll(
-            this IServiceCollection serviceCollection,
-            EventStoreDbSubscriptionToAllOptions? subscriptionOptions = null)
-        {
             return serviceCollection.AddHostedService(serviceProvider =>
             {
-                var serviceScopeFactory = serviceProvider.GetRequiredService<IServiceScopeFactory>();
-                var logger = serviceProvider.GetRequiredService<ILogger<BackgroundWorker>>();
-                var eventStoreDBSubscriptionToAll = serviceProvider.GetRequiredService<EventStoreDbSubscriptionToAll>();
+                var logger = serviceProvider.GetRequiredService<ILogger<AllStreamSubscriptionBackgroundWorker>>();
+                var kurrentDbAllStreamSubscription = serviceProvider.GetRequiredService<KurrentDbAllStreamSubscription>();
                 var cancellationTokenSource = serviceProvider.GetRequiredService<CancellationTokenSource>();
 
-                return new BackgroundWorker(
+                return new AllStreamSubscriptionBackgroundWorker(
                     logger,
                     cancellationToken =>
-                        eventStoreDBSubscriptionToAll.SubscribeToAllAsync(
-                            serviceScopeFactory,
-                            subscriptionOptions ?? new EventStoreDbSubscriptionToAllOptions(),
+                        kurrentDbAllStreamSubscription.SubscribeToAllAsync(
+                            new KurrentDbAllStreamSubscriptionOptions(),
                             cancellationTokenSource.Token));
             });
         }
+#pragma warning restore CA2000 // Dispose objects before losing scope
     }
 }

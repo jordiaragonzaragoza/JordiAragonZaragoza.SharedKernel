@@ -19,7 +19,7 @@
         {
         }
 
-        public uint Version { get; protected set; }
+        public uint? Version { get; protected set; }
 
         [NotMapped]
         public IEnumerable<IDomainEvent> Events => this.domainEvents.AsReadOnly();

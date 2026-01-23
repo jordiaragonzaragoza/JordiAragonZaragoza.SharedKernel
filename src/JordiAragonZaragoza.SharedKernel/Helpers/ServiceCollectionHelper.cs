@@ -8,7 +8,7 @@
     {
         public static IServiceCollection Remove<TService>(this IServiceCollection services)
         {
-            ArgumentNullException.ThrowIfNull(services, nameof(services));
+            ArgumentNullException.ThrowIfNull(services);
 
             var serviceDescriptor = services.FirstOrDefault(static d =>
                 d.ServiceType == typeof(TService));

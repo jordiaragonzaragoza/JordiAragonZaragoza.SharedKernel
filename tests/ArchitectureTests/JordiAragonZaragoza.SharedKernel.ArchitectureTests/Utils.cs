@@ -1,13 +1,13 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.ArchitectureTests
 {
-    using Ardalis.GuardClauses;
+    using System;
     using NetArchTest.Rules;
 
     public static class Utils
     {
         public static string GetFailingTypes(TestResult result)
         {
-            _ = Guard.Against.Null(result, nameof(result));
+            ArgumentNullException.ThrowIfNull(result);
 
             return result.FailingTypeNames != null ?
                 string.Join(", ", result.FailingTypeNames) :

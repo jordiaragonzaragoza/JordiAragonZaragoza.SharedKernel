@@ -2,7 +2,6 @@
 {
     using System;
     using System.Collections.Generic;
-    using Ardalis.GuardClauses;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
 
     public abstract class BaseEntityId<TIdType> : BaseValueObject, IEntityId<TIdType>
@@ -10,8 +9,14 @@
     {
         protected BaseEntityId(TIdType value)
         {
-            _ = Guard.Against.Default(value, nameof(value));
-            ArgumentNullException.ThrowIfNull(value, nameof(value));
+            ArgumentNullException.ThrowIfNull(value);
+
+            if (EqualityComparer<TIdType>.Default.Equals(value, default!))
+            {
+                throw new ArgumentException(
+                    $"The value of type {typeof(TIdType).Name} must not be the default value.",
+                    nameof(value));
+            }
 
             this.Value = value;
         }
@@ -25,7 +30,7 @@
 
         public static implicit operator TIdType(BaseEntityId<TIdType> self)
         {
-            ArgumentNullException.ThrowIfNull(self, nameof(self));
+            ArgumentNullException.ThrowIfNull(self);
 
             return self.Value;
         }

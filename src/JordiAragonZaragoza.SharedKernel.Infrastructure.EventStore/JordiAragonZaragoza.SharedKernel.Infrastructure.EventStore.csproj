@@ -6,8 +6,9 @@
 		<AssemblyName>JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore</AssemblyName>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="EventStore.Client.Grpc.Streams" />
+		<PackageReference Include="KurrentDB.Client" />
 		<PackageReference Include="FluentValidation" />
+		<PackageReference Include="Newtonsoft.Json" />
 		<PackageReference Include="OpenTelemetry" />
 	</ItemGroup>
 	<ItemGroup>

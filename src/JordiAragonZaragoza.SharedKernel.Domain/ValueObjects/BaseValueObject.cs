@@ -4,7 +4,6 @@
     using System.Collections.Generic;
     using System.Diagnostics.CodeAnalysis;
     using System.Linq;
-    using JordiAragonZaragoza.SharedKernel.Contracts.DependencyInjection;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Domain.Exceptions;
 
@@ -12,7 +11,7 @@
     [Serializable]
     [SuppressMessage("Minor Code Smell", "S1210:\"Equals\" and the comparison operators should be overridden when implementing \"IComparable\"", Justification = "Ok for BaseValueObject.")]
     [SuppressMessage("Design", "CA1036:Override methods on comparable types", Justification = "Ok for BaseValueObject.")]
-    public abstract class BaseValueObject : IComparable, IComparable<BaseValueObject>, IIgnoreDependency
+    public abstract class BaseValueObject : IComparable, IComparable<BaseValueObject>
     {
         private int? cachedHashCode;
 
@@ -126,7 +125,7 @@
 
         protected static void CheckRule(IBusinessRule rule)
         {
-            ArgumentNullException.ThrowIfNull(rule, nameof(rule));
+            ArgumentNullException.ThrowIfNull(rule);
 
             if (rule.IsBroken())
             {

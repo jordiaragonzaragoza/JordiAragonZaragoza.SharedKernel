@@ -4,7 +4,7 @@
     using System.Threading.Tasks;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
 
-    public interface IEventStore : IAggregatesStore
+    public interface IEventStore : IAggregateStore
     {
         void AppendChanges<TAggregate, TId>(TAggregate aggregate)
             where TAggregate : class, IEventSourcedAggregateRoot<TId>
