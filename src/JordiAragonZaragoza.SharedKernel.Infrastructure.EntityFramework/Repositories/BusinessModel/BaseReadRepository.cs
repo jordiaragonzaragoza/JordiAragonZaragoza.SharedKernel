@@ -4,13 +4,12 @@
     using System.Threading;
     using System.Threading.Tasks;
     using Ardalis.Specification.EntityFrameworkCore;
-    using JordiAragonZaragoza.SharedKernel.Contracts.DependencyInjection;
     using JordiAragonZaragoza.SharedKernel.Contracts.Repositories;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Domain.Entities;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Context;
 
-    public abstract class BaseReadRepository<TEntity, TId> : RepositoryBase<TEntity>, ISpecificationReadRepository<TEntity, TId>, IScopedDependency
+    public abstract class BaseReadRepository<TEntity, TId> : RepositoryBase<TEntity>, ISpecificationReadRepository<TEntity, TId>
         where TEntity : class, IEntity<TId>
         where TId : class, IEntityId
     {

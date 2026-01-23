@@ -4,47 +4,11 @@
         <name>JordiAragonZaragoza.SharedKernel.Contracts</name>
     </assembly>
     <members>
-        <member name="T:JordiAragonZaragoza.SharedKernel.Contracts.DependencyInjection.IIgnoreDependency">
-            <summary>
-            Specifies that a type in a scanned assembly will not be automatically registered.
-            If not specified with this interface it will be set as a transient dependency.
-            </summary>
-        </member>
-        <member name="T:JordiAragonZaragoza.SharedKernel.Contracts.DependencyInjection.IScopedDependency">
-            <summary>
-            Apply this marker interface to register a service as a scoped dependency.
-            </summary>
-        </member>
-        <member name="T:JordiAragonZaragoza.SharedKernel.Contracts.DependencyInjection.ISingletonDependency">
-            <summary>
-            Apply this marker interface to register a service as a singleton dependency.
-            </summary>
-        </member>
-        <member name="T:JordiAragonZaragoza.SharedKernel.Contracts.DependencyInjection.ITransientDependency">
-            <summary>
-            Apply this marker interface to register a service as a transient dependency.
-            </summary>
-        </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Contracts.Events.IEvent">
             <summary>
             The Event is an event that occurs within the problem (living inside a bounded context)
-            and is used to communicate a change in the state of the aggregate inside from source transaction.
-            This is a private event, not persisted, part of Ubiquitous Language.
-            </summary>
-        </member>
-        <member name="T:JordiAragonZaragoza.SharedKernel.Contracts.Events.IEventNotification`1">
-            <summary>
-            The Event Notification is an event that occurs within the problem (living inside a bounded context)
-            and is used to communicate a change in the state of the aggregate outside from source transaction.
-            This is a private event, persisted, part of Ubiquitous Language.
-            </summary>
-            <typeparam name="TEvent">Source domainEvent.</typeparam>
-        </member>
-        <member name="T:JordiAragonZaragoza.SharedKernel.Contracts.Events.IEventNotification">
-            <summary>
-            The Event Notification is an event that occurs within the problem (living inside a bounded context)
-            and is used to communicate a change in the state of the aggregate outside from source transaction.
-            This is a private event, persisted, part of Ubiquitous Language.
+            and is used to communicate a change in the state of the aggregate inside or outside from source transaction.
+            This is a private event and part of Ubiquitous Language.
             </summary>
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Contracts.Model.IBaseModel`1">
@@ -52,6 +16,11 @@
             Generic abstraction for a base model.
             </summary>
             <typeparam name="TId">The id for the base model.</typeparam>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Contracts.Model.IBaseModel">
+            <summary>
+            Maker interface for a base model.
+            </summary>
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Contracts.Repositories.IReadListRepository`2">
             <summary>

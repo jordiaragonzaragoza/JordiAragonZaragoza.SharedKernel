@@ -37,8 +37,21 @@
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces.IEntityId">
             <summary>
-            Marker interface for a entity id.
+            Marker interface for an entity id.
             </summary>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces.IEventsDispatcherService">
+            <summary>
+            Defines a contract for dispatching domain events collected during the execution of application logic.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces.IEventsDispatcherService.DispatchEventsFromAggregatesStoreAsync(System.Threading.CancellationToken)">
+            <summary>
+            Dispatches in domain events stored in aggregates store.
+            This should be called just before committing the transaction when using the Unit of Work pattern.
+            </summary>
+            <param name="cancellationToken">A token to observe while waiting for the task to complete.</param>
+            <returns>A task that represents the asynchronous operation.</returns>
         </member>
     </members>
 </doc>

@@ -1,6 +1,9 @@
-What is the SharedKernel Project?
-=====================
-The goal of this project is create the building blocks to follow DDD principles and Clean Architecture in .NET
+What is the Shared Kernel Project?
+================================
+The purpose of the Shared Kernel project is to define a common set of abstractions and building blocks that promote Domain-Driven Design (DDD) and Clean Architecture in .NET.
+
+It intentionally remains persistence-agnostic, allowing aggregates to be implemented with or without event sourcing.
+
 
 # Give it a star ⭐
 
@@ -14,22 +17,32 @@ Loving it? Please show your support by giving this project a star!
 [![JordiAragonZaragoza.SharedKernel.Domain.Contracts - NuGet](https://img.shields.io/nuget/v/JordiAragonZaragoza.SharedKernel.Domain.Contracts.svg?label=JordiAragonZaragoza.SharedKernel.Domain.Contracts%20-%20nuget)](https://www.nuget.org/packages/JordiAragonZaragoza.SharedKernel.Domain.Contracts)
 - [![JordiAragonZaragoza.SharedKernel.Application - NuGet](https://img.shields.io/nuget/v/JordiAragonZaragoza.SharedKernel.Application.svg?label=JordiAragonZaragoza.SharedKernel.Application%20-%20nuget)](https://www.nuget.org/packages/JordiAragonZaragoza.SharedKernel.Application)
 [![JordiAragonZaragoza.SharedKernel.Application.Contracts - NuGet](https://img.shields.io/nuget/v/JordiAragonZaragoza.SharedKernel.Application.Contracts.svg?label=JordiAragonZaragoza.SharedKernel.Application.Contracts%20-%20nuget)](https://www.nuget.org/packages/JordiAragonZaragoza.SharedKernel.Application.Contracts)
-[![JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages - NuGet](https://img.shields.io/nuget/v/JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages.svg?label=JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages%20-%20nuget)](https://www.nuget.org/packages/JordiAragonZaragoza.SharedKernel.Application.Contracts.IntegrationMessages)
+[![JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration - NuGet](https://img.shields.io/nuget/v/JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration.svg?label=JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration%20-%20nuget)](https://www.nuget.org/packages/JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration)
 - [![JordiAragonZaragoza.SharedKernel.Infrastructure - NuGet](https://img.shields.io/nuget/v/JordiAragonZaragoza.SharedKernel.Infrastructure.svg?label=JordiAragonZaragoza.SharedKernel.Infrastructure%20-%20nuget)](https://www.nuget.org/packages/JordiAragonZaragoza.SharedKernel.Infrastructure)
 [![JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework - NuGet](https://img.shields.io/nuget/v/JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.svg?label=JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework%20-%20nuget)](https://www.nuget.org/packages/JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework)
+[![JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore - NuGet](https://img.shields.io/nuget/v/JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.svg?label=JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore%20-%20nuget)](https://www.nuget.org/packages/JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore)
 - [![JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi - NuGet](https://img.shields.io/nuget/v/JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.svg?label=JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi%20-%20nuget)](https://www.nuget.org/packages/JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi)
 [![JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts - NuGet](https://img.shields.io/nuget/v/JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts.svg?label=JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts%20-%20nuget)](https://www.nuget.org/packages/JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts)
+- [![JordiAragonZaragoza.SharedKernel.Presentation.Integration - NuGet](https://img.shields.io/nuget/v/JordiAragonZaragoza.SharedKernel.Presentation.Integration.svg?label=JordiAragonZaragoza.SharedKernel.Presentation.Integration%20-%20nuget)](https://www.nuget.org/packages/JordiAragonZaragoza.SharedKernel.Presentation.Integration)
+[![JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts - NuGet](https://img.shields.io/nuget/v/JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts.svg?label=JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts%20-%20nuget)](https://www.nuget.org/packages/JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts)
 
 ## How to debug: 🐛
 
-- You will need the latest Visual Studio 2022 and the latest .NET Core SDK (at least .NET 9 SDK)
+- You will need the latest Visual Studio 2022 and the latest .NET Core SDK (at least .NET 10 SDK)
 - All the projects library are contained in JordiAragonZaragoza.SharedKernel.sln solution file.
+
+## Example of Use 🚨
+
+- [JordiAragonZaragoza.Cinema](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.Cinema/) A showcase project demonstrating a fictional cinema management system built with .NET.
+
+  The solution follows Domain-Driven Design (DDD) and Event Sourcing principles, and adopts a Microservices Architecture with an Event-Driven approach and Vertical Slice Architecture.
+
 
 ## Used libraries: ⚒️
 
+- Entity Framework
+- KurrentDB.Client
 - MediatR
-- AutoMapper
-- Autofac
 - MassTransit
 - FastEndpoints
 - Ardalis.Result
@@ -38,10 +51,6 @@ Loving it? Please show your support by giving this project a star!
 - Ardalis.GuardClauses
 - FluentValidator
 - Serilog
-- Quartz
-- Refit
-- EasyCaching
-- Volo.Abp.Guids Generator
 - StyleCop & SonarAnalyzer
 
 ## Brief explanation per project (Pending to complete) 🤓
@@ -55,7 +64,7 @@ Loving it? Please show your support by giving this project a star!
 **Application and Contracts**
 - Application common contracts and base implementation for EventBus, UnitOfWork and CQRS...
 - Common MediatR pipelines implementation 
-- IntegrationMessages contacts and base implementation to be used in EventBus
+- Integration contacts and base implementation to be used in EventBus
 - Common EventBus implementation using MassTransit
 
 **Infrastructure and Contracts**
@@ -65,6 +74,9 @@ Loving it? Please show your support by giving this project a star!
 
 **Presentation and Contracts**
 - HttpRestfulApi building blocks. Like BaseApiController, ExceptionMiddleware, CurrentUserService and ResponseBuilder for ProblemDetails.
+
+**Presentation Integration and Contracts**
+- Integration Bus building blocks. Like IntegrationEventHandler
 
 ## Testing 🧪
 
@@ -81,14 +93,15 @@ Special thanks to all these authors for sharing their knowledge and expertise:
 - <a href="https://www.oreilly.com/library/view/implementing-domain-driven-design/9780133039900/" target="_blank">Vaughn Vernon: Implementing Domain-Driven Design (book)</a>
 - <a href="https://kalele.io/books/ddd-destilado/" target="_blank">Vaughn Vernon: Domain-Driven Design Destilado (book)</a>
 - <a href="https://www.amazon.com/Hands-Domain-Driven-Design-NET-ebook/dp/B07C5WSR9B" target="_blank">Alexey Zimarev: Hands-on Domain-Driven Design (book)</a>
-- <a href="https://github.com/dotnet-architecture/eShopOnContainers" target="_blank">Microsoft eShopOnContainers</a>
-- <a href="https://github.com/dotnet-architecture/eShopOnWeb" target="_blank">Microsoft eShopOnWeb</a>
+- <a href="https://github.com/oskardudycz/EventSourcing.NetCore" target="_blank">Oskar Dudycz: EventSourcing .NET</a>
+- <a href="https://eventuous.dev/" target="_blank">Alexey Zimarev: Eventuous</a>
 - <a href="https://github.com/kgrzybek/sample-dotnet-core-cqrs-api" target="_blank">Kamil Grzybek: Sample .NET Core REST API CQRS</a>
 - <a href="https://github.com/kgrzybek/modular-monolith-with-ddd" target="_blank">Kamil Grzybek: Modular Monolith With DDD</a>
-- <a href="https://github.com/oskardudycz/EventSourcing.NetCore" target="_blank">Oskar Dudycz: EventSourcing .NET</a>
+- <a href="https://www.youtube.com/watch?v=Lw04HRF8ies" target="_blank">NDC Oslo: Udi Dahan - Talk Session: CQRS pitfalls and patterns</a>
 - <a href="https://www.youtube.com/watch?v=26xrX113KZc" target="_blank">Explore DDD: Mauro Servienti - Talk Session: Welcome to the (State) Machine</a>
 - <a href="https://www.youtube.com/watch?v=KkzvQSuYd5I" target="_blank">Explore DDD: Mauro Servienti - Talk Session: All Our Aggregates Are Wrong</a>
-- <a href="https://www.youtube.com/watch?v=Lw04HRF8ies" target="_blank">NDC Oslo: Udi Dahan - Talk Session: CQRS pitfalls and patterns</a>
+- <a href="https://www.youtube.com/watch?v=tVnIUZbsxWI" target="_blank">NDC Oslo: Adam Ralph - Talk Session: Finding your service boundaries - a practical guide</a>
+- <a href="https://www.youtube.com/watch?v=fGm62ra_mQ8" target="_blank">Øredev: Alberto Brandolini - Talk Session: 100,000 Orange Stickies Later</a>
 - <a href="https://www.confluent.io/events/kafka-summit-london-2024/event-modeling-anti-patterns/" target="_blank">KS2024: Oskar Dudycz - Talk Session: Event Modeling Anti-patterns</a>
 - <a href="https://www.youtube.com/watch?v=kPV1SkdSnhE" target="_blank">Vladimir Khorikov: DDD in a nutshell</a>
 - <a href="https://odysee.com/@sunnyAtticSoftware:a?view=content" target="_blank">Diego Martin: SunnyAttic Software Videos</a>
@@ -99,7 +112,8 @@ Special thanks to all these authors for sharing their knowledge and expertise:
 
 ## Versions
 
-The main branch is now on .NET 9 The following previous versions are available:
+The main branch is now on .NET 10 The following previous versions are available:
+* [.NET 9](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.SharedKernel/tree/net9.0)
 * [.NET 8](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.SharedKernel/tree/net8.0)
 * [.NET 7](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.SharedKernel/tree/net7.0)
 

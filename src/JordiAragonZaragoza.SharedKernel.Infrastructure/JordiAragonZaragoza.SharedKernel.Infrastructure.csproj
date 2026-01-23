@@ -6,28 +6,17 @@
 		<AssemblyName>JordiAragonZaragoza.SharedKernel.Infrastructure</AssemblyName>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="EasyCaching.Core" />
-		<PackageReference Include="EasyCaching.InMemory" />
-		<PackageReference Include="EasyCaching.Redis" />
+		<PackageReference Include="Ardalis.Result" />
 		<PackageReference Include="FluentValidation" />
 		<PackageReference Include="MassTransit" />
+		<PackageReference Include="MassTransit.RabbitMQ" />
 		<PackageReference Include="Microsoft.Extensions.Configuration.Json" />
-		<PackageReference Include="Newtonsoft.Json" />
-		<PackageReference Include="Polly" />
-		<PackageReference Include="Quartz" />
-		<PackageReference Include="Volo.Abp.Guids" />
+		<PackageReference Include="Microsoft.Extensions.Options.ConfigurationExtensions" />
+		<PackageReference Include="Microsoft.Extensions.Options.DataAnnotations" />
     </ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\JordiAragonZaragoza.SharedKernel\JordiAragonZaragoza.SharedKernel.csproj" />
-	  <ProjectReference Include="..\JordiAragonZaragoza.SharedKernel.Application.Contracts\JordiAragonZaragoza.SharedKernel.Application.Contracts.csproj" />
+	  <ProjectReference Include="..\JordiAragonZaragoza.SharedKernel.Application\JordiAragonZaragoza.SharedKernel.Application.csproj" />
 	  <ProjectReference Include="..\JordiAragonZaragoza.SharedKernel.Domain\JordiAragonZaragoza.SharedKernel.Domain.csproj" />
-	</ItemGroup>
-	<ItemGroup>
-	  <None Remove="sharedkernelinfrastructuresettings.json" />
-	  <None Remove="sharedkernelinfrastructuresettings.Development.json" />
-	</ItemGroup>
-	<ItemGroup>
-	  <EmbeddedResource Include="sharedkernelinfrastructuresettings.json" />
-	  <EmbeddedResource Include="sharedkernelinfrastructuresettings.Development.json" />
 	</ItemGroup>
 </Project>
