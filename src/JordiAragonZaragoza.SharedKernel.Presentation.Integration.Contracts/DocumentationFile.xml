@@ -1,7 +1,7 @@
 <?xml version="1.0"?>
 <doc>
     <assembly>
-        <name>JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.Contracts</name>
+        <name>JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts</name>
     </assembly>
     <members>
         <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts.Interfaces.Consumers.IBaseIntegrationMessageHandler`1">

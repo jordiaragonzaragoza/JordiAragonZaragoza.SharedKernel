@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-		<PackageId>JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.Contracts</PackageId>
-		<Title>JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.Contracts</Title>
-		<AssemblyName>JordiAragonZaragoza.SharedKernel.Presentation.IntegrationConsumers.Contracts</AssemblyName>
+		<PackageId>JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts</PackageId>
+		<Title>JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts</Title>
+		<AssemblyName>JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts</AssemblyName>
 	</PropertyGroup>
 	<ItemGroup>
 		<PackageReference Include="MassTransit" />
