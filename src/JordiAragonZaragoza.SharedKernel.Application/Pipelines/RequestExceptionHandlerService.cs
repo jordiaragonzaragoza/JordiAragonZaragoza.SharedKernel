@@ -10,11 +10,11 @@
     public class RequestExceptionHandlerService : IRequestExceptionHandlerService
     {
         private readonly ILogger<RequestExceptionHandlerService> logger;
-        private readonly IUserContextService userContextService;
+        private readonly IExecutionContextService userContextService;
 
         public RequestExceptionHandlerService(
             ILogger<RequestExceptionHandlerService> logger,
-            IUserContextService userContextService)
+            IExecutionContextService userContextService)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.userContextService = userContextService ?? throw new ArgumentNullException(nameof(userContextService));
@@ -35,7 +35,7 @@
             catch (Exception exception)
             {
                 var requestName = typeof(TRequest).Name;
-                var userId = this.userContextService.CurrentContext.UserId;
+                var userId = this.userContextService.CurrentContext.ActorId;
 
                 var sanitizedObject = request is ISanitizableRequest sanitizable
                     ? sanitizable.GetSanitized()

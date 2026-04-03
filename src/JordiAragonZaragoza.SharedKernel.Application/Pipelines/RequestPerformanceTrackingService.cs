@@ -11,11 +11,11 @@
     public class RequestPerformanceTrackingService : IRequestPerformanceTrackingService
     {
         private readonly ILogger<RequestPerformanceTrackingService> logger;
-        private readonly IUserContextService userContextService;
+        private readonly IExecutionContextService userContextService;
 
         public RequestPerformanceTrackingService(
             ILogger<RequestPerformanceTrackingService> logger,
-            IUserContextService userContextService)
+            IExecutionContextService userContextService)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.userContextService = userContextService ?? throw new ArgumentNullException(nameof(userContextService));
@@ -37,7 +37,7 @@
 
             var elapsedMilliseconds = timer.ElapsedMilliseconds;
             var requestName = typeof(TRequest).Name;
-            var userId = this.userContextService.CurrentContext.UserId;
+            var userId = this.userContextService.CurrentContext.ActorId;
             var sanitizedObject = request is ISanitizableRequest sanitizable
                 ? sanitizable.GetSanitized()
                 : request;

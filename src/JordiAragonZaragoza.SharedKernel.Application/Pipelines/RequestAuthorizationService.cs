@@ -13,25 +13,25 @@
         where TRequest : notnull
         where TResponse : IResult
     {
-        private readonly IUserContextService userContextService;
+        private readonly IExecutionContextService executionContextService;
         private readonly IIdentityService identityService;
 
         public RequestAuthorizationService(
-            IUserContextService userContextService,
+            IExecutionContextService executionContextService,
             IIdentityService identityService)
         {
-            this.userContextService = userContextService ?? throw new ArgumentNullException(nameof(userContextService));
+            this.executionContextService = executionContextService ?? throw new ArgumentNullException(nameof(executionContextService));
             this.identityService = identityService ?? throw new ArgumentNullException(nameof(identityService));
         }
 
         public async Task<TResponse?> TryAuthorizeAsync(TRequest request, CancellationToken cancellationToken = default)
         {
             var authorizeAttributes = request.GetType().GetCustomAttributes<AuthorizeAttribute>().ToList();
-            var userId = this.userContextService.CurrentContext.UserId;
+            var actorId = this.executionContextService.CurrentContext.ActorId;
             if (authorizeAttributes.Count > 0)
             {
                 // Must be authenticated user
-                if (userId == UserConstants.AnonymousUser)
+                if (actorId == ActorConstants.Anonymous)
                 {
                     // Get Ardalis.Result.Unauthorized or Ardalis.Result<T>.Unauthorized method.
                     var resultUnauthorizedMethod = typeof(TResponse).GetMethod("Unauthorized", BindingFlags.Static | BindingFlags.Public)
@@ -56,7 +56,7 @@
                     {
                         foreach (var role in roles)
                         {
-                            var isInRole = await this.identityService.IsInRoleAsync(userId, role.Trim());
+                            var isInRole = await this.identityService.IsInRoleAsync(actorId, role.Trim());
                             if (isInRole)
                             {
                                 authorized = true;
@@ -85,7 +85,7 @@
                 {
                     foreach (var policy in authorizeAttributesWithPolicies.Select(static a => a.Policy))
                     {
-                        var authorized = await this.identityService.AuthorizeAsync(userId, policy);
+                        var authorized = await this.identityService.AuthorizeAsync(actorId, policy);
 
                         if (!authorized)
                         {

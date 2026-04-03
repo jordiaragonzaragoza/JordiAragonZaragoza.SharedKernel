@@ -31,7 +31,7 @@
                 }
                 else
                 {
-                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
                     await context.Response.WriteAsync("Missing TenantId or PartitionId headers.");
 
                     return;

@@ -21,7 +21,7 @@
             services.AddSingleton<IDateTime, DateTimeService>();
             services.AddSingleton<IIdGenerator, IdGeneratorService>();
             services.AddSingleton<IPartitionContextService, PartitionContextService>();
-            services.AddSingleton<IUserContextService, UserContextService>();
+            services.AddSingleton<IExecutionContextService, ExecutionContextService>();
             services.AddTransient<ICacheService, CacheService>();
             services.AddTransient<IIdentityService, IdentityService>();
 

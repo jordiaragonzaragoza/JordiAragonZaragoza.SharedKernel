@@ -10,11 +10,11 @@
     public class RequestLoggerService : IRequestLoggerService
     {
         private readonly ILogger<RequestLoggerService> logger;
-        private readonly IUserContextService userContextService;
+        private readonly IExecutionContextService userContextService;
 
         public RequestLoggerService(
             ILogger<RequestLoggerService> logger,
-            IUserContextService userContextService)
+            IExecutionContextService userContextService)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
             this.userContextService = userContextService ?? throw new ArgumentNullException(nameof(userContextService));
@@ -24,7 +24,7 @@
             where TRequest : notnull
         {
             var requestName = typeof(TRequest).Name;
-            var userId = this.userContextService.CurrentContext.UserId;
+            var userId = this.userContextService.CurrentContext.ActorId;
 
             var sanitizedObject = request is ISanitizableRequest sanitizable
                 ? sanitizable.GetSanitized()
