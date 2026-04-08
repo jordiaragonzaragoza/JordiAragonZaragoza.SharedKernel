@@ -54,9 +54,13 @@
 
             executionContextService.SetExecutionContext(actorId, actorType, correlationId, causationId: null);
 
-            await this.next(context);
+            context.Response.OnStarting(() =>
+            {
+                context.Response.Headers["x-correlation-id"] = correlationId.ToString();
+                return Task.CompletedTask;
+            });
 
-            context.Response.Headers["x-correlation-id"] = correlationId.ToString();
+            await this.next(context);
         }
     }
 }
