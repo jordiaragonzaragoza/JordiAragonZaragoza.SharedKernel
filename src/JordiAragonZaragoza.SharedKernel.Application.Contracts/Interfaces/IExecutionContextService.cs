@@ -6,6 +6,13 @@
     {
         ExecutionContext CurrentContext { get; }
 
-        void SetExecutionContext(string actorId, string actorType, Guid correlationId, Guid? causationId = default);
+        void SetExecutionContext(
+            string actorId,
+            string actorType,
+            Guid correlationId,
+            Guid tenantId,
+            Guid? partitionId = default,
+            Guid? domainId = default,
+            Guid? causationId = default);
     }
 }

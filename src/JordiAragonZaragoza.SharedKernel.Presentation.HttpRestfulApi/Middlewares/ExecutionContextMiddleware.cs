@@ -15,28 +15,13 @@
             this.next = next ?? throw new ArgumentNullException(nameof(next));
         }
 
-        public async Task InvokeAsync(HttpContext context, IExecutionContextService executionContextService)
+        public async Task InvokeAsync(HttpContext context, IExecutionContextService executionContextService, IAuthorizationService authorizationService)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(executionContextService);
+            ArgumentNullException.ThrowIfNull(authorizationService);
 
-            var actorIdHeader = context.Request.Headers["x-actor-id"].FirstOrDefault();
-            string? actorId =
-                context.User?.FindFirst("sub")?.Value ??
-                actorIdHeader;
-
-            var actorTypeHeader = context.Request.Headers["x-actor-type"].FirstOrDefault();
-            string actorType =
-                actorTypeHeader ??
-                (context.User?.Identity?.IsAuthenticated == true
-                    ? ActorConstants.User
-                    : ActorConstants.Anonymous);
-
-            var correlationIdHeader = context.Request.Headers["x-correlation-id"].FirstOrDefault();
-            var correlationId = Guid.TryParse(correlationIdHeader, out var parsed)
-                ? parsed
-                : Guid.NewGuid();
-
+            var actorId = ResolveActorId(context);
             if (actorId is null)
             {
                 if (AnonymousRequestHelper.IsAnonymousAllowed(context))
@@ -46,13 +31,57 @@
                 else
                 {
                     context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                    await context.Response.WriteAsync("ActorId is required for this request.");
+                    await context.Response.WriteAsync("x-actor-id header is required for this request.");
 
                     return;
                 }
             }
 
-            executionContextService.SetExecutionContext(actorId, actorType, correlationId, causationId: null);
+            var actorType = ResolveActorType(context, actorId);
+
+            var correlationId = ResolveCorrelationId(context);
+
+            var tenantIdHeader = context.Request.Headers["x-tenant-id"].FirstOrDefault();
+            if (!Guid.TryParse(tenantIdHeader, out var tenantId))
+            {
+                if (AnonymousRequestHelper.IsAnonymousAllowed(context))
+                {
+                    tenantId = Guid.Empty;
+                }
+                else
+                {
+                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                    await context.Response.WriteAsync("x-tenant-id header is required and must be a valid Guid.");
+
+                    return;
+                }
+            }
+
+            var partitionHeader = context.Request.Headers["x-partition-id"].FirstOrDefault();
+            Guid? partitionId = Guid.TryParse(partitionHeader, out var partition) ? partition : null;
+
+            var domainHeader = context.Request.Headers["x-domain-id"].FirstOrDefault();
+            Guid? domainId = Guid.TryParse(domainHeader,  out var domain) ? domain : null;
+
+            var accessResult = await authorizationService.ValidateScopeAsync(
+                actorId, tenantId, partitionId, domainId);
+
+            if (!accessResult.IsSuccess)
+            {
+                context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                await context.Response.WriteAsync(accessResult.Errors.FirstOrDefault()?.ToString() ?? "Access denied.");
+
+                return;
+            }
+
+            executionContextService.SetExecutionContext(
+                actorId,
+                actorType,
+                correlationId,
+                tenantId,
+                partitionId,
+                domainId,
+                causationId: null);
 
             context.Response.OnStarting(() =>
             {
@@ -61,6 +90,43 @@
             });
 
             await this.next(context);
+        }
+
+        private static string? ResolveActorId(HttpContext context)
+        {
+            var jwtSub = context.User?.FindFirst("sub")?.Value;
+            if (jwtSub is not null)
+            {
+                return jwtSub;
+            }
+
+            return context.Request.Headers["x-actor-id"].FirstOrDefault();
+        }
+
+        private static string ResolveActorType(HttpContext context, string actorId)
+        {
+            var actorTypeHeader = context.Request.Headers["x-actor-type"].FirstOrDefault();
+            if (actorTypeHeader is not null)
+            {
+                return actorTypeHeader;
+            }
+
+            if (actorId == ActorConstants.Anonymous)
+            {
+                return ActorConstants.Anonymous;
+            }
+
+            return context.User?.Identity?.IsAuthenticated == true
+                ? ActorConstants.User
+                : ActorConstants.Anonymous;
+        }
+
+        private static Guid ResolveCorrelationId(HttpContext context)
+        {
+            var correlationIdHeader = context.Request.Headers["x-correlation-id"].FirstOrDefault();
+            return Guid.TryParse(correlationIdHeader, out var parsed)
+                ? parsed
+                : Guid.NewGuid();
         }
     }
 }

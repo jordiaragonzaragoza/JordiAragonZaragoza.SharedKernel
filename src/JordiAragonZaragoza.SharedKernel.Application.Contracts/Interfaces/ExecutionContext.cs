@@ -6,5 +6,6 @@
         string ActorId,
         string ActorType,
         Guid CorrelationId,
-        Guid? CausationId);
+        Guid? CausationId,
+        ScopeContext ScopeContext);
 }

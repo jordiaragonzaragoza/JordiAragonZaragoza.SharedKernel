@@ -6,7 +6,6 @@
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Bus;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Bus.MediatR;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Cache;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.Context.Partition;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Context.User;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.DateTime;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Identity;
@@ -20,7 +19,6 @@
         {
             services.AddSingleton<IDateTime, DateTimeService>();
             services.AddSingleton<IIdGenerator, IdGeneratorService>();
-            services.AddSingleton<IPartitionContextService, PartitionContextService>();
             services.AddSingleton<IExecutionContextService, ExecutionContextService>();
             services.AddTransient<ICacheService, CacheService>();
             services.AddTransient<IIdentityService, IdentityService>();

@@ -12,7 +12,14 @@
         public ExecutionContext CurrentContext =>
             AsyncUserContext.Value ?? throw new InvalidOperationException("ExecutionContext has not been set.");
 
-        public void SetExecutionContext(string actorId, string actorType, Guid correlationId, Guid? causationId = default)
+        public void SetExecutionContext(
+            string actorId,
+            string actorType,
+            Guid correlationId,
+            Guid tenantId,
+            Guid? partitionId = default,
+            Guid? domainId = default,
+            Guid? causationId = default)
         {
             if (string.IsNullOrWhiteSpace(actorId))
             {
@@ -29,12 +36,17 @@
                 throw new ArgumentException("CorrelationId cannot be empty.", nameof(correlationId));
             }
 
+            if (tenantId == Guid.Empty)
+            {
+                throw new ArgumentException("TenantId cannot be empty.", nameof(tenantId));
+            }
+
             if (AsyncUserContext.Value is not null)
             {
                 throw new InvalidOperationException("ExecutionContext has already been set for the current context.");
             }
 
-            AsyncUserContext.Value = new ExecutionContext(actorId, actorType, correlationId, causationId);
+            AsyncUserContext.Value = new ExecutionContext(actorId, actorType, correlationId, causationId, new ScopeContext(tenantId, partitionId, domainId));
         }
     }
 }
