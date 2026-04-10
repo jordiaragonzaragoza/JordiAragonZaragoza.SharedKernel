@@ -6,7 +6,7 @@
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Bus;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Bus.MediatR;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Cache;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.Context.User;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.Context;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.DateTime;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Identity;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.IdGenerator;

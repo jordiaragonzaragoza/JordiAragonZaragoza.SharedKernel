@@ -14,5 +14,7 @@
             Guid? partitionId = default,
             Guid? domainId = default,
             Guid? causationId = default);
+
+        void ClearExecutionContext();
     }
 }

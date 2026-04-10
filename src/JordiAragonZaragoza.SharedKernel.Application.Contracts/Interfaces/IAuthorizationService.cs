@@ -6,10 +6,6 @@ namespace JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces
 
     public interface IAuthorizationService
     {
-        Task<Result> ValidateScopeAsync(
-            string actorId,
-            Guid tenantId,
-            Guid? partitionId,
-            Guid? domainId);
+        Task<Result> ValidateScopeAsync(string actorId, string actorType, Guid tenantId, Guid? partitionId, Guid? domainId);
     }
 }

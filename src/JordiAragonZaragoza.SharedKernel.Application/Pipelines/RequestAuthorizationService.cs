@@ -30,7 +30,7 @@
             var actorId = this.executionContextService.CurrentContext.ActorId;
             if (authorizeAttributes.Count > 0)
             {
-                // Must be authenticated user
+                /*// Must be authenticated user
                 if (actorId == ActorConstants.Anonymous)
                 {
                     // Get Ardalis.Result.Unauthorized or Ardalis.Result<T>.Unauthorized method.
@@ -43,7 +43,7 @@
                     return (TResponse)result;
 
                     ////throw new UnauthorizedAccessException();
-                }
+                }*/
 
                 // Role-based authorization
                 var authorizeAttributesWithRoles = authorizeAttributes.Where(static a => !string.IsNullOrWhiteSpace(a.Roles)).ToList();

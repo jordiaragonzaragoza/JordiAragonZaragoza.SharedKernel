@@ -1,4 +1,4 @@
-﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.Context.User
+﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.Context
 {
     using System;
     using System.Threading;
@@ -47,6 +47,11 @@
             }
 
             AsyncUserContext.Value = new ExecutionContext(actorId, actorType, correlationId, causationId, new ScopeContext(tenantId, partitionId, domainId));
+        }
+
+        public void ClearExecutionContext()
+        {
+            AsyncUserContext.Value = null;
         }
     }
 }

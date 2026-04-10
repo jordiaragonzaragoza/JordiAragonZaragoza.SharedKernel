@@ -1,6 +1,7 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Middlewares
 {
     using System;
+    using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
@@ -21,40 +22,41 @@
             ArgumentNullException.ThrowIfNull(executionContextService);
             ArgumentNullException.ThrowIfNull(authorizationService);
 
+            if (AnonymousRequestHelper.IsAnonymousAllowed(context))
+            {
+                await this.next(context);
+
+                return;
+            }
+
             var actorId = ResolveActorId(context);
             if (actorId is null)
             {
-                if (AnonymousRequestHelper.IsAnonymousAllowed(context))
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(new
                 {
-                    actorId = ActorConstants.Anonymous;
-                }
-                else
-                {
-                    context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                    await context.Response.WriteAsync("x-actor-id header is required for this request.");
+                    error = "unauthorized",
+                    message = "Authentication is required.",
+                });
 
-                    return;
-                }
+                return;
             }
 
-            var actorType = ResolveActorType(context, actorId);
+            var actorType = ResolveActorType(context);
 
             var correlationId = ResolveCorrelationId(context);
 
             var tenantIdHeader = context.Request.Headers["x-tenant-id"].FirstOrDefault();
-            if (!Guid.TryParse(tenantIdHeader, out var tenantId))
+            if (!Guid.TryParse(tenantIdHeader, out var tenantId) || tenantId == Guid.Empty)
             {
-                if (AnonymousRequestHelper.IsAnonymousAllowed(context))
+                context.Response.StatusCode = StatusCodes.Status400BadRequest;
+                await context.Response.WriteAsJsonAsync(new
                 {
-                    tenantId = Guid.Empty;
-                }
-                else
-                {
-                    context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                    await context.Response.WriteAsync("x-tenant-id header is required and must be a valid Guid.");
+                    error = "invalid_tenant",
+                    message = "x-tenant-id header is required and must be a valid Guid.",
+                });
 
-                    return;
-                }
+                return;
             }
 
             var partitionHeader = context.Request.Headers["x-partition-id"].FirstOrDefault();
@@ -63,67 +65,71 @@
             var domainHeader = context.Request.Headers["x-domain-id"].FirstOrDefault();
             Guid? domainId = Guid.TryParse(domainHeader,  out var domain) ? domain : null;
 
-            var accessResult = await authorizationService.ValidateScopeAsync(
-                actorId, tenantId, partitionId, domainId);
+            var accessResult = await authorizationService.ValidateScopeAsync(actorId, actorType, tenantId, partitionId, domainId);
 
             if (!accessResult.IsSuccess)
             {
                 context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                await context.Response.WriteAsync(accessResult.Errors.FirstOrDefault()?.ToString() ?? "Access denied.");
+                await context.Response.WriteAsJsonAsync(new
+                {
+                    error = "forbidden",
+                    message = accessResult.Errors.FirstOrDefault()?.ToString() ?? "Access denied.",
+                });
 
                 return;
             }
 
             executionContextService.SetExecutionContext(
-                actorId,
-                actorType,
-                correlationId,
-                tenantId,
-                partitionId,
-                domainId,
-                causationId: null);
+                            actorId,
+                            actorType,
+                            correlationId,
+                            tenantId,
+                            partitionId,
+                            domainId,
+                            causationId: null);
 
             context.Response.OnStarting(() =>
             {
-                context.Response.Headers["x-correlation-id"] = correlationId.ToString();
+                context.Response.Headers.TryAdd("x-correlation-id", correlationId.ToString());
+
                 return Task.CompletedTask;
             });
 
-            await this.next(context);
+            try
+            {
+                await this.next(context);
+            }
+            finally
+            {
+                executionContextService.ClearExecutionContext();
+            }
         }
 
         private static string? ResolveActorId(HttpContext context)
         {
-            var jwtSub = context.User?.FindFirst("sub")?.Value;
-            if (jwtSub is not null)
+            if (context.User?.Identity?.IsAuthenticated == true)
             {
-                return jwtSub;
+                var oid = context.User.FindFirst("oid")?.Value;
+                return Guid.TryParse(oid, out _) ? oid : null;
             }
 
-            return context.Request.Headers["x-actor-id"].FirstOrDefault();
+            return null;
         }
 
-        private static string ResolveActorType(HttpContext context, string actorId)
+        private static string ResolveActorType(HttpContext context)
         {
-            var actorTypeHeader = context.Request.Headers["x-actor-type"].FirstOrDefault();
-            if (actorTypeHeader is not null)
+            if (context.User?.Identity?.IsAuthenticated == true)
             {
-                return actorTypeHeader;
+                return ActorConstants.User;
             }
 
-            if (actorId == ActorConstants.Anonymous)
-            {
-                return ActorConstants.Anonymous;
-            }
-
-            return context.User?.Identity?.IsAuthenticated == true
-                ? ActorConstants.User
-                : ActorConstants.Anonymous;
+            throw new UnauthorizedAccessException("Actor type cannot be resolved.");
         }
 
         private static Guid ResolveCorrelationId(HttpContext context)
         {
             var correlationIdHeader = context.Request.Headers["x-correlation-id"].FirstOrDefault();
+
             return Guid.TryParse(correlationIdHeader, out var parsed)
                 ? parsed
                 : Guid.NewGuid();
