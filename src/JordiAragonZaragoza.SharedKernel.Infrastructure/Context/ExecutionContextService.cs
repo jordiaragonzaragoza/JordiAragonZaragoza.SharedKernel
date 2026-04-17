@@ -9,44 +9,18 @@
     {
         private static readonly AsyncLocal<ExecutionContext?> AsyncUserContext = new();
 
-        public ExecutionContext CurrentContext =>
-            AsyncUserContext.Value ?? throw new InvalidOperationException("ExecutionContext has not been set.");
+        public ExecutionContext? CurrentContext => AsyncUserContext.Value;
 
-        public void SetExecutionContext(
-            string actorId,
-            string actorType,
-            Guid correlationId,
-            Guid tenantId,
-            Guid? partitionId = default,
-            Guid? domainId = default,
-            Guid? causationId = default)
+        public void SetExecutionContext(ExecutionContext executionContext)
         {
-            if (string.IsNullOrWhiteSpace(actorId))
-            {
-                throw new ArgumentException("ActorId cannot be null or whitespace.", nameof(actorId));
-            }
-
-            if (string.IsNullOrWhiteSpace(actorType))
-            {
-                throw new ArgumentException("ActorType cannot be null or whitespace.", nameof(actorType));
-            }
-
-            if (correlationId == Guid.Empty)
-            {
-                throw new ArgumentException("CorrelationId cannot be empty.", nameof(correlationId));
-            }
-
-            if (tenantId == Guid.Empty)
-            {
-                throw new ArgumentException("TenantId cannot be empty.", nameof(tenantId));
-            }
+            ArgumentNullException.ThrowIfNull(executionContext);
 
             if (AsyncUserContext.Value is not null)
             {
                 throw new InvalidOperationException("ExecutionContext has already been set for the current context.");
             }
 
-            AsyncUserContext.Value = new ExecutionContext(actorId, actorType, correlationId, causationId, new ScopeContext(tenantId, partitionId, domainId));
+            AsyncUserContext.Value = executionContext;
         }
 
         public void ClearExecutionContext()

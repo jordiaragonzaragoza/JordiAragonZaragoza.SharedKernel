@@ -44,6 +44,9 @@
 
             var actorType = ResolveActorType(context);
 
+            string executor = string.Empty; // TODO: Resolve executor from context or configuration?
+            var executorType = ExecutorType.Service;
+
             var correlationId = ResolveCorrelationId(context);
 
             var tenantIdHeader = context.Request.Headers["x-tenant-id"].FirstOrDefault();
@@ -65,7 +68,19 @@
             var domainHeader = context.Request.Headers["x-domain-id"].FirstOrDefault();
             Guid? domainId = Guid.TryParse(domainHeader,  out var domain) ? domain : null;
 
-            var accessResult = await authorizationService.ValidateScopeAsync(actorId, actorType, tenantId, partitionId, domainId);
+            var newExecutionContext = new ExecutionContext(
+                actorId,
+                actorType,
+                executor,
+                executorType,
+                correlationId,
+                causationId: null,
+                new ScopeContext(tenantId, partitionId, domainId));
+
+            executionContextService.SetExecutionContext(
+                            newExecutionContext);
+
+            var accessResult = await authorizationService.ValidateScopeAsync(newExecutionContext);
 
             if (!accessResult.IsSuccess)
             {
@@ -78,15 +93,6 @@
 
                 return;
             }
-
-            executionContextService.SetExecutionContext(
-                            actorId,
-                            actorType,
-                            correlationId,
-                            tenantId,
-                            partitionId,
-                            domainId,
-                            causationId: null);
 
             context.Response.OnStarting(() =>
             {
@@ -116,11 +122,11 @@
             return null;
         }
 
-        private static string ResolveActorType(HttpContext context)
+        private static ActorType ResolveActorType(HttpContext context)
         {
             if (context.User?.Identity?.IsAuthenticated == true)
             {
-                return ActorConstants.User;
+                return ActorType.User;
             }
 
             throw new UnauthorizedAccessException("Actor type cannot be resolved.");

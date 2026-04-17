@@ -35,7 +35,7 @@
             catch (Exception exception)
             {
                 var requestName = typeof(TRequest).Name;
-                var userId = this.userContextService.CurrentContext.ActorId;
+                var userId = this.userContextService.CurrentContext?.ActorId;
 
                 var sanitizedObject = request is ISanitizableRequest sanitizable
                     ? sanitizable.GetSanitized()

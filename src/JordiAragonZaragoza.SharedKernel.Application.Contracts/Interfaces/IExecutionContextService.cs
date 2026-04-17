@@ -1,19 +1,10 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces
 {
-    using System;
-
     public interface IExecutionContextService
     {
-        ExecutionContext CurrentContext { get; }
+        ExecutionContext? CurrentContext { get; }
 
-        void SetExecutionContext(
-            string actorId,
-            string actorType,
-            Guid correlationId,
-            Guid tenantId,
-            Guid? partitionId = default,
-            Guid? domainId = default,
-            Guid? causationId = default);
+        void SetExecutionContext(ExecutionContext executionContext);
 
         void ClearExecutionContext();
     }
