@@ -7,6 +7,6 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.ServiceIdentity
         public const string Section = "ServiceIdentity";
 
         [Required]
-        public string ServiceName { get; init; } = default!;
+        public string Name { get; init; } = default!;
     }
 }

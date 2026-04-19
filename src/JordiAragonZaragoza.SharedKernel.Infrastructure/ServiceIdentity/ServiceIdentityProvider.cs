@@ -6,17 +6,17 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.ServiceIdentity
 
     public class ServiceIdentityProvider : IServiceIdentityProvider
     {
-        private readonly string serviceName;
+        private readonly string name;
 
         public ServiceIdentityProvider(
             IOptions<ServiceIdentityOptions> options)
         {
             ArgumentNullException.ThrowIfNull(options);
 
-            this.serviceName = options.Value.ServiceName ?? throw new ArgumentException("Service name must be provided.", nameof(options));
+            this.name = options.Value.Name ?? throw new ArgumentException("Service name must be provided.", nameof(options));
         }
 
-        public string GetServiceName()
-            => this.serviceName;
+        public string GetName()
+            => this.name;
      }
 }

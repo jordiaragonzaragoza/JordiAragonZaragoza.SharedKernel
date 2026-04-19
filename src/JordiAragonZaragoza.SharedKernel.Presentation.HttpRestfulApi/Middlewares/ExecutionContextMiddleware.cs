@@ -65,7 +65,7 @@
                 return;
             }
 
-            string executor = serviceIdentityProvider.GetServiceName();
+            string executor = serviceIdentityProvider.GetName();
             var executorType = ExecutorType.Service;
             var correlationId = ResolveCorrelationId(context);
             var causationId = ResolveCausationId(context);
