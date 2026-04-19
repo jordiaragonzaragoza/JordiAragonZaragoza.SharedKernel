@@ -4,8 +4,8 @@ namespace JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces
 
     public sealed class ExecutorType : SmartEnum<ExecutorType>
     {
-        public static readonly ExecutorType Worker = new("worker", 1);
-        public static readonly ExecutorType Service = new("service", 2);
+        public static readonly ExecutorType Service = new("service", 1);
+        public static readonly ExecutorType Worker = new("worker", 2);
         public static readonly ExecutorType Tool = new("tool", 3);
 
         private ExecutorType(string name, int value)

@@ -10,6 +10,8 @@
     using JordiAragonZaragoza.SharedKernel.Infrastructure.DateTime;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Identity;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.IdGenerator;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.Interfaces;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.ServiceIdentity;
     using Microsoft.Extensions.DependencyInjection;
 
     public static class InfrastructureDependencyInjection
@@ -22,6 +24,13 @@
             services.AddSingleton<IExecutionContextService, ExecutionContextService>();
             services.AddTransient<ICacheService, CacheService>();
             services.AddTransient<IIdentityService, IdentityService>();
+
+            services.AddOptions<ServiceIdentityOptions>()
+                .BindConfiguration(ServiceIdentityOptions.Section)
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+
+            services.AddTransient<IServiceIdentityProvider, ServiceIdentityProvider>();
 
             return services;
         }

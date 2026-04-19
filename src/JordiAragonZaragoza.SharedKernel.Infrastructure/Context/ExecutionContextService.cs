@@ -5,7 +5,7 @@
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using ExecutionContext = JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ExecutionContext;
 
-    public class ExecutionContextService : IExecutionContextService
+    public sealed class ExecutionContextService : IExecutionContextService
     {
         private static readonly AsyncLocal<ExecutionContext?> AsyncUserContext = new();
 
