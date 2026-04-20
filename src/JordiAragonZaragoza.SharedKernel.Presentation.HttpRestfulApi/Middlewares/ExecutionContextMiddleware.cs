@@ -70,9 +70,17 @@
             var correlationId = ResolveCorrelationId(context);
             var causationId = ResolveCausationId(context);
 
-            // Open the log scope with all resolved values so every log line
-            // within this request carries the full context from the start.
-            using (this.logger.BeginScope(new Dictionary<string, object>
+            var partitionHeader = context.Request.Headers["x-partition-id"].FirstOrDefault();
+            Guid? partitionId = Guid.TryParse(partitionHeader, out var partition) && partition != Guid.Empty
+                ? partition
+                : null;
+
+            var domainHeader = context.Request.Headers["x-domain-id"].FirstOrDefault();
+            Guid? domainId = Guid.TryParse(domainHeader, out var domain) && domain != Guid.Empty
+                ? domain
+                : null;
+
+            using (this.logger.BeginScope(new Dictionary<string, object?>
             {
                 ["CorrelationId"] = correlationId,
                 ["ActorId"] = actorId,
@@ -80,18 +88,10 @@
                 ["Executor"] = executor,
                 ["ExecutorType"] = executorType.Name,
                 ["TenantId"] = tenantId,
+                ["PartitionId"] = partitionId,
+                ["DomainId"] = domainId,
             }))
             {
-                var partitionHeader = context.Request.Headers["x-partition-id"].FirstOrDefault();
-                Guid? partitionId = Guid.TryParse(partitionHeader, out var partition) && partition != Guid.Empty
-                    ? partition
-                    : null;
-
-                var domainHeader = context.Request.Headers["x-domain-id"].FirstOrDefault();
-                Guid? domainId = Guid.TryParse(domainHeader, out var domain) && domain != Guid.Empty
-                    ? domain
-                    : null;
-
                 var newExecutionContext = new ExecutionContext(
                     actorId,
                     actorType,
@@ -147,7 +147,7 @@
                 var oid = context.User.FindFirst("oid")?.Value;
                 if (Guid.TryParse(oid, out var parsed))
                 {
-                    return ($"user:{parsed}", ActorType.User);
+                    return (ExecutionContext.CreateUserActorId(parsed), ActorType.User);
                 }
             }
 

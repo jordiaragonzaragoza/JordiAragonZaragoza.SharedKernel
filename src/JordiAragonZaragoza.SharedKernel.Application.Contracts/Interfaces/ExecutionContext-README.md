@@ -44,7 +44,8 @@ service:{name}
 job:{name}
 ```
 
-This is enforced at construction time via `ExecutionContext.IsValidActorIdFormat(actorId)`.
+This is enforced at construction time via `ExecutionContext.IsValidActorIdFormat(actorId)`.  
+Factory methods are also available: `CreateUserActorId`, `CreateServiceActorId`, `CreateJobActorId`.
 
 ---
 
@@ -59,10 +60,10 @@ ExecutorType ExecutorType // SmartEnum: service | worker | tool
 
 #### Examples:
 
-| Service | Executor                         | ExecutorType |
-| ------- | -------------------------------- | ------------ |
-| API     | `cinema-reservation-api-command` | service      |
-| Worker  | `reservation-reactor-worker`     | worker       |
+| Service | Executor                            | ExecutorType |
+| ------- | ----------------------------------- | ------------ |
+| API     | `cinema-reservation-api-command`    | service      |
+| Worker  | `cinema-reservation-reactor-worker` | worker       |
 
 > This allows answering questions like:
 > * "Who actually executed this?"
@@ -121,8 +122,8 @@ Represents the **functional scope** where the action occurs.
 #### Example:
 
 * Tenant → company
-* Partition → cinema
-* Domain → screen
+* Partition → company-region or area
+* Domain → cinema
 
 ---
 
@@ -134,9 +135,9 @@ The `ExecutionContextMiddleware` runs once per request and performs the followin
 
 1. **Resolves the actor** from the JWT (`oid` claim → `user:{guid}`, `ActorType.User`). Returns `401` if unauthenticated or the claim is missing.
 2. **Validates the tenant** from the `x-tenant-id` header. Returns `400` if absent or `Guid.Empty`.
-3. **Resolves** `CorrelationId` from `x-correlation-id` (generates a new one if absent) and `CausationId` from `x-causation-id` (optional).
-4. **Opens a structured log scope** with all resolved values so every log line in the request carries full context automatically.
-5. **Resolves optional scope headers** (`x-partition-id`, `x-domain-id`), treating absent or `Guid.Empty` values as `null`.
+3. **Resolves** `CorrelationId` from `x-correlation-id` (generates a new one if absent or empty) and `CausationId` from `x-causation-id` (optional).
+4. **Resolves optional scope headers** (`x-partition-id`, `x-domain-id`), treating absent or `Guid.Empty` values as `null`.
+5. **Opens a structured log scope** with all resolved values — including the optional scope fields — so every log line in the request carries the full context from the start.
 6. **Builds** the `ExecutionContext`.
 7. **Validates scope authorization** via `IAuthorizationService.ValidateScopeAsync(...)`. Returns `403` on failure.
 8. **Sets** the context via `IExecutionContextService.SetExecutionContext(...)`.
@@ -163,10 +164,10 @@ Guarantees:
 
 ## 🧾 Integrated logging
 
-A structured scope is opened at the start of every request:
+A structured scope is opened at the start of every request, after all values have been resolved:
 
 ```csharp
-logger.BeginScope(new Dictionary<string, object>
+logger.BeginScope(new Dictionary<string, object?>
 {
     ["CorrelationId"] = correlationId,
     ["ActorId"]       = actorId,
@@ -174,6 +175,8 @@ logger.BeginScope(new Dictionary<string, object>
     ["Executor"]      = executor,
     ["ExecutorType"]  = executorType.Name,
     ["TenantId"]      = tenantId,
+    ["PartitionId"]   = partitionId,
+    ["DomainId"]      = domainId,
 })
 ```
 
@@ -186,9 +189,13 @@ Result: every log entry within the request automatically includes:
   "ActorType":     "user",
   "Executor":      "cinema-reservation-api-command",
   "ExecutorType":  "service",
-  "TenantId":      "1111..."
+  "TenantId":      "1111...",
+  "PartitionId":   "3333...",
+  "DomainId":      "4444..."
 }
 ```
+
+> **Note:** When `PartitionId` or `DomainId` are `null`, structured logging providers such as Serilog omit those fields from the output rather than writing `null`, which keeps log entries clean for requests that do not operate within a specific partition or domain.
 
 ---
 
@@ -238,10 +245,10 @@ Prevents audit errors:
 
 Separation of responsibilities:
 
-| Component  | Responsibility               |
-| ---------- | ---------------------------- |
-| Middleware | Construction + validation    |
-| Service    | Storage only                 |
+| Component  | Responsibility            |
+| ---------- | ------------------------- |
+| Middleware | Construction + validation |
+| Service    | Storage only              |
 
 ### ❌ Do not use plain enums
 
@@ -257,23 +264,23 @@ Separation of responsibilities:
 
 ### Headers
 
-| Header            | Required |
-| ----------------- | -------- |
-| `x-tenant-id`     | ✅        |
-| `x-correlation-id`| optional |
-| `x-causation-id`  | optional |
-| `x-partition-id`  | optional |
-| `x-domain-id`     | optional |
+| Header             | Required |
+| ------------------ | -------- |
+| `x-tenant-id`      | ✅        |
+| `x-correlation-id` | optional |
+| `x-causation-id`   | optional |
+| `x-partition-id`   | optional |
+| `x-domain-id`      | optional |
 
 ### Validation rules
 
-| Field         | Rule                                          |
-| ------------- | --------------------------------------------- |
-| `ActorId`     | Non-empty, must match a known prefix pattern  |
-| `CorrelationId` | Non-empty `Guid`                            |
-| `TenantId`    | Non-empty `Guid`                              |
-| `PartitionId` | `null` or non-empty `Guid`                   |
-| `DomainId`    | `null` or non-empty `Guid`                   |
+| Field           | Rule                                         |
+| --------------- | -------------------------------------------- |
+| `ActorId`       | Non-empty, must match a known prefix pattern |
+| `CorrelationId` | Non-empty `Guid`                             |
+| `TenantId`      | Non-empty `Guid`                             |
+| `PartitionId`   | `null` or non-empty `Guid`                   |
+| `DomainId`      | `null` or non-empty `Guid`                   |
 
 ---
 
@@ -292,12 +299,12 @@ Headers:
 
 ```json
 {
-  "ActorId":      "user:123...",
-  "ActorType":    "user",
-  "Executor":     "cinema-reservation-api-command",
-  "ExecutorType": "service",
+  "ActorId":       "user:123...",
+  "ActorType":     "user",
+  "Executor":      "cinema-reservation-api-command",
+  "ExecutorType":  "service",
   "CorrelationId": "2222...",
-  "CausationId":  null,
+  "CausationId":   null,
   "ScopeContext": {
     "TenantId":    "1111...",
     "PartitionId": null,
@@ -310,13 +317,13 @@ Headers:
 
 ## 🧠 Mental model
 
-| Concept         | Question it answers                    |
-| --------------- | -------------------------------------- |
-| **Actor**       | Who wanted this to happen?             |
-| **Executor**    | Who is actually running it?            |
-| **CorrelationId** | What is the full chain of events?    |
-| **CausationId** | What triggered this specific step?     |
-| **Scope**       | In which business context does it run? |
+| Concept           | Question it answers                    |
+| ----------------- | -------------------------------------- |
+| **Actor**         | Who wanted this to happen?             |
+| **Executor**      | Who is actually running it?            |
+| **CorrelationId** | What is the full chain of events?      |
+| **CausationId**   | What triggered this specific step?     |
+| **Scope**         | In which business context does it run? |
 
 ---
 

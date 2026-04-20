@@ -8,7 +8,11 @@
         // Keeping them here centralises the convention so that both the
         // middleware and any worker/consumer that reconstructs the context
         // from message metadata use the same rule.
-        private static readonly string[] KnownActorPrefixes = ["user:", "service:", "job:"];
+        private const string UserPrefix = "user:";
+        private const string ServicePrefix = "service:";
+        private const string JobPrefix = "job:";
+
+        private static readonly string[] KnownActorPrefixes = [UserPrefix, ServicePrefix, JobPrefix];
 
         public ExecutionContext(
             string actorId,
@@ -63,6 +67,29 @@
         public Guid? CausationId { get; }
 
         public ScopeContext ScopeContext { get; }
+
+        public static string CreateUserActorId(Guid userId)
+            => $"{UserPrefix}{userId}";
+
+        public static string CreateServiceActorId(string serviceName)
+        {
+            if (string.IsNullOrWhiteSpace(serviceName))
+            {
+                throw new ArgumentException("Service name is required", nameof(serviceName));
+            }
+
+            return $"{ServicePrefix}{serviceName}";
+        }
+
+        public static string CreateJobActorId(string jobName)
+        {
+            if (string.IsNullOrWhiteSpace(jobName))
+            {
+                throw new ArgumentException("Job name is required", nameof(jobName));
+            }
+
+            return $"{JobPrefix}{jobName}";
+        }
 
         public static bool IsValidActorIdFormat(string actorId)
         {

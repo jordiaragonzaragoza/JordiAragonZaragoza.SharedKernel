@@ -27,21 +27,21 @@
         public async Task<TResponse?> TryAuthorizeAsync(TRequest request, CancellationToken cancellationToken = default)
         {
             var authorizeAttributes = request.GetType().GetCustomAttributes<AuthorizeAttribute>().ToList();
-            var actorId = this.executionContextService.CurrentContext?.ActorId;
-            if (actorId is null)
-            {
-                // Get Ardalis.Result.Unauthorized or Ardalis.Result<T>.Unauthorized method.
-                var resultUnauthorizedMethod = typeof(TResponse).GetMethod("Unauthorized", BindingFlags.Static | BindingFlags.Public)
-                        ?? throw new InvalidOperationException("The 'Unauthorized' method was not found on type " + typeof(TResponse).FullName);
-
-                var result = resultUnauthorizedMethod.Invoke(null, null)
-                        ?? throw new InvalidOperationException("The 'Unauthorized' method returned null.");
-
-                return (TResponse)result;
-            }
-
             if (authorizeAttributes.Count > 0)
             {
+                var actorId = this.executionContextService.CurrentContext?.ActorId;
+                if (actorId is null)
+                {
+                    // Get Ardalis.Result.Unauthorized or Ardalis.Result<T>.Unauthorized method.
+                    var resultUnauthorizedMethod = typeof(TResponse).GetMethod("Unauthorized", BindingFlags.Static | BindingFlags.Public)
+                            ?? throw new InvalidOperationException("The 'Unauthorized' method was not found on type " + typeof(TResponse).FullName);
+
+                    var result = resultUnauthorizedMethod.Invoke(null, null)
+                            ?? throw new InvalidOperationException("The 'Unauthorized' method returned null.");
+
+                    return (TResponse)result;
+                }
+
                 // Role-based authorization
                 var authorizeAttributesWithRoles = authorizeAttributes.Where(static a => !string.IsNullOrWhiteSpace(a.Roles)).ToList();
 
