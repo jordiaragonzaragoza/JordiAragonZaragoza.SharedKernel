@@ -39,15 +39,20 @@
                 return;
             }
 
+            var cancellationToken = context.RequestAborted;
+
             var actor = ResolveActor(context);
             if (actor is null)
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsJsonAsync(new
-                {
-                    error = "unauthorized",
-                    message = "Authentication is required.",
-                });
+                await context.Response.WriteAsJsonAsync(
+                    new
+                    {
+                        error = "unauthorized",
+                        message = "Authentication is required.",
+                    },
+                    cancellationToken);
+
                 return;
             }
 
@@ -57,11 +62,14 @@
             if (!Guid.TryParse(tenantIdHeader, out var tenantId) || tenantId == Guid.Empty)
             {
                 context.Response.StatusCode = StatusCodes.Status400BadRequest;
-                await context.Response.WriteAsJsonAsync(new
-                {
-                    error = "invalid_tenant",
-                    message = "x-tenant-id header is required and must be a valid non-empty Guid.",
-                });
+                await context.Response.WriteAsJsonAsync(
+                    new
+                    {
+                        error = "invalid_tenant",
+                        message = "x-tenant-id header is required and must be a valid non-empty Guid.",
+                    },
+                    cancellationToken);
+
                 return;
             }
 
@@ -92,6 +100,7 @@
                 ["DomainId"] = domainId,
             }))
             {
+                var newScopeContext = new ScopeContext(tenantId, partitionId, domainId);
                 var newExecutionContext = new ExecutionContext(
                     actorId,
                     actorType,
@@ -99,9 +108,12 @@
                     executorType,
                     correlationId,
                     causationId,
-                    new ScopeContext(tenantId, partitionId, domainId));
+                    newScopeContext);
 
-                var accessResult = await authorizationService.ValidateScopeAsync(newExecutionContext);
+                var accessResult = await authorizationService.ValidateScopeAsync(
+                    userId: newExecutionContext.GetUserActorId(),
+                    scope: newScopeContext,
+                    cancellationToken);
 
                 if (!accessResult.IsSuccess)
                 {
@@ -113,11 +125,13 @@
                         domainId);
 
                     context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    await context.Response.WriteAsJsonAsync(new
-                    {
-                        error = "forbidden",
-                        message = accessResult.Errors.FirstOrDefault()?.ToString() ?? "Access denied.",
-                    });
+                    await context.Response.WriteAsJsonAsync(
+                        new
+                        {
+                            error = "forbidden",
+                            message = accessResult.Errors.FirstOrDefault()?.ToString() ?? "Access denied.",
+                        },
+                        cancellationToken);
                     return;
                 }
 

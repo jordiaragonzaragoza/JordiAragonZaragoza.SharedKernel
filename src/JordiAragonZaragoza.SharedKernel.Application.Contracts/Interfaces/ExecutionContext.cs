@@ -105,5 +105,16 @@
 
             return false;
         }
+
+        public Guid GetUserActorId()
+        {
+            if (this.ActorType != ActorType.User)
+            {
+                throw new InvalidOperationException("ActorType is not User.");
+            }
+
+            var raw = this.ActorId.Substring(UserPrefix.Length);
+            return Guid.Parse(raw);
+        }
     }
 }
