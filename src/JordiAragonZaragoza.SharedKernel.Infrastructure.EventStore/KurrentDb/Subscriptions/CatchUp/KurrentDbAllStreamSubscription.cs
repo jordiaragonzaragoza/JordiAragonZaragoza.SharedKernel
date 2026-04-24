@@ -116,6 +116,16 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                 using var scope = this.serviceScopeFactory.CreateScope();
                 var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
                 var eventBus = scope.ServiceProvider.GetRequiredService<IEventBus>();
+                /*var executionContextService = scope.ServiceProvider.GetRequiredService<IExecutionContextService>();
+
+                var newExecutionContext = new ExecutionContext(
+                    actorId,
+                    actorType,
+                    executor,
+                    executorType,
+                    correlationId,
+                    causationId,
+                    new ScopeContext(tenantId, partitionId, domainId));*/
 
                 // This transaction is required to commit changes to multiple repositories atomically.
                 await unitOfWork.ExecuteInTransactionAsync(

@@ -23,6 +23,7 @@
             services.AddSingleton<IIdGenerator, IdGeneratorService>();
             services.AddSingleton<IExecutionContextService, ExecutionContextService>();
             services.AddTransient<ICacheService, CacheService>();
+            services.AddHybridCache();
             services.AddTransient<IIdentityService, IdentityService>();
 
             services.AddOptions<ServiceIdentityOptions>()

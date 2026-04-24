@@ -33,5 +33,130 @@
             <param name="cancellationToken">Cancellation token.</param>
             <returns>An awaitable task.</returns>
         </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.CacheService">
+            <summary>
+            Cache service implementation using Microsoft.Extensions.Caching.Hybrid.
+            HybridCache provides a multi-layer caching strategy combining in-memory and distributed caching.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.CacheService.#ctor(Microsoft.Extensions.Caching.Hybrid.HybridCache)">
+            <summary>
+            Initializes a new instance of the <see cref="T:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.CacheService"/> class.
+            </summary>
+            <param name="cache">The hybrid cache instance.</param>
+            <exception cref="T:System.ArgumentNullException">Thrown when cache is null.</exception>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.CacheService.GetAsync``1(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Gets a value from the cache asynchronously.
+            </summary>
+            <typeparam name="T">The type of the cached value.</typeparam>
+            <param name="cacheKey">The cache key.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>
+            A cache value wrapper indicating whether the value exists and its content.
+            </returns>
+            <exception cref="T:System.ArgumentException">Thrown when cacheKey is null or whitespace.</exception>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.CacheService.SetAsync``1(System.String,``0,System.Nullable{System.TimeSpan},System.Threading.CancellationToken)">
+            <summary>
+            Sets a value in the cache asynchronously.
+            </summary>
+            <typeparam name="T">The type of the value to cache.</typeparam>
+            <param name="cacheKey">The cache key.</param>
+            <param name="cacheValue">The value to cache.</param>
+            <param name="expiration">The expiration time span. If null, no expiration is set.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>
+            A task representing the asynchronous operation.
+            </returns>
+            <exception cref="T:System.ArgumentException">Thrown when cacheKey is null or whitespace.</exception>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.CacheService.RemoveByPrefixAsync(System.String,System.Threading.CancellationToken)">
+            <summary>
+            Removes all cached entries that start with the specified prefix.
+            </summary>
+            <remarks>
+            This implementation tracks keys internally by prefix and removes them individually.
+            Note: Keys set outside of this service or through distributed cache mechanisms may not be tracked.
+            </remarks>
+            <param name="prefix">The prefix of cache keys to remove.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>
+            A task representing the asynchronous operation.
+            </returns>
+            <exception cref="T:System.ArgumentException">Thrown when prefix is null or whitespace.</exception>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.CacheService.ExtractPrefix(System.String)">
+            <summary>
+            Extracts the prefix from a cache key (everything before the last colon).
+            </summary>
+            <param name="cacheKey">The cache key.</param>
+            <returns>
+            The prefix of the cache key.
+            </returns>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.CacheService.CachedValueWrapper">
+            <summary>
+            Wrapper class to distinguish between cached values and cache misses.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.CacheService.CachedValueWrapper.Value">
+            <summary>
+            Gets or sets the cached value.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.CacheService.CachedValueWrapper.IsFromFactory">
+            <summary>
+            Gets or sets a value indicating whether this value was created by the factory (cache miss).
+            </summary>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.HybridCacheValue`1">
+            <summary>
+            Implementation of ICacheValue for HybridCache.
+            Wraps the retrieved value and provides information about its existence.
+            </summary>
+            <typeparam name="T">The type of the cached value.</typeparam>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.HybridCacheValue`1.#ctor(`0,System.Boolean)">
+            <summary>
+            Initializes a new instance of the <see cref="T:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.HybridCacheValue`1"/> class.
+            </summary>
+            <param name="value">The cached value.</param>
+            <param name="cacheFound">Indicates whether the value was found in the cache.</param>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.HybridCacheValue`1.HasValue">
+            <summary>
+            Gets a value indicating whether a value exists in the cache.
+            </summary>
+            <remarks>
+            Returns true only if the value was found in the cache.
+            This correctly distinguishes between "not in cache" and "cached null/default value".
+            </remarks>
+            <returns>
+            <c>true</c> if a value exists in the cache; otherwise, <c>false</c>.
+            </returns>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.HybridCacheValue`1.IsNull">
+            <summary>
+            Gets a value indicating whether the value is null or not found.
+            </summary>
+            <remarks>
+            Returns true if either:
+            - The value was not found in the cache, OR
+            - The cached value itself is null/default.
+            </remarks>
+            <returns>
+            <c>true</c> if the value is null, default, or not found; otherwise, <c>false</c>.
+            </returns>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.HybridCacheValue`1.Value">
+            <summary>
+            Gets the cached value.
+            </summary>
+            <returns>
+            The cached value.
+            </returns>
+        </member>
     </members>
 </doc>
