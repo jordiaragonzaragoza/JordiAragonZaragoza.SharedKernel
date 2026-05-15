@@ -6,6 +6,11 @@
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using Microsoft.Extensions.Logging;
 
+    /// <summary>
+    /// ⚠️ Warning:. DO NOT USE WHEN USING EVENT SOURCING, AS IT CAN CAUSE INCONSISTENCIES.
+    /// This service is intended to be used in the command and query pipelines, but not when using projections in an event bus pipeline.
+    /// Implements the request invalidate caching service that handles cache invalidation logic for requests implementing the IInvalidateCacheRequest interface.
+    /// </summary>
     public class RequestInvalidateCachingService : IRequestInvalidateCachingService
     {
         private readonly ICacheService cacheService;

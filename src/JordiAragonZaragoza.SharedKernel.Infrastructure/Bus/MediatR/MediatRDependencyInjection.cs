@@ -19,8 +19,6 @@
                 options.AddOpenBehavior(typeof(UnitOfWorkBehaviour<,>));
                 options.AddOpenBehavior(typeof(AuthorizationBehaviour<,>));
                 options.AddOpenBehavior(typeof(ValidationBehaviour<,>));
-                options.AddOpenBehavior(typeof(CachingBehavior<,>));
-                options.AddOpenBehavior(typeof(InvalidateCachingBehavior<,>));
                 options.AddOpenBehavior(typeof(PerformancePipelineBehaviour<,>));
             });
 
@@ -41,8 +39,6 @@
                 options.AddOpenBehavior(typeof(ExceptionHandlerPipelineBehaviour<,>));
                 options.AddOpenBehavior(typeof(AuthorizationBehaviour<,>));
                 options.AddOpenBehavior(typeof(ValidationBehaviour<,>));
-                options.AddOpenBehavior(typeof(CachingBehavior<,>));
-                options.AddOpenBehavior(typeof(InvalidateCachingBehavior<,>));
                 options.AddOpenBehavior(typeof(PerformancePipelineBehaviour<,>));
             });
 

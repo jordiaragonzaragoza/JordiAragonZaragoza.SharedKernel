@@ -13,8 +13,6 @@
             services.AddTransient<IRequestUnitOfWorkService, RequestUnitOfWorkService>();
             services.AddTransient(typeof(IRequestAuthorizationService<,>), typeof(RequestAuthorizationService<,>));
             services.AddTransient(typeof(IRequestValidationService<,>), typeof(RequestValidationService<,>));
-            services.AddTransient<IRequestCachingService, RequestCachingService>();
-            services.AddTransient<IRequestInvalidateCachingService, RequestInvalidateCachingService>();
             services.AddTransient<IRequestPerformanceTrackingService, RequestPerformanceTrackingService>();
 
             return services;
@@ -26,8 +24,6 @@
             services.AddTransient<IRequestExceptionHandlerService, RequestExceptionHandlerService>();
             services.AddTransient(typeof(IRequestAuthorizationService<,>), typeof(RequestAuthorizationService<,>));
             services.AddTransient(typeof(IRequestValidationService<,>), typeof(RequestValidationService<,>));
-            services.AddTransient<IRequestCachingService, RequestCachingService>();
-            services.AddTransient<IRequestInvalidateCachingService, RequestInvalidateCachingService>();
             services.AddTransient<IRequestPerformanceTrackingService, RequestPerformanceTrackingService>();
 
             return services;
