@@ -89,11 +89,14 @@
         </member>
         <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.CacheService.ExtractPrefix(System.String)">
             <summary>
-            Extracts the prefix from a cache key (everything before the last colon).
+            Extracts the prefix from a cache key (everything before the first underscore).
+            Cache key format is: "{TypeFullName}_{Identifier}" where TypeFullName uses '.' as separator
+            and should not contain '_'. The identifier may contain '_' (e.g., GUIDs), so we extract
+            everything before the FIRST underscore.
             </summary>
             <param name="cacheKey">The cache key.</param>
             <returns>
-            The prefix of the cache key.
+            The prefix of the cache key, or the full key if no underscore is found.
             </returns>
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.CacheService.CachedValueWrapper">

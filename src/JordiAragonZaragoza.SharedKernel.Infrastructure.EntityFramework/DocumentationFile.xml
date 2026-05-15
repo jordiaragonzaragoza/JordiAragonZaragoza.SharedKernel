@@ -4,5 +4,31 @@
         <name>JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework</name>
     </assembly>
     <members>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Repositories.ReadModel.BaseCachedSpecificationRepository`1.OwnedKeysMatch(System.Object,System.Object,System.Collections.Generic.IReadOnlyList{Microsoft.EntityFrameworkCore.Metadata.IProperty})">
+            <summary>
+            Returns true when <paramref name="source"/> and <paramref name="destination"/>
+            share the same values for all <paramref name="keyProperties"/>.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Repositories.ReadModel.BaseCachedSpecificationRepository`1.ReloadAndApplyChangesAsync(`0,System.Threading.CancellationToken)">
+            <summary>
+            Reloads the entity from the DB with tracking, copies scalar values from
+            <paramref name="entity"/>, then reconciles all owned collections.
+            Extracted to avoid duplication between UpdateAsync and UpdateRangeAsync.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Repositories.ReadModel.BaseCachedSpecificationRepository`1.GetEntityId(`0)">
+            <summary>
+            Extracts the primary key (Id) from the entity using EF Core metadata.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Repositories.ReadModel.BaseCachedSpecificationRepository`1.ApplyOwnedCollectionChanges(`0,`0)">
+            <summary>
+            Reconciles owned collection navigations between a tracked DB entity and
+            the incoming (detached) entity. Items present only in <paramref name="source"/>
+            are inserted; items present only in <paramref name="destination"/> are deleted.
+            Identity is determined by the owned entity's configured primary key.
+            </summary>
+        </member>
     </members>
 </doc>

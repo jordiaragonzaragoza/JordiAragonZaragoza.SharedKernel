@@ -2,12 +2,15 @@
 {
     using System;
     using System.Collections.Generic;
+    using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
     using Ardalis.Specification;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Contracts.Repositories;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Context;
+    using Microsoft.EntityFrameworkCore;
+    using Microsoft.EntityFrameworkCore.Metadata;
     using Microsoft.Extensions.Logging;
 
     public abstract class BaseCachedSpecificationRepository<TReadModel> : BaseReadRepository<TReadModel>, ICachedSpecificationRepository<TReadModel, Guid>
@@ -46,20 +49,28 @@
 
         public override async Task<int> UpdateAsync(TReadModel entity, CancellationToken cancellationToken = default)
         {
-            var result = await base.UpdateAsync(entity, cancellationToken);
-
             await this.CacheServiceRemoveByPrefixAsync(cancellationToken);
 
-            return result;
+            await this.ReloadAndApplyChangesAsync(entity, cancellationToken);
+
+            await this.DbContext.SaveChangesAsync(cancellationToken);
+
+            return 1;
         }
 
         public override async Task<int> UpdateRangeAsync(IEnumerable<TReadModel> entities, CancellationToken cancellationToken = default)
         {
-            var result = await base.UpdateRangeAsync(entities, cancellationToken);
-
             await this.CacheServiceRemoveByPrefixAsync(cancellationToken);
 
-            return result;
+            var entityList = entities.ToList();
+            foreach (var entity in entityList)
+            {
+                await this.ReloadAndApplyChangesAsync(entity, cancellationToken);
+            }
+
+            await this.DbContext.SaveChangesAsync(cancellationToken);
+
+            return entityList.Count;
         }
 
         public override async Task<int> DeleteAsync(TReadModel entity, CancellationToken cancellationToken = default)
@@ -298,6 +309,132 @@
             return response;
         }
 
+        /// <summary>
+        /// Returns true when <paramref name="source"/> and <paramref name="destination"/>
+        /// share the same values for all <paramref name="keyProperties"/>.
+        /// </summary>
+        private static bool OwnedKeysMatch(
+            object source,
+            object destination,
+            IReadOnlyList<IProperty> keyProperties)
+        {
+            var srcType = source.GetType();
+            var dstType = destination.GetType();
+
+            return keyProperties.All(kp =>
+                Equals(
+                    srcType.GetProperty(kp.Name)?.GetValue(source),
+                    dstType.GetProperty(kp.Name)?.GetValue(destination)));
+        }
+
+        /// <summary>
+        /// Reloads the entity from the DB with tracking, copies scalar values from
+        /// <paramref name="entity"/>, then reconciles all owned collections.
+        /// Extracted to avoid duplication between UpdateAsync and UpdateRangeAsync.
+        /// </summary>
+        private async Task ReloadAndApplyChangesAsync(TReadModel entity, CancellationToken cancellationToken)
+        {
+            var entityId = this.GetEntityId(entity);
+
+            // Load a fresh tracked copy so EF has the correct concurrency token (xmin).
+            // OwnsMany navigations are included automatically when using AsTracking()
+            // with the owned-entity pattern.
+            var trackedEntity = await this.DbContext.Set<TReadModel>()
+                .AsTracking()
+                .FirstOrDefaultAsync(e => EF.Property<Guid>(e, "Id") == entityId, cancellationToken)
+                ?? throw new InvalidOperationException(
+                    $"Entity of type {typeof(TReadModel).Name} with id {entityId} was not found in the database during UpdateAsync.");
+
+            // Copy scalar property values from the incoming (possibly detached) entity.
+            this.DbContext.Entry(trackedEntity).CurrentValues.SetValues(entity);
+
+            // Reconcile owned collections.
+            this.ApplyOwnedCollectionChanges(trackedEntity, entity);
+        }
+
+        /// <summary>
+        /// Extracts the primary key (Id) from the entity using EF Core metadata.
+        /// </summary>
+        private Guid GetEntityId(TReadModel entity)
+        {
+            var entry = this.DbContext.Entry(entity);
+            var keyValue = entry.Metadata
+                .FindPrimaryKey()!
+                .Properties
+                .Select(p => entry.Property(p.Name).CurrentValue)
+                .Single();
+
+            return (Guid)keyValue!;
+        }
+
+        /// <summary>
+        /// Reconciles owned collection navigations between a tracked DB entity and
+        /// the incoming (detached) entity. Items present only in <paramref name="source"/>
+        /// are inserted; items present only in <paramref name="destination"/> are deleted.
+        /// Identity is determined by the owned entity's configured primary key.
+        /// </summary>
+        private void ApplyOwnedCollectionChanges(TReadModel destination, TReadModel source)
+        {
+            var destinationEntry = this.DbContext.Entry(destination);
+            var sourceEntry = this.DbContext.Entry(source);
+
+            foreach (var destNavigation in destinationEntry.Navigations)
+            {
+                // Use the EF metadata to determine whether this is an owned collection.
+                // An owned collection has a non-unique FK (IsUnique == false on the FK).
+                // This avoids relying on INavigationBase.IsCollection which was introduced
+                // in a later EF Core minor and causes MissingMethodException on older builds.
+                var fk = (destNavigation.Metadata as INavigation)?.ForeignKey;
+                if (fk is null || fk.IsUnique || !fk.IsOwnership)
+                {
+                    continue;
+                }
+
+                // Load current children from the DB (already tracked via AsTracking above,
+                // but Load() is a no-op if already populated).
+                destNavigation.Load();
+
+                var sourceNavigation = sourceEntry.Navigations
+                    .FirstOrDefault(n => n.Metadata.Name == destNavigation.Metadata.Name);
+
+                if (sourceNavigation?.CurrentValue is not System.Collections.IEnumerable sourceItems)
+                {
+                    continue;
+                }
+
+                var sourceList = sourceItems.Cast<object>().ToList();
+                var destList = (destNavigation.CurrentValue as System.Collections.IEnumerable)
+                    ?.Cast<object>().ToList()
+                    ?? [];
+
+                var ownedEntityType = destNavigation.Metadata.TargetEntityType;
+                var keyProperties = ownedEntityType.FindPrimaryKey()!.Properties;
+
+                // Delete children removed from the source.
+                foreach (var destItem in destList.Where(d => !sourceList.Any(s => OwnedKeysMatch(s, d, keyProperties))))
+                {
+                    this.DbContext.Entry(destItem).State = EntityState.Deleted;
+                }
+
+                // Insert children added in the source.
+                // We set the FK back-reference so EF can generate the INSERT correctly.
+                var ownerFk = ownedEntityType.GetForeignKeys().First(f => f.IsOwnership);
+                var ownerPkPropertyName = ownerFk.PrincipalKey.Properties[0].Name;
+                var ownerPkValue = destinationEntry.Property(ownerPkPropertyName).CurrentValue;
+
+                foreach (var srcItem in sourceList.Where(s => !destList.Any(d => OwnedKeysMatch(s, d, keyProperties))))
+                {
+                    var itemEntry = this.DbContext.Entry(srcItem);
+                    itemEntry.State = EntityState.Added;
+
+                    foreach (var fkProp in ownerFk.Properties)
+                    {
+                        itemEntry.Property(fkProp.Name).CurrentValue = ownerPkValue;
+                    }
+                }
+            }
+        }
+
         private async Task<T?> CacheGetAsync<T>(string cacheKey, CancellationToken cancellationToken)
             where T : class
         {
@@ -318,7 +455,6 @@
             if (!cachedResponse.IsNull && cachedResponse.HasValue)
             {
                 this.logger.LogInformation("Fetch data from cache with cacheKey: {CacheKey}", cacheKey);
-                this.logger.LogInformation("Fetch data from cache with cacheKey: {CacheKey}", cacheKey);
 
                 return cachedResponse.Value;
             }
@@ -330,14 +466,14 @@
         {
             await this.cacheService.SetAsync(cacheKey, response, cancellationToken: cancellationToken);
 
-            this.logger.LogInformation("Set data to cache with  cacheKey: {CacheKey}", cacheKey);
+            this.logger.LogInformation("Set data to cache with cacheKey: {CacheKey}", cacheKey);
         }
 
         private async Task CacheSetListAsync<TIn>(string cacheKey, List<TIn> response, CancellationToken cancellationToken)
         {
             await this.cacheService.SetAsync(cacheKey, response, cancellationToken: cancellationToken);
 
-            this.logger.LogInformation("Set data to cache with  cacheKey: {CacheKey}", cacheKey);
+            this.logger.LogInformation("Set data to cache with cacheKey: {CacheKey}", cacheKey);
         }
 
         private async Task CacheServiceRemoveByPrefixAsync(CancellationToken cancellationToken)

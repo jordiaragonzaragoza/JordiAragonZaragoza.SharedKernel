@@ -2,6 +2,7 @@
 {
     using System;
     using System.Collections.Concurrent;
+    using System.Collections.Generic;
     using System.Linq;
     using System.Threading;
     using System.Threading.Tasks;
@@ -15,7 +16,7 @@
     public class CacheService : ICacheService
     {
         private readonly HybridCache cache;
-        private readonly ConcurrentDictionary<string, ConcurrentBag<string>> prefixKeyRegistry;
+        private readonly ConcurrentDictionary<string, HashSet<string>> prefixKeyRegistry;
 
         /// <summary>
         /// Initializes a new instance of the <see cref="CacheService"/> class.
@@ -25,7 +26,7 @@
         public CacheService(HybridCache cache)
         {
             this.cache = cache ?? throw new ArgumentNullException(nameof(cache));
-            this.prefixKeyRegistry = new ConcurrentDictionary<string, ConcurrentBag<string>>();
+            this.prefixKeyRegistry = new ConcurrentDictionary<string, HashSet<string>>();
         }
 
         /// <summary>
@@ -101,10 +102,14 @@
             {
                 this.prefixKeyRegistry.AddOrUpdate(
                     prefix,
-                    _ => new ConcurrentBag<string> { cacheKey },
+                    _ => new HashSet<string> { cacheKey },
                     (_, keys) =>
                     {
-                        keys.Add(cacheKey);
+                        lock (keys)
+                        {
+                            keys.Add(cacheKey);
+                        }
+
                         return keys;
                     });
             }
@@ -136,16 +141,19 @@
         }
 
         /// <summary>
-        /// Extracts the prefix from a cache key (everything before the last colon).
+        /// Extracts the prefix from a cache key (everything before the first underscore).
+        /// Cache key format is: "{TypeFullName}_{Identifier}" where TypeFullName uses '.' as separator
+        /// and should not contain '_'. The identifier may contain '_' (e.g., GUIDs), so we extract
+        /// everything before the FIRST underscore.
         /// </summary>
         /// <param name="cacheKey">The cache key.</param>
         /// <returns>
-        /// The prefix of the cache key.
+        /// The prefix of the cache key, or the full key if no underscore is found.
         /// </returns>
         private static string ExtractPrefix(string cacheKey)
         {
-            var lastColonIndex = cacheKey.LastIndexOf(':');
-            return lastColonIndex > 0 ? cacheKey.Substring(0, lastColonIndex) : string.Empty;
+            var firstUnderscoreIndex = cacheKey.IndexOf('_', StringComparison.Ordinal);
+            return firstUnderscoreIndex > 0 ? cacheKey.Substring(0, firstUnderscoreIndex) : cacheKey;
         }
 
         /// <summary>
