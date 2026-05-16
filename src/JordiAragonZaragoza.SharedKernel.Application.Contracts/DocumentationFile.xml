@@ -16,6 +16,12 @@
             </summary>
             <typeparam name="TEvent">The type of event to handle, which must implement <see cref="T:JordiAragonZaragoza.SharedKernel.Contracts.Events.IEvent"/>.</typeparam>
         </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICacheRequest">
+            <summary>
+            ⚠️ Warning:. DO NOT USE WHEN USING EVENT SOURCING, AS IT CAN CAUSE INCONSISTENCIES.
+            This interface is intended to be implemented by requests that require caching when processed, but not when using projections in an event bus pipeline.
+            </summary>
+        </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand`1">
             <summary>
             Transactional Command with response operation. To see pure DDD commands check <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand"/>.
@@ -25,6 +31,12 @@
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand">
             <summary>
             Pure DDD transactional command. Commands will not use response operation check impure alternative <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand`1"/>.
+            </summary>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IInvalidateCacheRequest">
+            <summary>
+            ⚠️ Warning:. DO NOT USE WHEN USING EVENT SOURCING, AS IT CAN CAUSE INCONSISTENCIES.
+            This interface is intended to be implemented by requests that require cache invalidation when processed, but not when using projections in an event bus pipeline.
             </summary>
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IReadModel">
