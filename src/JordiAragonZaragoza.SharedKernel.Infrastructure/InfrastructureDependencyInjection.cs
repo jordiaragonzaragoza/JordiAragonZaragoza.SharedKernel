@@ -8,7 +8,6 @@
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Cache;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Context;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.DateTime;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.Identity;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.IdGenerator;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.ServiceIdentity;
@@ -24,7 +23,6 @@
             services.AddSingleton<IExecutionContextService, ExecutionContextService>();
             services.AddTransient<ICacheService, CacheService>();
             services.AddHybridCache();
-            services.AddTransient<IIdentityService, IdentityService>();
 
             services.AddOptions<ServiceIdentityOptions>()
                 .BindConfiguration(ServiceIdentityOptions.Section)

@@ -14,9 +14,14 @@
             Gets or sets a comma delimited list of roles that are allowed to access the resource.
             </summary>
         </member>
-        <member name="P:JordiAragonZaragoza.SharedKernel.Application.Attributes.AuthorizeAttribute.Policy">
+        <member name="P:JordiAragonZaragoza.SharedKernel.Application.Attributes.AuthorizeAttribute.Policies">
             <summary>
-            Gets or sets the policy name that determines access to the resource.
+            Gets or sets a comma delimited list of policies that determine access to the resource.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Application.Attributes.AuthorizeAttribute.Permissions">
+            <summary>
+            Gets or sets a comma delimited list of permissions that determine access to the resource.
             </summary>
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Pipelines.RequestCachingService">

@@ -4,6 +4,22 @@
         <name>JordiAragonZaragoza.SharedKernel.Application.Contracts</name>
     </assembly>
     <members>
+        <member name="F:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ActorType.User">
+            <summary>
+            When a human user initiates the action or when it is the result of an event propagated from a user action.
+            </summary>
+        </member>
+        <member name="F:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ActorType.System">
+            <summary>
+            When the system initiates something on its own. Examples: Nightly batch job, initial seed, timeout/scheduler, automatic compensation.
+            </summary>
+        </member>
+        <member name="F:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ActorType.External">
+            <summary>
+            When the intention arises outside your platform, outside your organizational control.
+            ⚠️ Warning. Another microservice of yours is NOT external, other bounded contexts of the same system are NOT external.
+            </summary>
+        </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IBaseCommand">
             <summary>
             Marker interface to allow generic type constraints of objects implementing <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand"/> or <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand`1"/>.
