@@ -9,7 +9,7 @@
 
     public static class FluentValidationHelper
     {
-        public static IReadOnlyCollection<ValidationError> AsErrors(this List<ValidationFailure> valResult)
+        public static IEnumerable<ValidationError> AsErrors(this List<ValidationFailure> valResult)
         {
             ArgumentNullException.ThrowIfNull(valResult);
 

@@ -42,6 +42,12 @@
             <param name="cancellationToken">Cancellation token.</param>
             <returns>An awaitable task.</returns>
         </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.Bus.MediatR.Behaviours.ResultFactoryHelper">
+            <summary>
+            Helper to create TResponse instances from ResultStatus and error messages,
+            using reflection, caching MethodInfo to minimize runtime cost.
+            </summary>
+        </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.Cache.CacheService">
             <summary>
             Cache service implementation using Microsoft.Extensions.Caching.Hybrid.
