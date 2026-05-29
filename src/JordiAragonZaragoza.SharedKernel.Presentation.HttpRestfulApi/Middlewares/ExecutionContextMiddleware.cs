@@ -4,6 +4,7 @@
     using System.Collections.Generic;
     using System.Linq;
     using System.Threading.Tasks;
+    using JordiAragonZaragoza.SharedKernel.Application.Contracts;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Interfaces;
     using Microsoft.AspNetCore.Http;
@@ -14,9 +15,7 @@
         private readonly RequestDelegate next;
         private readonly ILogger<ExecutionContextMiddleware> logger;
 
-        public ExecutionContextMiddleware(
-            RequestDelegate next,
-            ILogger<ExecutionContextMiddleware> logger)
+        public ExecutionContextMiddleware(RequestDelegate next, ILogger<ExecutionContextMiddleware> logger)
         {
             this.next = next ?? throw new ArgumentNullException(nameof(next));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
@@ -33,60 +32,39 @@
             ArgumentNullException.ThrowIfNull(authorizationService);
             ArgumentNullException.ThrowIfNull(serviceIdentityProvider);
 
-            if (AnonymousRequestHelper.IsAnonymousAllowed(context))
+            if (AnonymousRequestHelper.IsInfrastructureEndpoint(context))
             {
                 await this.next(context);
                 return;
             }
 
             var cancellationToken = context.RequestAborted;
+            var correlationId = ResolveCorrelationId(context);
+            var causationId = ResolveCausationId(context);
+            string executor = serviceIdentityProvider.GetName();
 
-            var actor = ResolveActor(context);
-            if (actor is null)
-            {
-                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                await context.Response.WriteAsJsonAsync(
-                    new
-                    {
-                        error = "unauthorized",
-                        message = "Authentication is required.",
-                    },
-                    cancellationToken);
+            var (actorId, actorType) = ResolveActor(context);
 
-                return;
-            }
+            // For external actors (registration, webhooks) the tenant can come
+            // in the body/route or in the header. If it doesn't come, we use the system tenant as a fallback
+            //  — each endpoint decides if it requires it.
+            var tenantId = ResolveTenantId(context);
 
-            var (actorId, actorType) = actor.Value;
-
-            var tenantIdHeader = context.Request.Headers["x-tenant-id"].FirstOrDefault();
-            if (!Guid.TryParse(tenantIdHeader, out var tenantId) || tenantId == Guid.Empty)
+            if (tenantId == Guid.Empty && actorType != ActorType.External)
             {
                 context.Response.StatusCode = StatusCodes.Status400BadRequest;
                 await context.Response.WriteAsJsonAsync(
-                    new
-                    {
-                        error = "invalid_tenant",
-                        message = "x-tenant-id header is required and must be a valid non-empty Guid.",
-                    },
+                    new { error = "invalid_tenant", message = "x-tenant-id header is required." },
                     cancellationToken);
-
                 return;
             }
 
-            string executor = serviceIdentityProvider.GetName();
-            var executorType = ExecutorType.Service;
-            var correlationId = ResolveCorrelationId(context);
-            var causationId = ResolveCausationId(context);
+            var effectiveTenantId = tenantId == Guid.Empty
+                ? SystemConstants.SystemTenantId
+                : tenantId;
 
-            var partitionHeader = context.Request.Headers["x-partition-id"].FirstOrDefault();
-            Guid? partitionId = Guid.TryParse(partitionHeader, out var partition) && partition != Guid.Empty
-                ? partition
-                : null;
-
-            var domainHeader = context.Request.Headers["x-domain-id"].FirstOrDefault();
-            Guid? domainId = Guid.TryParse(domainHeader, out var domain) && domain != Guid.Empty
-                ? domain
-                : null;
+            var partitionId = ResolveOptionalGuid(context, "x-partition-id");
+            var domainId = ResolveOptionalGuid(context, "x-domain-id");
 
             using (this.logger.BeginScope(new Dictionary<string, object?>
             {
@@ -94,48 +72,51 @@
                 ["ActorId"] = actorId,
                 ["ActorType"] = actorType.Name,
                 ["Executor"] = executor,
-                ["ExecutorType"] = executorType.Name,
-                ["TenantId"] = tenantId,
+                ["ExecutorType"] = ExecutorType.Service.Name,
+                ["TenantId"] = effectiveTenantId,
                 ["PartitionId"] = partitionId,
                 ["DomainId"] = domainId,
             }))
             {
-                var newScopeContext = new ScopeContext(tenantId, partitionId, domainId);
-                var newExecutionContext = new ExecutionContext(
+                var scopeContext = new ScopeContext(effectiveTenantId, partitionId, domainId);
+                var executionContext = new ExecutionContext(
                     actorId,
                     actorType,
                     executor,
-                    executorType,
+                    ExecutorType.Service,
                     correlationId,
                     causationId,
-                    newScopeContext);
+                    scopeContext);
 
-                var accessResult = await authorizationService.ValidateScopeAsync(
-                    userId: newExecutionContext.GetUserActorId(),
-                    scope: newScopeContext,
-                    cancellationToken);
-
-                if (!accessResult.IsSuccess)
+                // La validación de scope solo aplica a actores User conocidos.
+                // External no tiene userId en nuestro sistema todavía.
+                if (actorType == ActorType.User)
                 {
-                    this.logger.LogWarning(
-                        "Authorization failed for Actor {ActorId} on Tenant {TenantId}, Partition {PartitionId}, Domain {DomainId}",
-                        actorId,
-                        tenantId,
-                        partitionId,
-                        domainId);
-
-                    context.Response.StatusCode = StatusCodes.Status403Forbidden;
-                    await context.Response.WriteAsJsonAsync(
-                        new
-                        {
-                            error = "forbidden",
-                            message = accessResult.Errors.FirstOrDefault()?.ToString() ?? "Access denied.",
-                        },
+                    var accessResult = await authorizationService.ValidateScopeAsync(
+                        userId: executionContext.GetUserActorId(),
+                        scope: scopeContext,
                         cancellationToken);
-                    return;
+
+                    if (!accessResult.IsSuccess)
+                    {
+                        this.logger.LogWarning(
+                            "Authorization failed for Actor {ActorId} on Tenant {TenantId}",
+                            actorId,
+                            effectiveTenantId);
+
+                        context.Response.StatusCode = StatusCodes.Status403Forbidden;
+                        await context.Response.WriteAsJsonAsync(
+                            new
+                            {
+                                error = "forbidden",
+                                message = accessResult.Errors.FirstOrDefault()?.ToString() ?? "Access denied.",
+                            },
+                            cancellationToken);
+                        return;
+                    }
                 }
 
-                executionContextService.SetExecutionContext(newExecutionContext);
+                executionContextService.SetExecutionContext(executionContext);
 
                 context.Response.OnStarting(() =>
                 {
@@ -154,7 +135,12 @@
             }
         }
 
-        private static (string ActorId, ActorType ActorType)? ResolveActor(HttpContext context)
+        /// <summary>
+        /// Returns the actor identity. For authenticated users, extracts the 'oid' claim.
+        /// For unauthenticated requests (register, webhooks), returns an External actor
+        /// derived from the client IP — providing traceability without a JWT.
+        /// </summary>
+        private static (string ActorId, ActorType ActorType) ResolveActor(HttpContext context)
         {
             if (context.User?.Identity?.IsAuthenticated == true)
             {
@@ -165,27 +151,32 @@
                 }
             }
 
-            return null;
+            var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
+            return (ExecutionContext.CreateExternalActorId(clientIp), ActorType.External);
+        }
+
+        private static Guid ResolveTenantId(HttpContext context)
+        {
+            var header = context.Request.Headers["x-tenant-id"].FirstOrDefault();
+            return Guid.TryParse(header, out var parsed) && parsed != Guid.Empty ? parsed : Guid.Empty;
+        }
+
+        private static Guid? ResolveOptionalGuid(HttpContext context, string headerName)
+        {
+            var header = context.Request.Headers[headerName].FirstOrDefault();
+            return Guid.TryParse(header, out var parsed) && parsed != Guid.Empty ? parsed : null;
         }
 
         private static Guid ResolveCorrelationId(HttpContext context)
         {
             var header = context.Request.Headers["x-correlation-id"].FirstOrDefault();
-            return Guid.TryParse(header, out var parsed) && parsed != Guid.Empty
-                ? parsed
-                : Guid.NewGuid();
+            return Guid.TryParse(header, out var parsed) && parsed != Guid.Empty ? parsed : Guid.NewGuid();
         }
 
-        // Extracts an optional causation id from the incoming request.
-        // For plain HTTP requests this will almost always be null; it becomes
-        // relevant when an HTTP endpoint is triggered as a reaction to a
-        // prior event and the caller forwards the originating event id.
         private static Guid? ResolveCausationId(HttpContext context)
         {
             var header = context.Request.Headers["x-causation-id"].FirstOrDefault();
-            return Guid.TryParse(header, out var parsed) && parsed != Guid.Empty
-                ? parsed
-                : null;
+            return Guid.TryParse(header, out var parsed) && parsed != Guid.Empty ? parsed : null;
         }
     }
 }

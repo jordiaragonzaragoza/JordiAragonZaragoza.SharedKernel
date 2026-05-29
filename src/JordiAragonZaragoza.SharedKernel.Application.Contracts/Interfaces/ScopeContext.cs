@@ -14,9 +14,6 @@
                 throw new ArgumentException("TenantId is required", nameof(tenantId));
             }
 
-            // Reject Guid.Empty explicitly for optional fields so that callers
-            // cannot accidentally store a meaningless all-zeros value that
-            // would pass the null check but carry no real information.
             if (partitionId.HasValue && partitionId.Value == Guid.Empty)
             {
                 throw new ArgumentException("PartitionId must not be empty when provided.", nameof(partitionId));

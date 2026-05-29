@@ -4,6 +4,34 @@
         <name>JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore</name>
     </assembly>
     <members>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreActivityRestorer">
+            <summary>
+            Restores the W3C TraceContext stored in event metadata so that
+            downstream spans (projections, reactions) appear as children of
+            the original write span.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreActivityRestorer.RestoreFrom(JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreMetadata,System.String)">
+            <summary>
+            Creates a new Activity linked to the trace that produced the event.
+            Dispose the returned activity when processing is complete.
+            </summary>
+            <param name="metadata">The event metadata containing the trace context.</param>
+            <param name="operationName">The name of the operation for the new activity.</param>
+            <returns>A new Activity linked to the original trace, or a standalone Activity if.</returns>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreMetadata">
+            <summary>
+            Persisted as the KurrentDB event metadata blob.
+            Combines business context (ExecutionContext) with the
+            W3C TraceContext propagation fields needed by OpenTelemetry.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscription.BuildFallbackSystemContext">
+            <summary>
+            Builds a fallback system execution context for events that lack metadata (e.g., seeds, migrations).
+            </summary>
+        </member>
         <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.StreamNameMapper.ToStreamId(System.Type,System.Object,System.Object)">
             <summary>
             Generates a stream id in the canonical `{category}-{aggregateId}` format.

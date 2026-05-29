@@ -17,13 +17,17 @@
     {
         private readonly List<IEventSourcedAggregateRoot<IEntityId>> pendingChanges = [];
         private readonly KurrentDBClient eventStoreClient;
+        private readonly IExecutionContextService executionContextService;
+
         private readonly ILogger<KurrentDbEventStore> logger;
 
         public KurrentDbEventStore(
             KurrentDBClient eventStoreClient,
+            IExecutionContextService executionContextService,
             ILogger<KurrentDbEventStore> logger)
         {
             this.eventStoreClient = eventStoreClient ?? throw new ArgumentNullException(nameof(eventStoreClient));
+            this.executionContextService = executionContextService ?? throw new ArgumentNullException(nameof(executionContextService));
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));
         }
 
@@ -53,7 +57,7 @@
             var domainEvents = new List<IDomainEvent>();
             await foreach (var resolvedEvent in readResult)
             {
-                var domainEvent = SerializerHelper.Deserialize(resolvedEvent);
+                var (domainEvent, _) = SerializerHelper.Deserialize(resolvedEvent);
                 domainEvents.Add(domainEvent);
             }
 
@@ -91,9 +95,7 @@
 
             var response = await operation();
 
-            // Get Ardalis.Result.IsSuccess or Ardalis.Result<T>.IsSuccess
-            var isSuccessResponse = typeof(TResponse).GetProperty("IsSuccess")?.GetValue(response, null) ?? false;
-            if ((bool)isSuccessResponse)
+            if (response.Status is ResultStatus.Ok or ResultStatus.NoContent or ResultStatus.Created)
             {
                 await this.SaveChangesAsync(cancellationToken);
             }
@@ -103,7 +105,8 @@
 
         private async Task StoreAsync(IEventSourcedAggregateRoot<IEntityId> aggregate, CancellationToken cancellationToken)
         {
-            var events = aggregate.Events.AsEnumerable().Select(static @event => SerializerHelper.Serialize(@event)).ToArray();
+            var executionContext = this.executionContextService.CurrentContext;
+            var events = aggregate.Events.AsEnumerable().Select(@event => SerializerHelper.Serialize(@event, executionContext)).ToArray();
 
             if (events.Length == 0)
             {

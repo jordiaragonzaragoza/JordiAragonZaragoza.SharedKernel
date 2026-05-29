@@ -23,5 +23,21 @@
             There are no dependencies on global variables, shared states, or external conditions that can alter the behavior of the event application methods.
             </summary>
         </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Domain.Events.BaseInMemoryDomainEvent">
+            <summary>
+            Use this base for domain events that must travel through the in-memory
+            bus dispatched by EventsDispatcherService (EF Core aggregates).
+            EventSourced aggregates use BaseDomainEvent directly — their events
+            are dispatched via KurrentDB subscription, not in-memory.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Domain.Events.BaseInMemoryDomainEvent.#ctor(System.Guid)">
+            <summary>
+            Use this base for domain events that must travel through the in-memory
+            bus dispatched by EventsDispatcherService (EF Core aggregates).
+            EventSourced aggregates use BaseDomainEvent directly — their events
+            are dispatched via KurrentDB subscription, not in-memory.
+            </summary>
+        </member>
     </members>
 </doc>

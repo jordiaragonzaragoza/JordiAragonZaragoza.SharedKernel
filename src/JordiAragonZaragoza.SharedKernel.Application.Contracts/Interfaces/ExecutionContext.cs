@@ -11,8 +11,9 @@
         private const string UserPrefix = "user:";
         private const string ServicePrefix = "service:";
         private const string JobPrefix = "job:";
+        private const string ExternalPrefix = "external:";
 
-        private static readonly string[] KnownActorPrefixes = [UserPrefix, ServicePrefix, JobPrefix];
+        private static readonly string[] KnownActorPrefixes = [UserPrefix, ServicePrefix, JobPrefix, ExternalPrefix];
 
         public ExecutionContext(
             string actorId,
@@ -70,6 +71,16 @@
 
         public static string CreateUserActorId(Guid userId)
             => $"{UserPrefix}{userId}";
+
+        public static string CreateExternalActorId(string externalActorName)
+        {
+            if (string.IsNullOrWhiteSpace(externalActorName))
+            {
+                throw new ArgumentException("External actor name is required", nameof(externalActorName));
+            }
+
+            return $"{ExternalPrefix}{externalActorName}";
+        }
 
         public static string CreateServiceActorId(string serviceName)
         {

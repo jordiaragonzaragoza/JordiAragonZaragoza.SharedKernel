@@ -23,6 +23,13 @@
             AsyncUserContext.Value = executionContext;
         }
 
+        public void OverrideExecutionContext(ExecutionContext executionContext)
+        {
+            ArgumentNullException.ThrowIfNull(executionContext);
+
+            AsyncUserContext.Value = executionContext;
+        }
+
         public void ClearExecutionContext()
         {
             AsyncUserContext.Value = null;

@@ -60,5 +60,28 @@
             <param name="result">The Result{FileResponse} to convert to an ActionResult.</param>
             <returns>The <see cref="T:Microsoft.AspNetCore.Mvc.ActionResult"/> converted.</returns>
         </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.InfrastructureEndpointAttribute">
+            <summary>
+            Marks an endpoint as infrastructure-only (health, metrics, swagger).
+            The ExecutionContextMiddleware performs a full bypass for these —
+            no context is set, no correlation id is propagated.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Middlewares.AnonymousRequestHelper.IsInfrastructureEndpoint(Microsoft.AspNetCore.Http.HttpContext)">
+            <summary>
+            True for pure infrastructure paths (swagger, health, metrics).
+            These are either classic middlewares without endpoint metadata
+            or endpoints explicitly marked with InfrastructureEndpointAttribute.
+            </summary>
+            <param name="context">The current HTTP context.</param>
+            <returns>True if the request is for an infrastructure endpoint; otherwise, false.</returns>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Middlewares.ExecutionContextMiddleware.ResolveActor(Microsoft.AspNetCore.Http.HttpContext)">
+            <summary>
+            Returns the actor identity. For authenticated users, extracts the 'oid' claim.
+            For unauthenticated requests (register, webhooks), returns an External actor
+            derived from the client IP — providing traceability without a JWT.
+            </summary>
+        </member>
     </members>
 </doc>

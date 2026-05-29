@@ -20,6 +20,28 @@
             ⚠️ Warning. Another microservice of yours is NOT external, other bounded contexts of the same system are NOT external.
             </summary>
         </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ExecutorType">
+            <summary>
+            Represents the system that is actually running the action.
+            </summary>
+        </member>
+        <member name="F:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ExecutorType.Service">
+            <summary>
+            A service, such as an API that is executing the action as part of its normal operation.
+            </summary>
+        </member>
+        <member name="F:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ExecutorType.Worker">
+            <summary>
+            A background worker or a scheduled job that is executing the action outside of the context of an API request,
+            such as processing a queue or running a periodic task.
+            </summary>
+        </member>
+        <member name="F:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ExecutorType.Tool">
+            <summary>
+            A tool, such as a command-line interface (CLI) or an administrative dashboard,
+            that is executing the action as part of a manual operation by an administrator or developer.
+            </summary>
+        </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IBaseCommand">
             <summary>
             Marker interface to allow generic type constraints of objects implementing <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand"/> or <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand`1"/>.
@@ -48,6 +70,21 @@
             <summary>
             Pure DDD transactional command. Commands will not use response operation check impure alternative <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand`1"/>.
             </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IExecutionContextService.SetExecutionContext(JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ExecutionContext)">
+            <summary>
+            Sets the context for the first time. Throws if one already exists.
+            Use in HTTP middleware, where a double assignment is always an error.
+            </summary>
+            <param name="executionContext">The context to set.</param>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IExecutionContextService.OverrideExecutionContext(JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ExecutionContext)">
+            <summary>
+            Overrides the existing context.
+            Use in workers and message consumers, where each message
+            has its own independent context.
+            </summary>
+            <param name="executionContext">The context to override with.</param>
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IInvalidateCacheRequest">
             <summary>
