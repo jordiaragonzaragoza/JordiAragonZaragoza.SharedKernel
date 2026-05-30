@@ -10,6 +10,8 @@
     using Microsoft.AspNetCore.Http;
     using Microsoft.Extensions.Logging;
 
+    using IAllowAnonymous = Microsoft.AspNetCore.Authorization.IAllowAnonymous;
+
     public sealed class ExecutionContextMiddleware
     {
         private readonly RequestDelegate next;
@@ -43,7 +45,17 @@
             var causationId = ResolveCausationId(context);
             string executor = serviceIdentityProvider.GetName();
 
-            var (actorId, actorType) = ResolveActor(context);
+            var actor = ResolveActor(context);
+            if (actor is null)
+            {
+                context.Response.StatusCode = StatusCodes.Status401Unauthorized;
+                await context.Response.WriteAsJsonAsync(
+                    new { error = "unauthorized", message = "Authentication is required." },
+                    cancellationToken);
+                return;
+            }
+
+            var (actorId, actorType) = actor.Value;
 
             // For external actors (registration, webhooks) the tenant can come
             // in the body/route or in the header. If it doesn't come, we use the system tenant as a fallback
@@ -140,8 +152,9 @@
         /// For unauthenticated requests (register, webhooks), returns an External actor
         /// derived from the client IP — providing traceability without a JWT.
         /// </summary>
-        private static (string ActorId, ActorType ActorType) ResolveActor(HttpContext context)
+        private static (string ActorId, ActorType ActorType)? ResolveActor(HttpContext context)
         {
+            // If the user is authenticated, we expect an 'oid' claim to identify them.
             if (context.User?.Identity?.IsAuthenticated == true)
             {
                 var oid = context.User.FindFirst("oid")?.Value;
@@ -149,6 +162,18 @@
                 {
                     return (ExecutionContext.CreateUserActorId(parsed), ActorType.User);
                 }
+
+                // JWT present but without a valid 'oid' claim — reject.
+                return null;
+            }
+
+            // No JWT: only allow External if the endpoint explicitly declares it.
+            var endpoint = context.GetEndpoint();
+            var allowsAnonymous = endpoint?.Metadata.GetMetadata<IAllowAnonymous>() is not null;
+
+            if (!allowsAnonymous)
+            {
+                return null;
             }
 
             var clientIp = context.Connection.RemoteIpAddress?.ToString() ?? "unknown";
@@ -173,6 +198,23 @@
             return Guid.TryParse(header, out var parsed) && parsed != Guid.Empty ? parsed : Guid.NewGuid();
         }
 
+        /// <summary>
+        /// Extracts the causation ID from the x-causation-id header.
+        ///
+        /// The causation ID identifies the specific event or command that directly
+        /// triggered this request — distinct from the correlation ID which tracks
+        /// the entire chain. It is null for direct HTTP requests with no prior event.
+        ///
+        /// Typical usage: a reaction handler forwards the ID of the event it is
+        /// reacting to, allowing the full cause-and-effect graph to be reconstructed
+        /// from the event store.
+        ///
+        /// Example:
+        ///   UserRegisteredEvent.Id = "aaa..."
+        ///   → POST /send-welcome-email
+        ///       x-causation-id: aaa...   (the event that caused this HTTP call)
+        ///       x-correlation-id: bbb... (the same chain correlation).
+        /// </summary>
         private static Guid? ResolveCausationId(HttpContext context)
         {
             var header = context.Request.Headers["x-causation-id"].FirstOrDefault();
