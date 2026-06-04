@@ -113,6 +113,8 @@
                 return;
             }
 
+            // TODO: Add TenantId.
+            ////var streamName = StreamNameMapper.ToStreamId(aggregate.GetType(), aggregate.Id, executionContext?.ScopeContext.TenantId);
             var streamName = StreamNameMapper.ToStreamId(aggregate.GetType(), aggregate.Id);
 
             var expectedState = aggregate.Version is null

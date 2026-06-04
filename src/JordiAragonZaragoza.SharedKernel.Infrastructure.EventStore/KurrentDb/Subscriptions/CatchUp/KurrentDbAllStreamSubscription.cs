@@ -180,6 +180,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                     return;
                 }
 
+                // TODO: Implement deserialization error handling based on subscriptionOptions.IgnoreDeserializationErrors
                 var (domainEvent, metadata) = SerializerHelper.Deserialize(resolvedEvent);
 
                 using var activity = EventStoreActivityRestorer.RestoreFrom(metadata, $"Handle {domainEvent.GetType().Name}");

@@ -7,6 +7,11 @@
 
     public class KurrentDbAllStreamSubscriptionOptions
     {
+        /// <summary>
+        /// The configuration section name for binding these options from configuration sources (e.g., appsettings.json).
+        /// </summary>
+        public const string Section = "KurrentDb:AllStreamSubscription";
+
         public Guid SubscriptionId { get; set; } = new Guid("cbbaeb7e-a087-44cc-75a0-08dc80991837"); // Use some random Guid as default.
 
         public SubscriptionFilterOptions FilterOptions { get; set; } =
@@ -18,6 +23,6 @@
 
         public bool ResolveLinkTos { get; set; }
 
-        public bool IgnoreDeserializationErrors { get; set; } = true;
+        public bool IgnoreDeserializationErrors { get; set; }
     }
 }

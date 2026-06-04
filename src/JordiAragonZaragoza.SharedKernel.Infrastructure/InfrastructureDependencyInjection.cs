@@ -60,5 +60,16 @@
 
             return services;
         }
+
+        public static IServiceCollection AddSharedKernelInfrastructureReactorBus(
+            this IServiceCollection services)
+        {
+            services.AddMediatRRegistrationsCommandBus();
+
+            services.AddTransient<ICommandBus, CommandBus>();
+            services.AddTransient<IEventBus, InMemoryEventBus>();
+
+            return services;
+        }
     }
 }

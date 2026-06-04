@@ -32,6 +32,228 @@
             Builds a fallback system execution context for events that lack metadata (e.g., seeds, migrations).
             </summary>
         </member>
+        <member name="F:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionOptions.Section">
+            <summary>
+            The configuration section name for binding these options from configuration sources (e.g., appsettings.json).
+            </summary>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.AllStreamPersistentSubscriptionBackgroundWorker">
+             <summary>
+             Background worker that manages the lifetime of the persistent subscription to the $all stream.
+            
+             Lifecycle:
+             1. Calls SubscribeToAllAsync, which connects to KurrentDB and registers the event callback.
+                The call returns as soon as the subscription is established; it does not block.
+             2. Waits indefinitely on the stoppingToken. The subscription delivers events via its own
+                server-side callback mechanism (HandleEventCallbackAsync) while this task is parked.
+             3. When the host signals shutdown (stoppingToken cancelled), the Delay throws
+                OperationCanceledException, ExecuteAsync returns, and BackgroundService disposes
+                the subscription cleanly.
+             </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.AllStreamPersistentSubscriptionBackgroundWorker.#ctor(JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription,JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions,Microsoft.Extensions.Logging.ILogger{JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.AllStreamPersistentSubscriptionBackgroundWorker})">
+            <summary>
+            Initializes a new instance of the <see cref="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.AllStreamPersistentSubscriptionBackgroundWorker"/> class.
+            </summary>
+            <param name="subscription">The persistent subscription instance.</param>
+            <param name="subscriptionOptions">The subscription configuration options.</param>
+            <param name="logger">The logger instance.</param>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.AllStreamPersistentSubscriptionBackgroundWorker.ExecuteAsync(System.Threading.CancellationToken)">
+            <inheritdoc/>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription">
+             <summary>
+             Persistent subscription to the $all stream in KurrentDB using a consumer group pattern.
+             Implements horizontal scalability where multiple instances can subscribe to the same group name.
+            
+             Design: This implementation uses KurrentDB's native persistent subscription feature which:
+             - Maintains state on the server (no client-side checkpoints needed)
+             - Supports consumer groups for automatic event distribution
+             - Enables horizontal scaling by distributing events among worker instances
+             - Handles acknowledgment tracking automatically.
+            
+             Failure handling: On event processing failure, a NACK with action Retry is sent.
+             The server retries delivery up to <see cref="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.MaxRetryCount"/> times,
+             after which it automatically parks the event to the dead-letter stream
+             ($persistentsubscription-{groupName}-parked). No client-side retry counting is needed.
+             </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.#ctor(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory,KurrentDB.Client.KurrentDBPersistentSubscriptionsClient,JordiAragonZaragoza.SharedKernel.Infrastructure.Interfaces.IServiceIdentityProvider,Microsoft.Extensions.Logging.ILogger{JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription})">
+            <summary>
+            Initializes a new instance of the <see cref="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription"/> class.
+            </summary>
+            <param name="serviceScopeFactory">The service scope factory for creating scoped DI containers.</param>
+            <param name="persistentSubscriptionsClient">The KurrentDB persistent subscriptions client.</param>
+            <param name="serviceIdentityProvider">The service identity provider.</param>
+            <param name="logger">The logger instance.</param>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.SubscribeToAllAsync(JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions,System.Threading.CancellationToken)">
+            <summary>
+            Connects to the $all stream persistent subscription group and registers the event callback.
+            Returns as soon as the subscription is established; the caller is responsible for
+            keeping the process alive (see <see cref="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.AllStreamPersistentSubscriptionBackgroundWorker"/>).
+            </summary>
+            <param name="subscriptionOptions">The subscription options including group name and filters.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task that completes when the subscription is established.</returns>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.IsAlreadyExistsException(System.Exception)">
+            <summary>
+            Detects whether an exception from <see cref="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.CreateSubscriptionGroupAsync(System.Threading.CancellationToken)"/> indicates
+            the group was already created by a concurrent instance (race condition on startup).
+            KurrentDB surfaces this as an <see cref="T:System.InvalidOperationException"/> wrapping an
+            <see cref="T:Grpc.Core.RpcException"/> with <see cref="F:Grpc.Core.StatusCode.AlreadyExists"/>.
+            </summary>
+            <param name="exception">The exception to inspect.</param>
+            <returns>True if the group already exists; otherwise false.</returns>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.EnrichActivity(System.Diagnostics.Activity,JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.EventStoreMetadata)">
+            <summary>
+            Enriches the current Activity with correlation and tracing information from event metadata.
+            </summary>
+            <param name="activity">The Activity to enrich with tracing information.</param>
+            <param name="metadata">The event metadata containing tracing context.</param>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.IsSystemEvent(KurrentDB.Client.ResolvedEvent)">
+            <summary>
+            Checks if an event is a system event (event type starts with $).
+            System events should not be processed as domain events.
+            </summary>
+            <param name="resolvedEvent">The resolved event to check.</param>
+            <returns>True if the event is a system event; otherwise false.</returns>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.ConnectToGroupAsync(System.Threading.CancellationToken)">
+            <summary>
+            Establishes the initial connection to the persistent subscription group.
+            Creates the group on KurrentDB if it does not exist yet.
+            </summary>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task representing the connection operation.</returns>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.SubscribeToGroupAsync(System.Threading.CancellationToken)">
+            <summary>
+            Attempts to subscribe to the existing consumer group.
+            If the group does not exist, creates it first and then retries the subscription.
+            If creation races with another instance (group already exists), the exception is
+            swallowed and the subscription is attempted directly.
+            </summary>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task representing the subscribe-or-create-then-subscribe operation.</returns>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.CreateSubscriptionGroupAsync(System.Threading.CancellationToken)">
+            <summary>
+            Creates the persistent subscription group on KurrentDB for the $all stream.
+            Uses the filter options from <see cref="F:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.subscriptionOptions"/> if provided.
+            The <see cref="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.MaxRetryCount"/> is passed
+            to the server so that KurrentDB automatically parks events after the configured number of
+            failed delivery attempts, without requiring any client-side retry counting.
+            </summary>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task representing the creation operation.</returns>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.HandleEventCallbackAsync(KurrentDB.Client.PersistentSubscription,KurrentDB.Client.ResolvedEvent,System.Nullable{System.Int32},System.Threading.CancellationToken)">
+             <summary>
+             Callback invoked when an event is available in the persistent subscription.
+             On success, ACK is sent to advance the server-side position.
+             On failure, NACK with action Retry is sent. The server retries up to
+             <see cref="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.MaxRetryCount"/> times,
+             then parks the event automatically. No client-side retry counting is required.
+            
+             Deserialization failures:
+             - If IgnoreDeserializationErrors is true, the event is ACK'd and skipped with a warning.
+               Use this for schema evolution scenarios where unknown or malformed events are expected.
+             - If IgnoreDeserializationErrors is false, the error propagates to NACK + retry.
+               A deserialization failure in a single-context KurrentDB setup is always anomalous
+               and should be surfaced, not silently swallowed.
+             </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.HandleSubscriptionDropped(KurrentDB.Client.PersistentSubscription,KurrentDB.Client.SubscriptionDroppedReason,System.Exception)">
+            <summary>
+            Callback invoked when the persistent subscription is dropped by the server or due to an error.
+            Marks the subscription as dropped and starts a background reconnect loop with exponential backoff.
+            If the drop reason is <see cref="F:KurrentDB.Client.SubscriptionDroppedReason.Disposed"/> (i.e. graceful host shutdown),
+            no reconnect is attempted.
+            </summary>
+            <param name="subscription">The dropped persistent subscription.</param>
+            <param name="reason">The reason for the drop.</param>
+            <param name="exception">The exception that caused the drop, if any.</param>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.ReconnectWithBackoffAsync(System.TimeSpan,System.Threading.CancellationToken)">
+            <summary>
+            Reconnects to the persistent subscription group with exponential backoff.
+            Retries until the subscription is restored or the stopping token is cancelled.
+            </summary>
+            <param name="initialDelay">The delay to wait before the first reconnect attempt.</param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>A task representing the reconnect loop.</returns>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.IsEventWithEmptyData(KurrentDB.Client.ResolvedEvent)">
+            <summary>
+            Checks if an event has empty data (system event or tombstone).
+            </summary>
+            <param name="resolvedEvent">The resolved event to check.</param>
+            <returns>True if the event has empty data; otherwise false.</returns>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.BuildFallbackSystemContext">
+            <summary>
+            Builds a fallback system execution context for events that lack metadata.
+            </summary>
+            <returns>An ExecutionContext with system defaults.</returns>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions">
+            <summary>
+            Options for configuring the persistent subscription to the $all stream in KurrentDB.
+            </summary>
+        </member>
+        <member name="F:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.Section">
+            <summary>
+            The configuration section name for binding these options from configuration sources (e.g., appsettings.json).
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.GroupName">
+            <summary>
+            Gets or sets the consumer group name. Multiple instances using the same group name
+            will coordinate their event consumption via checkpoints.
+            Default: "all-stream-group".
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.FilterOptions">
+            <summary>
+            Gets or sets the filter options for filtering events on the server side before transmission.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.Credentials">
+            <summary>
+            Gets or sets the credentials to use when connecting to KurrentDB.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.ResolveLinkTos">
+            <summary>
+            Gets or sets a value indicating whether to resolve link events to their target event data.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.BufferSize">
+            <summary>
+            Gets or sets the buffer size for the persistent subscription channel.
+            Determines how many messages can be buffered before being delivered to the subscriber.
+            Default: 10.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.IgnoreDeserializationErrors">
+            <summary>
+            Gets or sets a value indicating whether to ignore deserialization errors and continue processing.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.MaxRetryCount">
+            <summary>
+            Gets or sets the maximum number of times the server will retry delivering a failed event
+            before automatically parking it to the dead-letter stream
+            ($persistentsubscription-{groupName}-parked).
+            Parking is handled natively by KurrentDB; no client-side counting is required.
+            Default: 5.
+            </summary>
+        </member>
         <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.StreamNameMapper.ToStreamId(System.Type,System.Object,System.Object)">
             <summary>
             Generates a stream id in the canonical `{category}-{aggregateId}` format.

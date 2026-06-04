@@ -83,5 +83,24 @@
             derived from the client IP — providing traceability without a JWT.
             </summary>
         </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Middlewares.ExecutionContextMiddleware.ResolveCausationId(Microsoft.AspNetCore.Http.HttpContext)">
+             <summary>
+             Extracts the causation ID from the x-causation-id header.
+            
+             The causation ID identifies the specific event or command that directly
+             triggered this request — distinct from the correlation ID which tracks
+             the entire chain. It is null for direct HTTP requests with no prior event.
+            
+             Typical usage: a reaction handler forwards the ID of the event it is
+             reacting to, allowing the full cause-and-effect graph to be reconstructed
+             from the event store.
+            
+             Example:
+               UserRegisteredEvent.Id = "aaa..."
+               → POST /send-welcome-email
+                   x-causation-id: aaa...   (the event that caused this HTTP call)
+                   x-correlation-id: bbb... (the same chain correlation).
+             </summary>
+        </member>
     </members>
 </doc>
