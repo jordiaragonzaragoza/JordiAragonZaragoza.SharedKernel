@@ -339,12 +339,12 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                 {
                     (domainEvent, metadata) = SerializerHelper.Deserialize(resolvedEvent);
                 }
-                catch (Exception deserException)
+                catch (Exception deserializeException)
                 {
                     if (this.subscriptionOptions.IgnoreDeserializationErrors)
                     {
                         this.logger.LogWarning(
-                            deserException,
+                            deserializeException,
                             "Deserialization error for event '{EventType}' at position {Position} in group '{GroupName}'. " + "Skipping event (IgnoreDeserializationErrors = true).",
                             resolvedEvent.Event.EventType,
                             resolvedEvent.Event.Position.CommitPosition,
