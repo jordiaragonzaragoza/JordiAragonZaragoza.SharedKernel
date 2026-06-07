@@ -32,9 +32,46 @@
             Builds a fallback system execution context for events that lack metadata (e.g., seeds, migrations).
             </summary>
         </member>
-        <member name="F:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionOptions.Section">
+        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionOptions">
             <summary>
-            The configuration section name for binding these options from configuration sources (e.g., appsettings.json).
+            Full runtime options for the all-stream catch-up subscription.
+            Non-bindable properties (FilterOptions, Credentials, ConfigureOperation)
+            are configured in code. Bindable properties come from
+            <see cref="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionSettings"/>.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionOptions.ApplySettings(JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionSettings)">
+            <summary>
+            Applies bindable settings on top of the current options,
+            overriding only the properties that settings exposes.
+            </summary>
+            <param name="settings">The bindable settings to apply.</param>
+            <returns>The updated options instance for chaining.</returns>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionSettings">
+            <summary>
+            Bindable settings for the all-stream catch-up subscription.
+            These are read from configuration (e.g., appsettings.json) under
+            the section defined by <see cref="F:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionSettings.Section"/>.
+            Non-bindable options (FilterOptions, Credentials, etc.) are configured
+            in code via <see cref="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionOptions"/>.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionSettings.SubscriptionId">
+            <summary>
+            Gets or sets the unique identifier for this subscription.
+            Defaults to a fixed GUID if not configured.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionSettings.ResolveLinkTos">
+            <summary>
+            Gets or sets a value indicating whether to resolve link events to their originals.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionSettings.IgnoreDeserializationErrors">
+            <summary>
+            Gets or sets a value indicating whether to silently skip events that fail deserialization
+            instead of stopping the subscription.
             </summary>
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.AllStreamPersistentSubscriptionBackgroundWorker">
@@ -204,11 +241,9 @@
         <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions">
             <summary>
             Options for configuring the persistent subscription to the $all stream in KurrentDB.
-            </summary>
-        </member>
-        <member name="F:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.Section">
-            <summary>
-            The configuration section name for binding these options from configuration sources (e.g., appsettings.json).
+            Non-bindable properties (FilterOptions, Credentials, ConfigureOperation)
+            are configured in code. Bindable properties come from
+            <see cref="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionSettings"/>.
             </summary>
         </member>
         <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.GroupName">
@@ -246,6 +281,57 @@
             </summary>
         </member>
         <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.MaxRetryCount">
+            <summary>
+            Gets or sets the maximum number of times the server will retry delivering a failed event
+            before automatically parking it to the dead-letter stream
+            ($persistentsubscription-{groupName}-parked).
+            Parking is handled natively by KurrentDB; no client-side counting is required.
+            Default: 5.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionOptions.ApplySettings(JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionSettings)">
+            <summary>
+            Applies bindable settings on top of the current options,
+            overriding only the properties that settings exposes.
+            </summary>
+            <param name="settings">The bindable settings to apply.</param>
+            <returns>The updated options instance for chaining.</returns>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionSettings">
+            <summary>
+            Options for configuring the persistent subscription to the $all stream in KurrentDB.
+            </summary>
+        </member>
+        <member name="F:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionSettings.Section">
+            <summary>
+            The configuration section name for binding these options from configuration sources (e.g., appsettings.json).
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionSettings.GroupName">
+            <summary>
+            Gets or sets the consumer group name. Multiple instances using the same group name
+            will coordinate their event consumption via checkpoints.
+            Default: "all-stream-group".
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionSettings.ResolveLinkTos">
+            <summary>
+            Gets or sets a value indicating whether to resolve link events to their target event data.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionSettings.BufferSize">
+            <summary>
+            Gets or sets the buffer size for the persistent subscription channel.
+            Determines how many messages can be buffered before being delivered to the subscriber.
+            Default: 10.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionSettings.IgnoreDeserializationErrors">
+            <summary>
+            Gets or sets a value indicating whether to ignore deserialization errors and continue processing.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscriptionSettings.MaxRetryCount">
             <summary>
             Gets or sets the maximum number of times the server will retry delivering a failed event
             before automatically parking it to the dead-letter stream

@@ -2,19 +2,16 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
 {
     using System;
     using System.Diagnostics;
-
     using System.Threading;
     using System.Threading.Tasks;
     using Ardalis.Result;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts;
-
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Contracts;
     using JordiAragonZaragoza.SharedKernel.Contracts.Repositories;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Serialization;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Interfaces;
-
     using JordiAragonZaragoza.SharedKernel.Infrastructure.ProjectionCheckpoint;
     using KurrentDB.Client;
     using Microsoft.Extensions.DependencyInjection;
@@ -31,7 +28,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
         private readonly IDateTime datetime;
         private readonly IServiceScopeFactory serviceScopeFactory;
         private KurrentDbAllStreamSubscriptionOptions subscriptionOptions = default!;
-        private bool isSubscribed;
+        private int isSubscribed; // 0 = false, 1 = true
 
         public KurrentDbAllStreamSubscription(
             IServiceScopeFactory serviceScopeFactory,
@@ -53,41 +50,45 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
         {
             ArgumentNullException.ThrowIfNull(subscriptionOptions, nameof(subscriptionOptions));
 
-            if (this.isSubscribed)
+            if (Interlocked.CompareExchange(ref this.isSubscribed, 1, 0) == 1)
             {
                 this.logger.LogWarning("Already subscribed to all '{SubscriptionId}'", subscriptionOptions.SubscriptionId);
+
                 return;
             }
 
-            // see: https://github.com/dotnet/runtime/issues/36063
-            await Task.Yield();
-            this.subscriptionOptions = subscriptionOptions;
-
-            this.logger.LogInformation("Subscription to all '{SubscriptionId}'", subscriptionOptions.SubscriptionId);
-
-            // Required to get scoped services on a background service.
-            using var scope = this.serviceScopeFactory.CreateScope();
-            var checkpointRepository = scope.ServiceProvider.GetRequiredService<IRepository<Checkpoint, Guid>>();
-
-            var checkpoint = await checkpointRepository.GetByIdAsync(this.SubscriptionId, cancellationToken).ConfigureAwait(false);
-
-            // Use the iterable subscription pattern that maintains the connection continuously
-            // This processes historical events (catch-up) and then listens for new events (live)
-            await using var subscription = this.kurrentDbClient.SubscribeToAll(
-                checkpoint == null ? FromAll.Start : FromAll.After(new Position(checkpoint.Position, checkpoint.Position)),
-                subscriptionOptions.ResolveLinkTos,
-                subscriptionOptions.FilterOptions,
-                subscriptionOptions.Credentials,
-                cancellationToken);
-
-            this.isSubscribed = true;
-
-            this.logger.LogInformation("Subscription to all '{SubscriptionId}' started - processing catch-up and listening for live events", this.SubscriptionId);
-
-            // Process messages continuously: first the catch-up (historical), then live events
-            await foreach (var message in subscription.Messages.WithCancellation(cancellationToken))
+            try
             {
-                await this.HandleMessageAsync(message, checkpointRepository, cancellationToken).ConfigureAwait(false);
+                this.subscriptionOptions = subscriptionOptions;
+
+                this.logger.LogInformation("Subscription to all '{SubscriptionId}'", subscriptionOptions.SubscriptionId);
+
+                // Required to get scoped services on a background service.
+                using var startupScope = this.serviceScopeFactory.CreateScope();
+                var startupCheckpointRepository = startupScope.ServiceProvider.GetRequiredService<IRepository<Checkpoint, Guid>>();
+
+                var checkpoint = await startupCheckpointRepository.GetByIdAsync(this.SubscriptionId, cancellationToken).ConfigureAwait(false);
+
+                // Use the iterable subscription pattern that maintains the connection continuously
+                // This processes historical events (catch-up) and then listens for new events (live)
+                await using var subscription = this.kurrentDbClient.SubscribeToAll(
+                    checkpoint == null ? FromAll.Start : FromAll.After(new Position(checkpoint.Position, checkpoint.Position)),
+                    subscriptionOptions.ResolveLinkTos,
+                    subscriptionOptions.FilterOptions,
+                    subscriptionOptions.Credentials,
+                    cancellationToken);
+
+                this.logger.LogInformation("Subscription to all '{SubscriptionId}' started - processing catch-up and listening for live events", this.SubscriptionId);
+
+                // Process messages continuously: first the catch-up (historical), then live events
+                await foreach (var message in subscription.Messages.WithCancellation(cancellationToken))
+                {
+                    await this.HandleMessageAsync(message, cancellationToken).ConfigureAwait(false);
+                }
+            }
+            finally
+            {
+                Interlocked.Exchange(ref this.isSubscribed, 0); // allows reconection
             }
         }
 
@@ -132,7 +133,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
         /// </summary>
         private ExecutionContext BuildFallbackSystemContext()
         {
-            this.logger.LogInformation("Building fallback system execution context for event without metadata");
+            this.logger.LogDebug("Building fallback system execution context for event without metadata");
 
             var systemTenantId = SystemConstants.SystemTenantId;
 
@@ -146,12 +147,12 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                 scopeContext: new ScopeContext(systemTenantId, null, null));
         }
 
-        private async Task HandleMessageAsync(StreamMessage message, IRepository<Checkpoint, Guid> checkpointRepository, CancellationToken cancellationToken)
+        private async Task HandleMessageAsync(StreamMessage message, CancellationToken cancellationToken)
         {
             switch (message)
             {
                 case StreamMessage.Event(var resolvedEvent):
-                    await this.HandleEventAsync(resolvedEvent, checkpointRepository, cancellationToken).ConfigureAwait(false);
+                    await this.HandleEventAsync(resolvedEvent, cancellationToken).ConfigureAwait(false);
                     break;
 
                 case StreamMessage.CaughtUp:
@@ -170,7 +171,6 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
 
         private async Task HandleEventAsync(
             ResolvedEvent resolvedEvent,
-            IRepository<Checkpoint, Guid> checkpointRepository,
             CancellationToken cancellationToken)
         {
             try
@@ -180,18 +180,47 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                     return;
                 }
 
-                // TODO: Implement deserialization error handling based on subscriptionOptions.IgnoreDeserializationErrors
-                var (domainEvent, metadata) = SerializerHelper.Deserialize(resolvedEvent);
+                IDomainEvent domainEvent;
+                EventStoreMetadata? metadata;
+
+                try
+                {
+                    (domainEvent, metadata) = SerializerHelper.Deserialize(resolvedEvent);
+                }
+                catch (Exception deserializationException)
+                {
+                    this.logger.LogError(
+                        deserializationException,
+                        "Deserialization failed for event type '{EventType}' at position {Position}. " + "IgnoreDeserializationErrors={IgnoreDeserializationErrors}",
+                        resolvedEvent.Event.EventType,
+                        resolvedEvent.Event.Position.CommitPosition,
+                        this.subscriptionOptions.IgnoreDeserializationErrors);
+
+                    if (this.subscriptionOptions.IgnoreDeserializationErrors)
+                    {
+                        // Advance the checkpoint so we don't retry this poison event forever.
+                        using var scope = this.serviceScopeFactory.CreateScope();
+                        var repository = scope.ServiceProvider
+                            .GetRequiredService<IRepository<Checkpoint, Guid>>();
+
+                        await this.UpdateCheckpointAsync(resolvedEvent, repository, cancellationToken);
+
+                        return;
+                    }
+
+                    throw; // rethrow to stop subscription if we can't ignore deserialization errors
+                }
 
                 using var activity = EventStoreActivityRestorer.RestoreFrom(metadata, $"Handle {domainEvent.GetType().Name}");
 
                 EnrichActivity(activity, metadata);
 
                 // Required to get scoped services on a background service.
-                using var scope = this.serviceScopeFactory.CreateScope();
-                var unitOfWork = scope.ServiceProvider.GetRequiredService<IUnitOfWork>();
-                var eventBus = scope.ServiceProvider.GetRequiredService<IEventBus>();
-                var executionContextService = scope.ServiceProvider.GetRequiredService<IExecutionContextService>();
+                using var eventScope = this.serviceScopeFactory.CreateScope();
+                var unitOfWork = eventScope.ServiceProvider.GetRequiredService<IUnitOfWork>();
+                var eventBus = eventScope.ServiceProvider.GetRequiredService<IEventBus>();
+                var executionContextService = eventScope.ServiceProvider.GetRequiredService<IExecutionContextService>();
+                var checkpointRepository = eventScope.ServiceProvider.GetRequiredService<IRepository<Checkpoint, Guid>>();
 
                 var executionContext = metadata?.ToExecutionContext();
                 if (executionContext is null)
@@ -226,9 +255,17 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                     executionContextService.ClearExecutionContext();
                 }
             }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Clean shutdown — let it propagate without logging as error
+                throw;
+            }
             catch (Exception exception)
             {
-                this.logger.LogError(exception, "Error consuming message: {ExceptionMessage}{ExceptionStackTrace}", exception.Message, exception.StackTrace);
+                this.logger.LogError(
+                    exception,
+                    "Error consuming message: {ExceptionMessage}",
+                    exception.Message);
 
                 // if you're fine with dropping some events instead of stopping subscription
                 // then you can add some logic if error should be ignored
@@ -273,7 +310,10 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                 return false;
             }
 
-            this.logger.LogInformation("Event without data received");
+            this.logger.LogDebug(
+                "Event '{EventType}' at position {Position} has no data, skipping",
+                resolvedEvent.Event.EventType,
+                resolvedEvent.Event.Position.CommitPosition);
 
             return true;
         }

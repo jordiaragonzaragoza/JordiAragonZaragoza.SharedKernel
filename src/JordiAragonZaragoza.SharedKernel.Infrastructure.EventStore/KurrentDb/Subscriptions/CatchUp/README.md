@@ -1,0 +1,424 @@
+# All Stream Catch-Up Subscription (`KurrentDbAllStreamSubscription`)
+
+## Overview
+
+`KurrentDbAllStreamSubscription` implements a **catch-up subscription** to the KurrentDB `$all` stream. It reads every event ever written to the store (catch-up phase) and then continues listening for new events in real time (live phase), all within a single continuous connection.
+
+The subscription is designed to drive **read model projectors**: it dispatches each event to an internal event bus, which fan-outs to registered projectors that update the PostgreSQL read models. A checkpoint is persisted after each successfully processed event so the subscription can resume from the last known position after a restart.
+
+### Key differences from a Persistent Subscription
+
+| Aspect | Catch-Up (this) | Persistent |
+|---|---|---|
+| Checkpoint storage | Application-managed (PostgreSQL via `IRepository<Checkpoint>`) | Server-managed (KurrentDB group) |
+| Retry on failure | Application-managed (backoff worker) | Server retries via `maxRetryCount` |
+| Consumer group | Not applicable | Must be created server-side |
+| Acknowledgement | Implicit (checkpoint advance) | Explicit `Ack` / `Nack` per event |
+| Concurrency | Single consumer, sequential | Multiple consumers in a group |
+| Filter | Client-side via `SubscriptionFilterOptions` | Server-side group filter |
+| Drop notification | `await foreach` completes or throws | `HandleDrop` callback |
+| Suitable for | Projectors, read model builders | Integration relays, multi-consumer fan-out |
+
+---
+
+## Internal Architecture
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                  AllStreamSubscriptionBackgroundWorker       │
+│  (BackgroundService — owns the retry loop with backoff)      │
+│                                                              │
+│  ExecuteAsync                                                │
+│    └── Task.Yield()          ← unblocks host startup        │
+│    └── RunWithRetryAsync     ← infinite retry loop          │
+│          └── perform(ct)     ← calls SubscribeToAllAsync    │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               ▼
+┌─────────────────────────────────────────────────────────────┐
+│               KurrentDbAllStreamSubscription                 │
+│                                                              │
+│  SubscribeToAllAsync                                         │
+│    1. Read checkpoint from DB  (startup scope, short-lived)  │
+│    2. kurrentDbClient.SubscribeToAll(fromPosition, ...)      │
+│    3. await foreach(message in subscription.Messages)        │
+│          └── HandleMessageAsync                              │
+│                ├── StreamMessage.Event   → HandleEventAsync  │
+│                ├── StreamMessage.CaughtUp → log              │
+│                └── StreamMessage.FellBehind → log warning    │
+└──────────────────────────────┬──────────────────────────────┘
+                               │
+                               ▼  per-event scope (short-lived)
+┌─────────────────────────────────────────────────────────────┐
+│  HandleEventAsync                                            │
+│    1. SerializerHelper.Deserialize(resolvedEvent)            │
+│    2. EventStoreActivityRestorer.RestoreFrom(metadata)       │
+│    3. Resolve IUnitOfWork, IEventBus, IExecutionContextService│
+│       IRepository<Checkpoint> — all from the same DI scope  │
+│    4. executionContextService.OverrideExecutionContext(ctx)   │
+│    5. unitOfWork.ExecuteInTransactionAsync(                  │
+│         eventBus.PublishAsync(domainEvent)                   │
+│         UpdateCheckpointAsync(resolvedEvent)                 │
+│       )                                                      │
+│    6. executionContextService.ClearExecutionContext()         │
+└─────────────────────────────────────────────────────────────┘
+```
+
+### Why iterable instead of callback
+
+KurrentDB's client exposes two subscription APIs:
+
+- **Iterable** (`SubscribeToAll` → `IAsyncEnumerable<StreamMessage>`): the consumer drives the loop with `await foreach`.
+- **Callback** (`SubscribeToAllAsync` → registers delegates): the client drives the loop internally.
+
+This implementation uses the **iterable** pattern intentionally:
+
+- Flow control is explicit: if event processing is slow, the producer naturally waits.
+- Drop handling is straightforward: the `await foreach` simply throws or completes, and the retry loop in `AllStreamSubscriptionBackgroundWorker` handles reconnection.
+- Processing is strictly sequential with no race conditions between drop and in-flight event handling (a known hazard in the callback model when `HandleDrop` fires while `HandleEvent` is still executing on another thread).
+- Stack traces are clean and point directly to application code.
+
+The callback model (as used by Eventuous) is better suited when concurrent consumers with a `ConcurrencyLimit > 1` are needed. This implementation processes events sequentially, one transaction at a time, which is the correct model for single-consumer projectors.
+
+---
+
+## Worker Lifecycle
+
+```
+Host.StartAsync()
+  └── BackgroundService.StartAsync()
+        └── ExecuteAsync()
+              └── await Task.Yield()          ← returns control to host immediately
+              └── RunWithRetryAsync(ct)
+                    └── attempt = 0
+                    └── loop:
+                          ├── perform(ct)     ← blocks until subscription ends or throws
+                          │     └── SubscribeToAllAsync()
+                          │           ├── read checkpoint (startup scope)
+                          │           ├── open SubscribeToAll stream
+                          │           ├── isSubscribed = 1 (Interlocked)
+                          │           ├── await foreach(messages)
+                          │           │     └── HandleEventAsync per event
+                          │           └── finally: isSubscribed = 0
+                          │
+                          ├── on clean return → attempt=0, reconnect immediately
+                          ├── on OperationCanceledException (host shutdown) → return
+                          └── on other exception → attempt++, wait backoff, retry
+
+Host.StopAsync()
+  └── stoppingToken cancelled
+        └── Task.Delay(delay, stoppingToken) throws OperationCanceledException
+              └── caught by `when (stoppingToken.IsCancellationRequested)` → exits cleanly
+```
+
+### `Task.Yield()` and host startup
+
+`BackgroundService.StartAsync` checks whether `ExecuteAsync` completes synchronously. If it does not, it returns `Task.CompletedTask` immediately so the host continues starting. The `await Task.Yield()` at the top of `ExecuteAsync` ensures this path is always taken, preventing the catch-up history replay from blocking other hosted services from starting.
+
+---
+
+## Failure Handling
+
+### Event processing failure
+
+If `HandleEventAsync` throws (projection error, DB timeout, etc.), the exception propagates up through `await foreach`, out of `SubscribeToAllAsync`, and into `RunWithRetryAsync`. The `finally` block resets `isSubscribed` to `0`. The retry loop increments `attempt`, waits the backoff delay, and calls `SubscribeToAllAsync` again. The subscription resumes from the **last committed checkpoint**, so the failed event is retried on reconnect.
+
+The projection and the checkpoint are committed in the same PostgreSQL transaction.
+If the process fails, PostgreSQL guarantees that either both are committed or neither.
+Upon restarting, the checkpoint is authoritative: the event is reprocessed only if the transaction was not committed, in which case the read model is also in its previous state and reprocessing is safe.
+
+**Projectors do not need to be idempotent as long as:**
+
+* They only produce effects within the PostgreSQL transaction (read model updates).
+* They do not perform external calls (HTTP, messages, emails) within the handler.
+
+If a projector has side effects outside of the transaction, those effects may occur more than once in the event of a failure. In that case, idempotency is indeed necessary for that specific projector.
+
+### Deserialization failure (poison event)
+
+When `SerializerHelper.Deserialize` throws (unknown event type, malformed JSON, schema mismatch):
+
+- **`IgnoreDeserializationErrors = false` (default):** the exception propagates and the subscription stops. The event is retried on reconnect indefinitely until the problem is resolved (type registered, schema fixed, event skipped manually).
+- **`IgnoreDeserializationErrors = true`:** the error is logged at `Error` level, the checkpoint is advanced past the poison event, and processing continues. **Use with caution**: this silently drops events that could not be deserialized.
+
+In both cases the error is logged with the event type and commit position for traceability.
+
+### Connection drop / KurrentDB unavailable
+
+When the `await foreach` terminates due to a network error or server restart:
+
+| Attempt | Delay |
+|---|---|
+| 1 | ~2 s |
+| 2 | ~4 s |
+| 3 | ~8 s |
+| 4 | ~16 s |
+| 5 | ~32 s |
+| 6+ | ~60 s (capped) |
+
+Each delay has ±20% random jitter to avoid thundering herd when multiple workers restart simultaneously.
+
+The delay formula is:
+
+```
+delay = min(InitialDelay × BackoffMultiplier^(attempt-1), MaxDelay) × (1 ± 0.2 jitter)
+```
+
+### Host shutdown during processing
+
+If the host signals shutdown while an event is being processed:
+
+1. The `cancellationToken` passed to all async operations is cancelled.
+2. `Task.Delay`, `eventBus.PublishAsync`, `checkpointRepository` calls, etc., all throw `OperationCanceledException`.
+3. The exception propagates up to `RunWithRetryAsync`.
+4. The `catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)` clause catches it and exits cleanly without logging an error.
+5. The checkpoint may **not** be advanced for the in-flight event. On next startup the event is reprocessed from the last committed checkpoint. Projectors must handle duplicate delivery.
+
+---
+
+## Configuration
+
+### `KurrentDbAllStreamSubscriptionSettings` (bindable from `appsettings.json`)
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `SubscriptionId` | `Guid` | `cbbaeb7e-...` | Unique ID used as the checkpoint key in the database. **Change this if running multiple subscriptions in the same DB.** |
+| `ResolveLinkTos` | `bool` | `false` | Whether to resolve link events to the original event they point to. |
+| `IgnoreDeserializationErrors` | `bool` | `false` | Skip events that cannot be deserialized instead of stopping the subscription. |
+
+### `KurrentDbAllStreamSubscriptionOptions` (code-only properties)
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `FilterOptions` | `SubscriptionFilterOptions` | `ExcludeSystemEvents()` | Server-side event filter. By default excludes KurrentDB internal events (`$`-prefixed). |
+| `Credentials` | `UserCredentials?` | `null` | Override credentials for this subscription. If `null`, the client's default credentials are used. |
+| `ConfigureOperation` | `Action<KurrentDBClientOperationOptions>?` | `null` | Low-level gRPC operation configuration (deadline, retry policy). |
+
+`KurrentDbAllStreamSubscriptionOptions` is not directly bindable from JSON because `SubscriptionFilterOptions`, `UserCredentials`, and `Action<>` are not JSON-serializable. The split into `Settings` (bindable) and `Options` (runtime) is intentional.
+
+---
+
+## DI Registration
+
+### Default configuration (no `appsettings.json` section needed)
+
+```csharp
+builder.Services.AddSharedKernelInfrastructureKurrentDbAllStreamSubscription();
+```
+
+This registers:
+
+- `IOptions<KurrentDbAllStreamSubscriptionSettings>` bound to `"KurrentDb:AllStreamSubscription"` (falls back to class defaults if the section is absent).
+- `KurrentDbAllStreamSubscription` as `Singleton`.
+- `AllStreamSubscriptionBackgroundWorker` as `IHostedService`.
+
+### Custom `appsettings.json` section
+
+```json
+{
+  "KurrentDb": {
+    "AllStreamSubscription": {
+      "SubscriptionId": "cbbaeb7e-a087-44cc-75a0-08dc80991837",
+      "ResolveLinkTos": false,
+      "IgnoreDeserializationErrors": false
+    }
+  }
+}
+```
+
+All fields are optional. Omitted fields keep their class defaults.
+
+### Custom code-only options (FilterOptions, Credentials)
+
+Override `FilterOptions` or other non-bindable properties in the factory inside `AddSharedKernelInfrastructureKurrentDbAllStreamSubscription`:
+
+```csharp
+var options = new KurrentDbAllStreamSubscriptionOptions()
+    .ApplySettings(settings);
+
+// Override non-bindable properties here:
+options.FilterOptions = new SubscriptionFilterOptions(
+    EventTypeFilter.Prefix("Cinema.", "Ticketing."),
+    checkpointInterval: 1000);
+
+options.Credentials = new UserCredentials("admin", "changeit");
+```
+
+### Running multiple subscriptions
+
+Each subscription must have a **distinct `SubscriptionId`** because that GUID is used as the primary key for the checkpoint row. If two subscriptions share the same `SubscriptionId` they will overwrite each other's checkpoints and produce incorrect results.
+
+Register each subscription with its own options instance and its own `AllStreamSubscriptionBackgroundWorker`:
+
+```csharp
+// Subscription A — projections
+services.AddHostedService(sp =>
+{
+    var sub = sp.GetRequiredService<KurrentDbAllStreamSubscriptionA>();
+    var options = new KurrentDbAllStreamSubscriptionOptions { SubscriptionId = Guid.Parse("...A...") };
+    return new AllStreamSubscriptionBackgroundWorker(
+        sp.GetRequiredService<ILogger<AllStreamSubscriptionBackgroundWorker>>(),
+        ct => sub.SubscribeToAllAsync(options, ct));
+});
+
+// Subscription B — integration relay
+services.AddHostedService(sp =>
+{
+    var sub = sp.GetRequiredService<KurrentDbAllStreamSubscriptionB>();
+    var options = new KurrentDbAllStreamSubscriptionOptions { SubscriptionId = Guid.Parse("...B...") };
+    return new AllStreamSubscriptionBackgroundWorker(
+        sp.GetRequiredService<ILogger<AllStreamSubscriptionBackgroundWorker>>(),
+        ct => sub.SubscribeToAllAsync(options, ct));
+});
+```
+
+---
+
+## Complete Example — Projector Worker
+
+```csharp
+// Program.cs
+HostApplicationBuilder builder = Host.CreateApplicationBuilder(args);
+
+builder.AddInfrastructure();
+builder.AddInfrastructureKurrentDbClient();   // registers KurrentDBClient via Aspire
+
+builder.Services
+    .AddApplicationProjectors()               // registers IEventHandler implementations
+    .AddInfrastructureEntityFrameworkProjections(configuration, isDevelopment)
+    .AddInfrastructureProjectionsRepositories();
+
+builder.Services
+    .AddSharedKernelApplicationProjectionsEventBus()
+    .AddSharedKernelInfrastructureKurrentDbAllStreamSubscription()  // ← catch-up subscription
+    .AddSharedKernelInfrastructure()
+    .AddSharedKernelInfrastructureProjections();
+
+builder.AddInfrastructureEntityFrameworkProjections();
+
+IHost app = builder.Build();
+await app.RunAsync();
+```
+
+```json
+// appsettings.Production.json
+{
+  "KurrentDb": {
+    "AllStreamSubscription": {
+      "SubscriptionId": "cbbaeb7e-a087-44cc-75a0-08dc80991837",
+      "IgnoreDeserializationErrors": false
+    }
+  }
+}
+```
+
+---
+
+## Scaling and Tradeoffs
+
+### Sequential processing
+
+Events are processed strictly one at a time: `eventBus.PublishAsync` completes, the checkpoint is committed, then the next event is read. This guarantees ordering and makes projectors trivially idempotent with respect to ordering, but limits throughput to a single event pipeline.
+
+**Throughput is bounded by:** `max_events_per_second ≈ 1 / (avg_event_processing_time_ms / 1000)`.
+
+If throughput is insufficient:
+
+- Profile where time is spent (DB round trips, event handler logic).
+- Consider partitioned subscriptions (requires moving to the callback model with `ConcurrencyLimit > 1`, similar to Eventuous's `PartitioningFilter`).
+- Consider splitting the event stream by type and running separate subscriptions for different projectors.
+
+### Single consumer
+
+There is no consumer group. Only one instance of this worker should process the same `SubscriptionId` at a time. Running two instances with the same `SubscriptionId` causes a **checkpoint race**: both instances advance the checkpoint concurrently, potentially skipping events or processing them twice without detection.
+
+In Kubernetes, ensure `replicas: 1` for the projector deployment, or use leader election.
+
+### Checkpoint granularity
+
+The checkpoint is committed after **every** successfully processed event, inside the same transaction as the projection update. This means:
+
+- On restart, at most one event may be reprocessed (the one in-flight at shutdown).
+- There is no batch commit optimization. For high-volume streams this adds one DB write per event. If this becomes a bottleneck, consider committing the checkpoint every N events (introducing a window of potential reprocessing on restart).
+
+### `IgnoreDeserializationErrors`
+
+Setting this to `true` in production means the projector **silently skips** events it cannot understand. This can leave read models permanently incomplete. Prefer `false` in production and fix the root cause (register the event type, update the schema). Use `true` only in development or for controlled migrations where the skipped events are known to be irrelevant.
+
+---
+
+## Corner Cases
+
+### First run (no checkpoint)
+
+On first startup, no checkpoint row exists in the database. The subscription starts from `FromAll.Start`, replaying the entire `$all` stream from position 0. For large stores this catch-up phase can take minutes to hours. During this time `StreamMessage.CaughtUp` has not been received yet and the subscription is in catch-up mode.
+
+### KurrentDB unavailable at startup
+
+If KurrentDB is not reachable when the worker starts, `kurrentDbClient.SubscribeToAll(...)` throws. The retry loop handles this transparently: it waits the backoff delay and tries again. The host remains running and healthy from the OS perspective; only the subscription worker is in a retry loop.
+
+### Checkpoint position vs. prepare position
+
+KurrentDB positions have both a `CommitPosition` and a `PreparePosition`. This implementation stores and restores only `CommitPosition` and uses `new Position(checkpoint.Position, checkpoint.Position)` for `FromAll.After(...)`. For events written in a single transaction both values are identical. For multi-event transactions they may differ; using `CommitPosition` for both is the standard approach and matches the KurrentDB client's own documentation.
+
+### `StreamMessage.FellBehind`
+
+This message is emitted by the client when the local processing queue is growing faster than events are being consumed, meaning the subscription is under pressure. It does not drop the subscription. It is logged at `Warning` level. If it appears frequently, review event handler performance.
+
+### `EventTypeMapper` and unknown event types
+
+If an event type stored in KurrentDB has no corresponding CLR type registered in `EventTypeMapper` (e.g., an event from a different bounded context, a renamed type, or a legacy event), `SerializerHelper.Deserialize` throws `InvalidOperationException`. The behaviour then depends on `IgnoreDeserializationErrors` (see Failure Handling above).
+
+To handle renamed event types without ignoring errors, register a custom map:
+
+```csharp
+EventTypeMapper.Instance.AddCustomMap<NewEventName>(
+    "JordiAragonZaragoza.OldNamespace.OldEventName");
+```
+
+---
+
+## Logging
+
+### Relevant levels
+
+| Level | Event |
+|---|---|
+| `Information` | Worker started / stopped, subscription started, checkpoint created/updated, caught up to live |
+| `Warning` | Already subscribed (guard), subscription fell behind, subscription ended unexpectedly (clean drop), reconnect attempt |
+| `Error` | Deserialization failure, event processing exception |
+| `Debug` | Fallback system execution context built, unknown message type received, event skipped (no metadata) |
+
+### Structured log properties
+
+All log messages use structured properties compatible with Serilog, Datadog, and OpenTelemetry:
+
+| Property | Description |
+|---|---|
+| `{SubscriptionId}` | The subscription GUID |
+| `{EventType}` | KurrentDB event type string |
+| `{Position}` | Commit position in the `$all` stream |
+| `{Attempt}` | Retry attempt number |
+| `{Delay}` | Backoff delay in seconds |
+| `{IgnoreDeserializationErrors}` | Setting value at time of error |
+
+### OpenTelemetry traces
+
+Each event creates an `Activity` (span) via `EventStoreActivityRestorer.RestoreFrom(metadata, ...)`, which restores the W3C TraceContext from the event metadata. This links the projection span to the original command span that produced the event, creating an end-to-end distributed trace across command handling → event store → projection.
+
+The span is enriched with the following tags via `EnrichActivity`:
+
+| Tag | Source |
+|---|---|
+| `actor.id` | `EventStoreMetadata.ActorId` |
+| `actor.type` | `EventStoreMetadata.ActorType` |
+| `executor` | `EventStoreMetadata.Executor` |
+| `executor.type` | `EventStoreMetadata.ExecutorType` |
+| `correlation.id` | `EventStoreMetadata.CorrelationId` |
+| `causation.id` | `EventStoreMetadata.CausationId` (if present) |
+| `tenant.id` | `EventStoreMetadata.TenantId` |
+| `partition.id` | `EventStoreMetadata.PartitionId` (if present) |
+| `domain.id` | `EventStoreMetadata.DomainId` (if present) |
+| `event.occurred_at` | `EventStoreMetadata.DateOccurredOnUtc` (ISO 8601) |
+
+Events without metadata (seeds, migrations, native KurrentDB events) do not produce a linked span. They are processed with a fallback system `ExecutionContext` and logged at `Debug` level.

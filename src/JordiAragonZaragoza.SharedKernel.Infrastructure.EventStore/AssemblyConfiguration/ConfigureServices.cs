@@ -1,6 +1,5 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.AssemblyConfiguration
 {
-    using System.Threading;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb;
@@ -9,6 +8,7 @@
     using KurrentDB.Client;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;
+    using Microsoft.Extensions.Options;
 
     public static class ConfigureServices
     {
@@ -21,9 +21,9 @@
             serviceCollection.AddScoped<IUnitOfWork>(sp => sp.GetRequiredService<KurrentDbEventStore>());
             serviceCollection.AddSingleton(EventTypeMapper.Instance);
 
-            // KurrentDBPersistentSubscriptionsClient se deriva del KurrentDBClient registrado por Aspire,
-            // copiando su configuración (conexión, credenciales, interceptors, etc.).
-            // Registramos como singleton porque el cliente gRPC subyacente es thread-safe y caro de construir.
+            // KurrentDBPersistentSubscriptionsClient derives from the KurrentDBClient registered by Aspire,
+            // copying its configuration (connection, credentials, interceptors, etc.).
+            // We register it as a singleton because the underlying gRPC client is thread-safe and expensive to construct.
             serviceCollection.AddSingleton(sp =>
             {
                 var client = sp.GetRequiredService<KurrentDBClient>();
@@ -34,39 +34,68 @@
             return serviceCollection;
         }
 
-#pragma warning disable CA2000 // Dispose objects before losing scope
         public static IServiceCollection AddSharedKernelInfrastructureKurrentDbAllStreamSubscription(
             this IServiceCollection serviceCollection)
         {
-            serviceCollection.AddTransient<KurrentDbAllStreamSubscription>();
-            serviceCollection.AddSingleton(new CancellationTokenSource());
+            serviceCollection
+                .AddOptions<KurrentDbAllStreamSubscriptionSettings>()
+                .BindConfiguration(KurrentDbAllStreamSubscriptionSettings.Section)
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+
+            serviceCollection.AddSingleton<KurrentDbAllStreamSubscription>();
 
             return serviceCollection.AddHostedService(serviceProvider =>
             {
-                var logger = serviceProvider.GetRequiredService<ILogger<AllStreamSubscriptionBackgroundWorker>>();
-                var kurrentDbAllStreamSubscription = serviceProvider.GetRequiredService<KurrentDbAllStreamSubscription>();
-                var cancellationTokenSource = serviceProvider.GetRequiredService<CancellationTokenSource>();
+                var kurrentDbAllStreamSubscription =
+                    serviceProvider.GetRequiredService<KurrentDbAllStreamSubscription>();
+
+                var logger =
+                    serviceProvider.GetRequiredService<ILogger<AllStreamSubscriptionBackgroundWorker>>();
+
+                // Read bindable settings (from appsettings or defaults).
+                var settings =
+                    serviceProvider.GetRequiredService<IOptions<KurrentDbAllStreamSubscriptionSettings>>().Value;
+
+                // Build full runtime options starting from defaults, then apply settings.
+                // Non-bindable properties (FilterOptions, Credentials, etc.) keep their defaults
+                // or can be overridden here in code before calling ApplySettings.
+                var options = new KurrentDbAllStreamSubscriptionOptions()
+                    .ApplySettings(settings);
 
                 return new AllStreamSubscriptionBackgroundWorker(
                     logger,
                     cancellationToken =>
                         kurrentDbAllStreamSubscription.SubscribeToAllAsync(
-                            new KurrentDbAllStreamSubscriptionOptions(),
-                            cancellationTokenSource.Token));
+                            options,
+                            cancellationToken));
             });
         }
-#pragma warning restore CA2000 // Dispose objects before losing scope
 
         public static IServiceCollection AddSharedKernelInfrastructureKurrentDbAllStreamPersistentSubscription(
             this IServiceCollection serviceCollection)
         {
+            serviceCollection
+                .AddOptions<KurrentDbAllStreamPersistentSubscriptionSettings>()
+                .BindConfiguration(KurrentDbAllStreamPersistentSubscriptionSettings.Section)
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+
             serviceCollection.AddTransient<KurrentDbAllStreamPersistentSubscription>();
 
             return serviceCollection.AddHostedService(serviceProvider =>
             {
-                var subscription = serviceProvider.GetRequiredService<KurrentDbAllStreamPersistentSubscription>();
-                var logger = serviceProvider.GetRequiredService<ILogger<AllStreamPersistentSubscriptionBackgroundWorker>>();
-                var options = new KurrentDbAllStreamPersistentSubscriptionOptions();
+                var subscription =
+                    serviceProvider.GetRequiredService<KurrentDbAllStreamPersistentSubscription>();
+
+                var logger =
+                    serviceProvider.GetRequiredService<ILogger<AllStreamPersistentSubscriptionBackgroundWorker>>();
+
+                var settings =
+                    serviceProvider.GetRequiredService<IOptions<KurrentDbAllStreamPersistentSubscriptionSettings>>().Value;
+
+                var options = new KurrentDbAllStreamPersistentSubscriptionOptions()
+                    .ApplySettings(settings);
 
                 return new AllStreamPersistentSubscriptionBackgroundWorker(
                     subscription,

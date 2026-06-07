@@ -5,14 +5,15 @@
 
     using EventTypeFilter = global::KurrentDB.Client.EventTypeFilter;
 
+    /// <summary>
+    /// Full runtime options for the all-stream catch-up subscription.
+    /// Non-bindable properties (FilterOptions, Credentials, ConfigureOperation)
+    /// are configured in code. Bindable properties come from
+    /// <see cref="KurrentDbAllStreamSubscriptionSettings"/>.
+    /// </summary>
     public class KurrentDbAllStreamSubscriptionOptions
     {
-        /// <summary>
-        /// The configuration section name for binding these options from configuration sources (e.g., appsettings.json).
-        /// </summary>
-        public const string Section = "KurrentDb:AllStreamSubscription";
-
-        public Guid SubscriptionId { get; set; } = new Guid("cbbaeb7e-a087-44cc-75a0-08dc80991837"); // Use some random Guid as default.
+        public Guid SubscriptionId { get; set; } = KurrentDbAllStreamSubscriptionSettings.DefaultSubscriptionId;
 
         public SubscriptionFilterOptions FilterOptions { get; set; } =
             new(EventTypeFilter.ExcludeSystemEvents());
@@ -24,5 +25,23 @@
         public bool ResolveLinkTos { get; set; }
 
         public bool IgnoreDeserializationErrors { get; set; }
+
+        /// <summary>
+        /// Applies bindable settings on top of the current options,
+        /// overriding only the properties that settings exposes.
+        /// </summary>
+        /// <param name="settings">The bindable settings to apply.</param>
+        /// <returns>The updated options instance for chaining.</returns>
+        public KurrentDbAllStreamSubscriptionOptions ApplySettings(
+            KurrentDbAllStreamSubscriptionSettings settings)
+        {
+            ArgumentNullException.ThrowIfNull(settings);
+
+            this.SubscriptionId = settings.SubscriptionId;
+            this.ResolveLinkTos = settings.ResolveLinkTos;
+            this.IgnoreDeserializationErrors = settings.IgnoreDeserializationErrors;
+
+            return this;
+        }
     }
 }

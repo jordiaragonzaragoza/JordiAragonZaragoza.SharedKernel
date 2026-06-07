@@ -1,28 +1,28 @@
 namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent
 {
+    using System;
     using KurrentDB.Client;
 
     /// <summary>
     /// Options for configuring the persistent subscription to the $all stream in KurrentDB.
+    /// Non-bindable properties (FilterOptions, Credentials, ConfigureOperation)
+    /// are configured in code. Bindable properties come from
+    /// <see cref="KurrentDbAllStreamPersistentSubscriptionSettings"/>.
     /// </summary>
     public class KurrentDbAllStreamPersistentSubscriptionOptions
     {
-        /// <summary>
-        /// The configuration section name for binding these options from configuration sources (e.g., appsettings.json).
-        /// </summary>
-        public const string Section = "KurrentDb:AllStreamPersistentSubscription";
-
         /// <summary>
         /// Gets or sets the consumer group name. Multiple instances using the same group name
         /// will coordinate their event consumption via checkpoints.
         /// Default: "all-stream-group".
         /// </summary>
-        public string GroupName { get; set; } = "all-stream-group";
+        public string GroupName { get; set; } = KurrentDbAllStreamPersistentSubscriptionSettings.DefaultGroupName;
 
         /// <summary>
         /// Gets or sets the filter options for filtering events on the server side before transmission.
         /// </summary>
-        public SubscriptionFilterOptions? FilterOptions { get; set; }
+        public SubscriptionFilterOptions? FilterOptions { get; set; } =
+            new(EventTypeFilter.ExcludeSystemEvents());
 
         /// <summary>
         /// Gets or sets the credentials to use when connecting to KurrentDB.
@@ -54,5 +54,24 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
         /// Default: 5.
         /// </summary>
         public int MaxRetryCount { get; set; } = 5;
+
+        /// <summary>
+        /// Applies bindable settings on top of the current options,
+        /// overriding only the properties that settings exposes.
+        /// </summary>
+        /// <param name="settings">The bindable settings to apply.</param>
+        /// <returns>The updated options instance for chaining.</returns>
+        public KurrentDbAllStreamPersistentSubscriptionOptions ApplySettings(
+            KurrentDbAllStreamPersistentSubscriptionSettings settings)
+        {
+            ArgumentNullException.ThrowIfNull(settings);
+
+            this.GroupName = settings.GroupName;
+            this.ResolveLinkTos = settings.ResolveLinkTos;
+            this.IgnoreDeserializationErrors = settings.IgnoreDeserializationErrors;
+            this.MaxRetryCount = settings.MaxRetryCount;
+
+            return this;
+        }
     }
 }
