@@ -27,20 +27,20 @@
             W3C TraceContext propagation fields needed by OpenTelemetry.
             </summary>
         </member>
-        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscription.BuildFallbackSystemContext">
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamCatchUpSubscription.BuildFallbackSystemContext">
             <summary>
             Builds a fallback system execution context for events that lack metadata (e.g., seeds, migrations).
             </summary>
         </member>
-        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionOptions">
+        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamCatchUpSubscriptionOptions">
             <summary>
             Full runtime options for the all-stream catch-up subscription.
             Non-bindable properties (FilterOptions, Credentials, ConfigureOperation)
             are configured in code. Bindable properties come from
-            <see cref="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionSettings"/>.
+            <see cref="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamCatchUpSubscriptionSettings"/>.
             </summary>
         </member>
-        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionOptions.ApplySettings(JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionSettings)">
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamCatchUpSubscriptionOptions.ApplySettings(JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamCatchUpSubscriptionSettings)">
             <summary>
             Applies bindable settings on top of the current options,
             overriding only the properties that settings exposes.
@@ -48,27 +48,27 @@
             <param name="settings">The bindable settings to apply.</param>
             <returns>The updated options instance for chaining.</returns>
         </member>
-        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionSettings">
+        <member name="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamCatchUpSubscriptionSettings">
             <summary>
             Bindable settings for the all-stream catch-up subscription.
             These are read from configuration (e.g., appsettings.json) under
-            the section defined by <see cref="F:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionSettings.Section"/>.
+            the section defined by <see cref="F:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamCatchUpSubscriptionSettings.Section"/>.
             Non-bindable options (FilterOptions, Credentials, etc.) are configured
-            in code via <see cref="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionOptions"/>.
+            in code via <see cref="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamCatchUpSubscriptionOptions"/>.
             </summary>
         </member>
-        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionSettings.SubscriptionId">
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamCatchUpSubscriptionSettings.SubscriptionId">
             <summary>
             Gets or sets the unique identifier for this subscription.
             Defaults to a fixed GUID if not configured.
             </summary>
         </member>
-        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionSettings.ResolveLinkTos">
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamCatchUpSubscriptionSettings.ResolveLinkTos">
             <summary>
             Gets or sets a value indicating whether to resolve link events to their originals.
             </summary>
         </member>
-        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamSubscriptionSettings.IgnoreDeserializationErrors">
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.CatchUp.KurrentDbAllStreamCatchUpSubscriptionSettings.IgnoreDeserializationErrors">
             <summary>
             Gets or sets a value indicating whether to silently skip events that fail deserialization
             instead of stopping the subscription.

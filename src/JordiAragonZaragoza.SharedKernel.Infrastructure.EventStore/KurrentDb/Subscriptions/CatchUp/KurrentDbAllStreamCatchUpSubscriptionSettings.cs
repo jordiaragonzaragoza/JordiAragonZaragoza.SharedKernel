@@ -8,11 +8,11 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
     /// These are read from configuration (e.g., appsettings.json) under
     /// the section defined by <see cref="Section"/>.
     /// Non-bindable options (FilterOptions, Credentials, etc.) are configured
-    /// in code via <see cref="KurrentDbAllStreamSubscriptionOptions"/>.
+    /// in code via <see cref="KurrentDbAllStreamCatchUpSubscriptionOptions"/>.
     /// </summary>
-    public class KurrentDbAllStreamSubscriptionSettings
+    public class KurrentDbAllStreamCatchUpSubscriptionSettings
     {
-        public const string Section = "KurrentDb:AllStreamSubscription";
+        public const string Section = "KurrentDb:AllStreamCatchUpSubscription";
         public static readonly Guid DefaultSubscriptionId = new("cbbaeb7e-a087-44cc-75a0-08dc80991837");
 
         /// <summary>

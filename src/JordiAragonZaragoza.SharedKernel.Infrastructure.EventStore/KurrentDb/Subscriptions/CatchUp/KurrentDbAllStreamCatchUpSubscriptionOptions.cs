@@ -9,11 +9,11 @@
     /// Full runtime options for the all-stream catch-up subscription.
     /// Non-bindable properties (FilterOptions, Credentials, ConfigureOperation)
     /// are configured in code. Bindable properties come from
-    /// <see cref="KurrentDbAllStreamSubscriptionSettings"/>.
+    /// <see cref="KurrentDbAllStreamCatchUpSubscriptionSettings"/>.
     /// </summary>
-    public class KurrentDbAllStreamSubscriptionOptions
+    public class KurrentDbAllStreamCatchUpSubscriptionOptions
     {
-        public Guid SubscriptionId { get; set; } = KurrentDbAllStreamSubscriptionSettings.DefaultSubscriptionId;
+        public Guid SubscriptionId { get; set; } = KurrentDbAllStreamCatchUpSubscriptionSettings.DefaultSubscriptionId;
 
         public SubscriptionFilterOptions FilterOptions { get; set; } =
             new(EventTypeFilter.ExcludeSystemEvents());
@@ -32,8 +32,8 @@
         /// </summary>
         /// <param name="settings">The bindable settings to apply.</param>
         /// <returns>The updated options instance for chaining.</returns>
-        public KurrentDbAllStreamSubscriptionOptions ApplySettings(
-            KurrentDbAllStreamSubscriptionSettings settings)
+        public KurrentDbAllStreamCatchUpSubscriptionOptions ApplySettings(
+            KurrentDbAllStreamCatchUpSubscriptionSettings settings)
         {
             ArgumentNullException.ThrowIfNull(settings);
 

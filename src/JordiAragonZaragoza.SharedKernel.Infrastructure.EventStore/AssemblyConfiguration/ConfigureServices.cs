@@ -34,39 +34,39 @@
             return serviceCollection;
         }
 
-        public static IServiceCollection AddSharedKernelInfrastructureKurrentDbAllStreamSubscription(
+        public static IServiceCollection AddSharedKernelInfrastructureKurrentDbAllStreamCatchUpSubscription(
             this IServiceCollection serviceCollection)
         {
             serviceCollection
-                .AddOptions<KurrentDbAllStreamSubscriptionSettings>()
-                .BindConfiguration(KurrentDbAllStreamSubscriptionSettings.Section)
+                .AddOptions<KurrentDbAllStreamCatchUpSubscriptionSettings>()
+                .BindConfiguration(KurrentDbAllStreamCatchUpSubscriptionSettings.Section)
                 .ValidateDataAnnotations()
                 .ValidateOnStart();
 
-            serviceCollection.AddSingleton<KurrentDbAllStreamSubscription>();
+            serviceCollection.AddSingleton<KurrentDbAllStreamCatchUpSubscription>();
 
             return serviceCollection.AddHostedService(serviceProvider =>
             {
-                var kurrentDbAllStreamSubscription =
-                    serviceProvider.GetRequiredService<KurrentDbAllStreamSubscription>();
+                var kurrentDbAllStreamCatchUpSubscription =
+                    serviceProvider.GetRequiredService<KurrentDbAllStreamCatchUpSubscription>();
 
                 var logger =
-                    serviceProvider.GetRequiredService<ILogger<AllStreamSubscriptionBackgroundWorker>>();
+                    serviceProvider.GetRequiredService<ILogger<AllStreamCatchUpSubscriptionBackgroundWorker>>();
 
                 // Read bindable settings (from appsettings or defaults).
                 var settings =
-                    serviceProvider.GetRequiredService<IOptions<KurrentDbAllStreamSubscriptionSettings>>().Value;
+                    serviceProvider.GetRequiredService<IOptions<KurrentDbAllStreamCatchUpSubscriptionSettings>>().Value;
 
                 // Build full runtime options starting from defaults, then apply settings.
                 // Non-bindable properties (FilterOptions, Credentials, etc.) keep their defaults
                 // or can be overridden here in code before calling ApplySettings.
-                var options = new KurrentDbAllStreamSubscriptionOptions()
+                var options = new KurrentDbAllStreamCatchUpSubscriptionOptions()
                     .ApplySettings(settings);
 
-                return new AllStreamSubscriptionBackgroundWorker(
+                return new AllStreamCatchUpSubscriptionBackgroundWorker(
                     logger,
                     cancellationToken =>
-                        kurrentDbAllStreamSubscription.SubscribeToAllAsync(
+                        kurrentDbAllStreamCatchUpSubscription.SubscribeToAllAsync(
                             options,
                             cancellationToken));
             });

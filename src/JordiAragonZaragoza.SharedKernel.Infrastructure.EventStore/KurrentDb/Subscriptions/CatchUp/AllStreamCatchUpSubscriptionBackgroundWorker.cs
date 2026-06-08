@@ -6,17 +6,17 @@
     using Microsoft.Extensions.Hosting;
     using Microsoft.Extensions.Logging;
 
-    public sealed class AllStreamSubscriptionBackgroundWorker : BackgroundService
+    public sealed class AllStreamCatchUpSubscriptionBackgroundWorker : BackgroundService
     {
         private const double BackoffMultiplier = 2.0;
         private static readonly TimeSpan InitialDelay = TimeSpan.FromSeconds(2);
         private static readonly TimeSpan MaxDelay = TimeSpan.FromSeconds(60);
 
-        private readonly ILogger<AllStreamSubscriptionBackgroundWorker> logger;
+        private readonly ILogger<AllStreamCatchUpSubscriptionBackgroundWorker> logger;
         private readonly Func<CancellationToken, Task> perform;
 
-        public AllStreamSubscriptionBackgroundWorker(
-            ILogger<AllStreamSubscriptionBackgroundWorker> logger,
+        public AllStreamCatchUpSubscriptionBackgroundWorker(
+            ILogger<AllStreamCatchUpSubscriptionBackgroundWorker> logger,
             Func<CancellationToken, Task> perform)
         {
             this.logger = logger ?? throw new ArgumentNullException(nameof(logger));

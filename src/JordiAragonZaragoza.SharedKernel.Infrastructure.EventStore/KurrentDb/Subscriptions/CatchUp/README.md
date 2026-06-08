@@ -1,8 +1,8 @@
-# All Stream Catch-Up Subscription (`KurrentDbAllStreamSubscription`)
+# All Stream Catch-Up Subscription (`KurrentDbAllStreamCatchUpSubscription`)
 
 ## Overview
 
-`KurrentDbAllStreamSubscription` implements a **catch-up subscription** to the KurrentDB `$all` stream. It reads every event ever written to the store (catch-up phase) and then continues listening for new events in real time (live phase), all within a single continuous connection.
+`KurrentDbAllStreamCatchUpSubscription` implements a **catch-up subscription** to the KurrentDB `$all` stream. It reads every event ever written to the store (catch-up phase) and then continues listening for new events in real time (live phase), all within a single continuous connection.
 
 The subscription is designed to drive **read model projectors**: it dispatches each event to an internal event bus, which fan-outs to registered projectors that update the PostgreSQL read models. A checkpoint is persisted after each successfully processed event so the subscription can resume from the last known position after a restart.
 
@@ -25,7 +25,7 @@ The subscription is designed to drive **read model projectors**: it dispatches e
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                  AllStreamSubscriptionBackgroundWorker       │
+│                  AllStreamCatchUpSubscriptionBackgroundWorker       │
 │  (BackgroundService — owns the retry loop with backoff)      │
 │                                                              │
 │  ExecuteAsync                                                │
@@ -36,7 +36,7 @@ The subscription is designed to drive **read model projectors**: it dispatches e
                                │
                                ▼
 ┌─────────────────────────────────────────────────────────────┐
-│               KurrentDbAllStreamSubscription                 │
+│               KurrentDbAllStreamCatchUpSubscription                 │
 │                                                              │
 │  SubscribeToAllAsync                                         │
 │    1. Read checkpoint from DB  (startup scope, short-lived)  │
@@ -74,7 +74,7 @@ KurrentDB's client exposes two subscription APIs:
 This implementation uses the **iterable** pattern intentionally:
 
 - Flow control is explicit: if event processing is slow, the producer naturally waits.
-- Drop handling is straightforward: the `await foreach` simply throws or completes, and the retry loop in `AllStreamSubscriptionBackgroundWorker` handles reconnection.
+- Drop handling is straightforward: the `await foreach` simply throws or completes, and the retry loop in `AllStreamCatchUpSubscriptionBackgroundWorker` handles reconnection.
 - Processing is strictly sequential with no race conditions between drop and in-flight event handling (a known hazard in the callback model when `HandleDrop` fires while `HandleEvent` is still executing on another thread).
 - Stack traces are clean and point directly to application code.
 
@@ -178,7 +178,7 @@ If the host signals shutdown while an event is being processed:
 
 ## Configuration
 
-### `KurrentDbAllStreamSubscriptionSettings` (bindable from `appsettings.json`)
+### `KurrentDbAllStreamCatchUpSubscriptionSettings` (bindable from `appsettings.json`)
 
 | Property | Type | Default | Description |
 |---|---|---|---|
@@ -186,7 +186,7 @@ If the host signals shutdown while an event is being processed:
 | `ResolveLinkTos` | `bool` | `false` | Whether to resolve link events to the original event they point to. |
 | `IgnoreDeserializationErrors` | `bool` | `false` | Skip events that cannot be deserialized instead of stopping the subscription. |
 
-### `KurrentDbAllStreamSubscriptionOptions` (code-only properties)
+### `KurrentDbAllStreamCatchUpSubscriptionOptions` (code-only properties)
 
 | Property | Type | Default | Description |
 |---|---|---|---|
@@ -194,7 +194,7 @@ If the host signals shutdown while an event is being processed:
 | `Credentials` | `UserCredentials?` | `null` | Override credentials for this subscription. If `null`, the client's default credentials are used. |
 | `ConfigureOperation` | `Action<KurrentDBClientOperationOptions>?` | `null` | Low-level gRPC operation configuration (deadline, retry policy). |
 
-`KurrentDbAllStreamSubscriptionOptions` is not directly bindable from JSON because `SubscriptionFilterOptions`, `UserCredentials`, and `Action<>` are not JSON-serializable. The split into `Settings` (bindable) and `Options` (runtime) is intentional.
+`KurrentDbAllStreamCatchUpSubscriptionOptions` is not directly bindable from JSON because `SubscriptionFilterOptions`, `UserCredentials`, and `Action<>` are not JSON-serializable. The split into `Settings` (bindable) and `Options` (runtime) is intentional.
 
 ---
 
@@ -203,21 +203,21 @@ If the host signals shutdown while an event is being processed:
 ### Default configuration (no `appsettings.json` section needed)
 
 ```csharp
-builder.Services.AddSharedKernelInfrastructureKurrentDbAllStreamSubscription();
+builder.Services.AddSharedKernelInfrastructureKurrentDbAllStreamCatchUpSubscription();
 ```
 
 This registers:
 
-- `IOptions<KurrentDbAllStreamSubscriptionSettings>` bound to `"KurrentDb:AllStreamSubscription"` (falls back to class defaults if the section is absent).
-- `KurrentDbAllStreamSubscription` as `Singleton`.
-- `AllStreamSubscriptionBackgroundWorker` as `IHostedService`.
+- `IOptions<KurrentDbAllStreamCatchUpSubscriptionSettings>` bound to `"KurrentDb:AllStreamCatchUpSubscription"` (falls back to class defaults if the section is absent).
+- `KurrentDbAllStreamCatchUpSubscription` as `Singleton`.
+- `AllStreamCatchUpSubscriptionBackgroundWorker` as `IHostedService`.
 
 ### Custom `appsettings.json` section
 
 ```json
 {
   "KurrentDb": {
-    "AllStreamSubscription": {
+    "AllStreamCatchUpSubscription": {
       "SubscriptionId": "cbbaeb7e-a087-44cc-75a0-08dc80991837",
       "ResolveLinkTos": false,
       "IgnoreDeserializationErrors": false
@@ -230,10 +230,10 @@ All fields are optional. Omitted fields keep their class defaults.
 
 ### Custom code-only options (FilterOptions, Credentials)
 
-Override `FilterOptions` or other non-bindable properties in the factory inside `AddSharedKernelInfrastructureKurrentDbAllStreamSubscription`:
+Override `FilterOptions` or other non-bindable properties in the factory inside `AddSharedKernelInfrastructureKurrentDbAllStreamCatchUpSubscription`:
 
 ```csharp
-var options = new KurrentDbAllStreamSubscriptionOptions()
+var options = new KurrentDbAllStreamCatchUpSubscriptionOptions()
     .ApplySettings(settings);
 
 // Override non-bindable properties here:
@@ -248,26 +248,26 @@ options.Credentials = new UserCredentials("admin", "changeit");
 
 Each subscription must have a **distinct `SubscriptionId`** because that GUID is used as the primary key for the checkpoint row. If two subscriptions share the same `SubscriptionId` they will overwrite each other's checkpoints and produce incorrect results.
 
-Register each subscription with its own options instance and its own `AllStreamSubscriptionBackgroundWorker`:
+Register each subscription with its own options instance and its own `AllStreamCatchUpSubscriptionBackgroundWorker`:
 
 ```csharp
 // Subscription A — projections
 services.AddHostedService(sp =>
 {
-    var sub = sp.GetRequiredService<KurrentDbAllStreamSubscriptionA>();
-    var options = new KurrentDbAllStreamSubscriptionOptions { SubscriptionId = Guid.Parse("...A...") };
-    return new AllStreamSubscriptionBackgroundWorker(
-        sp.GetRequiredService<ILogger<AllStreamSubscriptionBackgroundWorker>>(),
+    var sub = sp.GetRequiredService<KurrentDbAllStreamCatchUpSubscriptionA>();
+    var options = new KurrentDbAllStreamCatchUpSubscriptionOptions { SubscriptionId = Guid.Parse("...A...") };
+    return new AllStreamCatchUpSubscriptionBackgroundWorker(
+        sp.GetRequiredService<ILogger<AllStreamCatchUpSubscriptionBackgroundWorker>>(),
         ct => sub.SubscribeToAllAsync(options, ct));
 });
 
 // Subscription B — integration relay
 services.AddHostedService(sp =>
 {
-    var sub = sp.GetRequiredService<KurrentDbAllStreamSubscriptionB>();
-    var options = new KurrentDbAllStreamSubscriptionOptions { SubscriptionId = Guid.Parse("...B...") };
-    return new AllStreamSubscriptionBackgroundWorker(
-        sp.GetRequiredService<ILogger<AllStreamSubscriptionBackgroundWorker>>(),
+    var sub = sp.GetRequiredService<KurrentDbAllStreamCatchUpSubscriptionB>();
+    var options = new KurrentDbAllStreamCatchUpSubscriptionOptions { SubscriptionId = Guid.Parse("...B...") };
+    return new AllStreamCatchUpSubscriptionBackgroundWorker(
+        sp.GetRequiredService<ILogger<AllStreamCatchUpSubscriptionBackgroundWorker>>(),
         ct => sub.SubscribeToAllAsync(options, ct));
 });
 ```
@@ -290,7 +290,7 @@ builder.Services
 
 builder.Services
     .AddSharedKernelApplicationProjectionsEventBus()
-    .AddSharedKernelInfrastructureKurrentDbAllStreamSubscription()  // ← catch-up subscription
+    .AddSharedKernelInfrastructureKurrentDbAllStreamCatchUpSubscription()  // ← catch-up subscription
     .AddSharedKernelInfrastructure()
     .AddSharedKernelInfrastructureProjections();
 
@@ -304,7 +304,7 @@ await app.RunAsync();
 // appsettings.Production.json
 {
   "KurrentDb": {
-    "AllStreamSubscription": {
+    "AllStreamCatchUpSubscription": {
       "SubscriptionId": "cbbaeb7e-a087-44cc-75a0-08dc80991837",
       "IgnoreDeserializationErrors": false
     }

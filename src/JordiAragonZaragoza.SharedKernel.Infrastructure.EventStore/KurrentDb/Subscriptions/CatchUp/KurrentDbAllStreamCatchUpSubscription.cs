@@ -19,22 +19,22 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
 
     using ExecutionContext = JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ExecutionContext;
 
-    public class KurrentDbAllStreamSubscription
+    public class KurrentDbAllStreamCatchUpSubscription
     {
         private readonly KurrentDBClient kurrentDbClient;
         private readonly IServiceIdentityProvider serviceIdentityProvider;
 
-        private readonly ILogger<KurrentDbAllStreamSubscription> logger;
+        private readonly ILogger<KurrentDbAllStreamCatchUpSubscription> logger;
         private readonly IDateTime datetime;
         private readonly IServiceScopeFactory serviceScopeFactory;
-        private KurrentDbAllStreamSubscriptionOptions subscriptionOptions = default!;
+        private KurrentDbAllStreamCatchUpSubscriptionOptions subscriptionOptions = default!;
         private int isSubscribed; // 0 = false, 1 = true
 
-        public KurrentDbAllStreamSubscription(
+        public KurrentDbAllStreamCatchUpSubscription(
             IServiceScopeFactory serviceScopeFactory,
             KurrentDBClient eventStoreClient,
             IServiceIdentityProvider serviceIdentityProvider,
-            ILogger<KurrentDbAllStreamSubscription> logger,
+            ILogger<KurrentDbAllStreamCatchUpSubscription> logger,
             IDateTime datetime)
         {
             this.serviceScopeFactory = serviceScopeFactory ?? throw new ArgumentNullException(nameof(serviceScopeFactory));
@@ -46,7 +46,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
 
         private Guid SubscriptionId => this.subscriptionOptions.SubscriptionId;
 
-        public async Task SubscribeToAllAsync(KurrentDbAllStreamSubscriptionOptions subscriptionOptions, CancellationToken cancellationToken)
+        public async Task SubscribeToAllAsync(KurrentDbAllStreamCatchUpSubscriptionOptions subscriptionOptions, CancellationToken cancellationToken)
         {
             ArgumentNullException.ThrowIfNull(subscriptionOptions, nameof(subscriptionOptions));
 
