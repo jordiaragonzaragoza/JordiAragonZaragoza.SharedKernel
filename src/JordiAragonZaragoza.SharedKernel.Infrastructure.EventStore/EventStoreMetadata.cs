@@ -105,7 +105,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore
                 traceState: traceState);
         }
 
-        public ExecutionContext? ToExecutionContext()
+        public ExecutionContext? ToProcessingExecutionContext(Guid causationId)
         {
             if (!this.IsValid())
             {
@@ -124,7 +124,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore
                     this.Executor,
                     executorType,
                     this.CorrelationId,
-                    this.CausationId,
+                    causationId,
                     scopeContext);
             }
             catch (Exception ex) when (ex is SmartEnumNotFoundException or ArgumentException)

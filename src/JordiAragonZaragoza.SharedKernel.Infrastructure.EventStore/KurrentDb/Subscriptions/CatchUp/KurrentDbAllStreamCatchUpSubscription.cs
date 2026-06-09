@@ -222,7 +222,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                 var executionContextService = eventScope.ServiceProvider.GetRequiredService<IExecutionContextService>();
                 var checkpointRepository = eventScope.ServiceProvider.GetRequiredService<IRepository<Checkpoint, Guid>>();
 
-                var executionContext = metadata?.ToExecutionContext();
+                var executionContext = metadata?.ToProcessingExecutionContext(causationId: domainEvent.Id);
                 if (executionContext is null)
                 {
                     this.logger.LogDebug(
