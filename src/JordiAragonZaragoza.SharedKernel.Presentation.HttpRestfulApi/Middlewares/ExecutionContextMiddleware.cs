@@ -195,7 +195,7 @@
         private static Guid ResolveCorrelationId(HttpContext context)
         {
             var header = context.Request.Headers["x-correlation-id"].FirstOrDefault();
-            return Guid.TryParse(header, out var parsed) && parsed != Guid.Empty ? parsed : Guid.NewGuid();
+            return Guid.TryParse(header, out var parsed) && parsed != Guid.Empty ? parsed : Guid.CreateVersion7();
         }
 
         /// <summary>

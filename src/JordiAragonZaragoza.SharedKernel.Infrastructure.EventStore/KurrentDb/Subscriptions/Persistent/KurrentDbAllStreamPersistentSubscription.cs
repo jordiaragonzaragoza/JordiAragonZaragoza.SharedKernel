@@ -566,7 +566,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
             var systemTenantId = SystemConstants.SystemTenantId;
 
             return new ExecutionContext(
-                actorId: ExecutionContext.CreateServiceActorId("event-store-persistent-subscription"),
+                actorId: ExecutionContext.CreateServiceActorId("event-store-all-stream-persistent-subscription"),
                 actorType: ActorType.System,
                 executor: this.serviceIdentityProvider.GetName(),
                 executorType: ExecutorType.Worker,

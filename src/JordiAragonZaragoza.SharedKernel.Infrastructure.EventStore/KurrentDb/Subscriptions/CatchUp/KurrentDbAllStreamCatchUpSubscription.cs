@@ -138,11 +138,11 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
             var systemTenantId = SystemConstants.SystemTenantId;
 
             return new ExecutionContext(
-                actorId: ExecutionContext.CreateServiceActorId("event-store-all-stream-subscription"),
+                actorId: ExecutionContext.CreateServiceActorId("event-store-all-stream-catch-up-subscription"),
                 actorType: ActorType.System,
                 executor: this.serviceIdentityProvider.GetName(),
                 executorType: ExecutorType.Worker,
-                correlationId: Guid.NewGuid(),
+                correlationId: Guid.CreateVersion7(),
                 causationId: null,
                 scopeContext: new ScopeContext(systemTenantId, null, null));
         }

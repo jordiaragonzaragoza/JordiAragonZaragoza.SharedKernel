@@ -6,7 +6,7 @@
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Domain.Events;
-
+    using JordiAragonZaragoza.SharedKernel.Helpers;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore;
     using Newtonsoft.Json;
 
@@ -27,8 +27,10 @@
                 ? EventStoreMetadata.From(executionContext, @event.DateOccurredOnUtc)
                 : null;
 
+            var eventId = ResolveEventId(@event, executionContext);
+
             return new EventData(
-                eventId: Uuid.FromGuid(@event.Id),
+                eventId: Uuid.FromGuid(eventId),
                 type: EventTypeMapper.Instance.ToName(@event.GetType()),
                 data: Encoding.UTF8.GetBytes(
                     JsonConvert.SerializeObject(@event, SerializerSettings)),
@@ -55,6 +57,26 @@
             }
 
             return ((IDomainEvent)domainEvent, eventMetadata);
+        }
+
+        private static Guid ResolveEventId(IDomainEvent @event, ExecutionContext? executionContext)
+        {
+            // We only generate a deterministic ID for caused events (side effects).
+            // If causationId is null, the event comes from the user's direct intent
+            // and we use the original event ID (already assigned by the domain).
+            if (executionContext?.CausationId is not Guid causationId)
+            {
+                return @event.Id;
+            }
+
+            // Unique name = event type + causationId as namespace.
+            // This ensures that the same secondary event caused by the same cause
+            // always produces the same eventId → KurrentDB discards it if it already exists.
+            var name = @event.GetType().FullName
+                ?? throw new InvalidOperationException(
+                    $"Cannot determine FullName for event type '{@event.GetType()}'.");
+
+            return GuidHelper.CreateDeterministicGuid(causationId, name);
         }
 
         private static EventStoreMetadata? DeserializeMetadata(string metadataJson)
