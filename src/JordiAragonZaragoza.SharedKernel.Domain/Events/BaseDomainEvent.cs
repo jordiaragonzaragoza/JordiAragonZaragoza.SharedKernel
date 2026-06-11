@@ -6,9 +6,9 @@
 
     public abstract record class BaseDomainEvent(Guid AggregateId) : IDomainEvent
     {
-        public Guid Id { get; protected init; } = Guid.CreateVersion7();
+        public Guid Id { get; init; } = Guid.CreateVersion7();
 
         [JsonIgnore]
-        public DateTimeOffset DateOccurredOnUtc { get; set; } = DateTimeOffset.UtcNow;
+        public DateTimeOffset DateOccurredOnUtc { get; init; } = DateTimeOffset.UtcNow;
     }
 }

@@ -368,7 +368,8 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
                 var eventBus = scope.ServiceProvider.GetRequiredService<IEventBus>();
                 var executionContextService = scope.ServiceProvider.GetRequiredService<IExecutionContextService>();
 
-                var executionContext = metadata?.ToProcessingExecutionContext(causationId: domainEvent.Id);
+                var causationId = resolvedEvent.Event.EventId.ToGuid();
+                var executionContext = metadata?.ToProcessingExecutionContext(causationId);
                 if (executionContext is null)
                 {
                     this.logger.LogDebug(

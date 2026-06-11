@@ -23,11 +23,15 @@
         {
             ArgumentNullException.ThrowIfNull(@event);
 
+            var eventId = ResolveEventId(@event, executionContext);
+            if (@event is BaseDomainEvent baseDomainEvent && baseDomainEvent.Id != eventId)
+            {
+                @event = baseDomainEvent with { Id = eventId };
+            }
+
             var metadata = executionContext is not null
                 ? EventStoreMetadata.From(executionContext, @event.DateOccurredOnUtc)
                 : null;
-
-            var eventId = ResolveEventId(@event, executionContext);
 
             return new EventData(
                 eventId: Uuid.FromGuid(eventId),
@@ -51,9 +55,13 @@
             var metadataJson = Encoding.UTF8.GetString(resolvedEvent.Event.Metadata.Span);
             var eventMetadata = DeserializeMetadata(metadataJson);
 
-            if (eventMetadata is not null && domainEvent is BaseDomainEvent baseDomainEvent)
+            if (domainEvent is BaseDomainEvent baseDomainEvent)
             {
-                domainEvent = baseDomainEvent with { DateOccurredOnUtc = eventMetadata.DateOccurredOnUtc };
+                var canonicalId = resolvedEvent.Event.EventId.ToGuid();
+
+                domainEvent = eventMetadata is not null
+                    ? baseDomainEvent with { Id = canonicalId, DateOccurredOnUtc = eventMetadata.DateOccurredOnUtc }
+                    : baseDomainEvent with { Id = canonicalId };
             }
 
             return ((IDomainEvent)domainEvent, eventMetadata);

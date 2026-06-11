@@ -81,7 +81,7 @@
                 .ValidateDataAnnotations()
                 .ValidateOnStart();
 
-            serviceCollection.AddTransient<KurrentDbAllStreamPersistentSubscription>();
+            serviceCollection.AddSingleton<KurrentDbAllStreamPersistentSubscription>();
 
             return serviceCollection.AddHostedService(serviceProvider =>
             {
