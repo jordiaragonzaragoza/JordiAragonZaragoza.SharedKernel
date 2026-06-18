@@ -1,7 +1,7 @@
 namespace JordiAragonZaragoza.SharedKernel.Infrastructure.ServiceIdentity
 {
     using System;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.Interfaces;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.Contracts;
     using Microsoft.Extensions.Options;
 
     public class ServiceIdentityProvider : IServiceIdentityProvider

@@ -4,13 +4,14 @@
     using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
+    using JordiAragonZaragoza.SharedKernel.Application.Contracts;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
 
     public class RequestCommandActivityService<TRequest> : IRequestCommandActivityService<TRequest>
         where TRequest : notnull
     {
         private static readonly ActivitySource ActivitySource =
-            new("JordiAragonZaragoza.SharedKernel.Application.Handlers");
+            new(ApplicationActivitySources.Handlers);
 
         public async Task<TResponse> ExecuteWithActivityAsync<TResponse>(
             TRequest request,

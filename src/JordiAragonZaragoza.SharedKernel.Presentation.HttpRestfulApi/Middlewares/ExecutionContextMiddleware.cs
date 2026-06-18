@@ -6,7 +6,7 @@
     using System.Threading.Tasks;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.Interfaces;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.Contracts;
     using Microsoft.AspNetCore.Http;
     using Microsoft.Extensions.Logging;
 

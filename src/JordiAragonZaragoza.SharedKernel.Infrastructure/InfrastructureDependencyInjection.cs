@@ -7,9 +7,9 @@
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Bus.MediatR;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Cache;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Context;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.Contracts;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.DateTime;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.IdGenerator;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.ServiceIdentity;
     using Microsoft.Extensions.DependencyInjection;
 

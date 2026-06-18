@@ -9,8 +9,8 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.S
     using JordiAragonZaragoza.SharedKernel.Application.Contracts;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.Contracts;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Serialization;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.Interfaces;
     using KurrentDB.Client;
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Logging;

@@ -3,6 +3,7 @@
     using System.Diagnostics;
     using System.Threading;
     using System.Threading.Tasks;
+    using JordiAragonZaragoza.SharedKernel.Application.Contracts;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Contracts.Events;
 
@@ -10,7 +11,7 @@
         where TEvent : IEvent
     {
         private static readonly ActivitySource ActivitySource =
-            new("JordiAragonZaragoza.SharedKernel.Application.Handlers");
+            new(ApplicationActivitySources.Handlers);
 
         public async Task Handle(TEvent notification, CancellationToken cancellationToken)
         {

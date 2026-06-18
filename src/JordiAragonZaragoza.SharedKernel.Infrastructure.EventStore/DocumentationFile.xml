@@ -116,7 +116,7 @@
              ($persistentsubscription-{groupName}-parked). No client-side retry counting is needed.
              </summary>
         </member>
-        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.#ctor(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory,KurrentDB.Client.KurrentDBPersistentSubscriptionsClient,JordiAragonZaragoza.SharedKernel.Infrastructure.Interfaces.IServiceIdentityProvider,Microsoft.Extensions.Logging.ILogger{JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription})">
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription.#ctor(Microsoft.Extensions.DependencyInjection.IServiceScopeFactory,KurrentDB.Client.KurrentDBPersistentSubscriptionsClient,JordiAragonZaragoza.SharedKernel.Infrastructure.Contracts.IServiceIdentityProvider,Microsoft.Extensions.Logging.ILogger{JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription})">
             <summary>
             Initializes a new instance of the <see cref="T:JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.KurrentDb.Subscriptions.Persistent.KurrentDbAllStreamPersistentSubscription"/> class.
             </summary>

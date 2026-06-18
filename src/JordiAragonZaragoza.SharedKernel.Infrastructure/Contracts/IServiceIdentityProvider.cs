@@ -1,4 +1,4 @@
-namespace JordiAragonZaragoza.SharedKernel.Infrastructure.Interfaces
+namespace JordiAragonZaragoza.SharedKernel.Infrastructure.Contracts
 {
     public interface IServiceIdentityProvider
     {

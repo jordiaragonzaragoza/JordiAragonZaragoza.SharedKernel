@@ -1,6 +1,7 @@
 namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore
 {
     using System.Diagnostics;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.Contracts;
 
     /// <summary>
     /// Restores the W3C TraceContext stored in event metadata so that
@@ -10,7 +11,7 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore
     public static class EventStoreActivityRestorer
     {
         private static readonly ActivitySource ActivitySource =
-            new("JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore");
+            new(InfrastructureActivitySources.EventStore);
 
         /// <summary>
         /// Creates a new Activity linked to the trace that produced the event.

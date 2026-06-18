@@ -2,8 +2,8 @@
 {
     using System;
     using JordiAragonZaragoza.SharedKernel.Contracts.Repositories;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.Contracts;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Context;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.Interfaces;
 
     public abstract class BaseRepository<TDataEntity> : BaseReadRepository<TDataEntity>, IRangeableRepository<TDataEntity, Guid>
         where TDataEntity : class, IDataEntity
