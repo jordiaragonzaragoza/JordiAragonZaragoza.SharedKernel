@@ -1,5 +1,3 @@
-Aquí tienes la traducción del documento `ExecutionContext.md` al español.
-
 # 🧠 ExecutionContext
 
 ## 📌 Propósito

@@ -14,6 +14,7 @@ namespace JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces
             ReadOnlyCollection<string> requiredRoles,
             ReadOnlyCollection<string> requiredPermissions,
             ReadOnlyCollection<string> requiredPolicies,
+            Guid? resourceId,
             CancellationToken cancellationToken = default);
     }
 }

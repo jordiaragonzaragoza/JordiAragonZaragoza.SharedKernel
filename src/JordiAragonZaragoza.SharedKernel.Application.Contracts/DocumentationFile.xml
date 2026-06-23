@@ -42,6 +42,15 @@
             that is executing the action as part of a manual operation by an administrator or developer.
             </summary>
         </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IAuthorizationPolicy">
+            <summary>
+            A single named authorization policy. Implementations live in the
+            application layer because they typically need to load a resource
+            (via a repository) to evaluate ownership or other resource-bound
+            conditions — this is application orchestration over domain/read
+            model data, not a domain invariant.
+            </summary>
+        </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IBaseCommand">
             <summary>
             Marker interface to allow generic type constraints of objects implementing <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand"/> or <see cref="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ICommand`1"/>.
@@ -90,6 +99,40 @@
             <summary>
             ⚠️ Warning:. DO NOT USE WHEN USING EVENT SOURCING, AS IT CAN CAUSE INCONSISTENCIES.
             This interface is intended to be implemented by requests that require cache invalidation when processed, but not when using projections in an event bus pipeline.
+            </summary>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IPolicyEnforcer">
+            <summary>
+            Evaluates named authorization policies that go beyond static
+            role/permission checks. Policies receive only the current actor's
+            identity/roles and an optional resourceId — never the raw request —
+            keeping the enforcer decoupled from command/query shapes.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IPolicyEnforcer.AuthorizeAsync(System.String,System.Guid,System.Collections.Generic.IReadOnlyCollection{System.String},System.Collections.Generic.IReadOnlyCollection{System.String},System.Nullable{System.Guid},System.Threading.CancellationToken)">
+            <summary>
+            Evaluates a named policy against the current actor's identity/roles and an optional resourceId.
+            </summary>
+            <param name="policy">The policy name, e.g. Policies.SelfOrAdmin.</param>
+            <param name="currentUserId">The authenticated user's id, from ExecutionContext.</param>
+            <param name="currentUserRoles">The current user's roles within the active scope.</param>
+            <param name="currentUserPermissions">The current user's permissions within the active scope.</param>
+            <param name="resourceId">
+            The id of the resource the policy evaluates ownership against
+            (e.g. a ReservationId). Null for policies that don't need one.
+            </param>
+            <param name="cancellationToken">The cancellation token.</param>
+            <returns>
+            A <see cref="T:Ardalis.Result.Result"/> indicating whether the policy was satisfied.
+            </returns>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IPolicyResourceRequest">
+            <summary>
+            Implemented by commands/queries that reference a single resource whose
+            id is needed by an ownership-based policy (e.g. ReservationId for
+            Policies.SelfOrAdmin on CancelReservationCommand). The policy enforcer
+            uses this id to look up the resource and resolve its owner — it does
+            not need to know anything else about the request shape.
             </summary>
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IReadModel">

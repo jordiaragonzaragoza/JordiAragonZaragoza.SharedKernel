@@ -40,10 +40,15 @@
                 .SelectMany(authorizationAttribute => authorizationAttribute.Policies?.Split(',') ?? [])
                 .ToList().AsReadOnly();
 
+            Guid? resourceId = request is IPolicyResourceRequest resourceRequest
+                ? resourceRequest.ResourceId
+                : null;
+
             return await this.authorizationService.AuthorizeAsync(
                 requiredRoles,
                 requiredPermissions,
                 requiredPolicies,
+                resourceId,
                 cancellationToken);
         }
     }

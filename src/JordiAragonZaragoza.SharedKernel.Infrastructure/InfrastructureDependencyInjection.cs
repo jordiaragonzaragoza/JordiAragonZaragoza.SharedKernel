@@ -10,6 +10,7 @@
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Contracts;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.DateTime;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.IdGenerator;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.Security;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.ServiceIdentity;
     using Microsoft.Extensions.DependencyInjection;
 
@@ -30,6 +31,8 @@
                 .ValidateOnStart();
 
             services.AddTransient<IServiceIdentityProvider, ServiceIdentityProvider>();
+
+            services.AddScoped<IPolicyEnforcer, PolicyEnforcer>();
 
             return services;
         }
