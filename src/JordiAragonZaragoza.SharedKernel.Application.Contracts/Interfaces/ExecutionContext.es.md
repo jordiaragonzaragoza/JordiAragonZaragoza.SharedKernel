@@ -9,7 +9,8 @@ El `ExecutionContext` (Contexto de Ejecución) es el mecanismo central para:
 * Habilitar una **auditoría completa**.
 * Facilitar la **observabilidad (registros, rastreo, depuración)**.
 
-Se establece **una vez por solicitud/mensaje** y se accede a él globalmente durante toda su ejecución.
+Se establece **una vez por solicitud/mensaje** y se accede a él globalmente
+durante toda su ejecución.
 
 ---
 
@@ -22,20 +23,35 @@ Representa **quién inició la acción**, no quién la ejecuta técnicamente.
 ```csharp
 string ActorId      // Formato: "{prefijo}:{identificador}"
 ActorType ActorType // SmartEnum: user | system | external
-
 ```
 
 #### Ejemplos
 
 | Caso | ActorId | ActorType |
-| --- | --- | --- |
+|---|---|---|
 | Usuario autenticado | `user:123e4567-e89b-12d3-a456-426614174000` | user |
-| Worker reaccionando a un evento | `user:123...` (propagado desde el origen) | user |
-| Trabajo por lotes (Batch) | `job:daily-cleanup` | system |
+| Worker reaccionando a un evento de usuario | `user:123...` (propagado) | user |
+| Consumer procesando evento de integración | `service:cinema-reactor` | system |
+| Trabajo por lotes | `job:daily-cleanup` | system |
 | Registro anónimo | `external:192.168.1.1` | external |
 | Webhook entrante | `external:10.0.0.5` | external |
 
-> **Importante:** El Actor **no cambia a lo largo del flujo**. Un worker que reacciona a una acción de un usuario propaga al usuario original como el actor.
+> **Importante:** El Actor **no cambia a lo largo del flujo**. Un worker que
+> reacciona a una acción de un usuario propaga el usuario original como actor.
+> Un consumer que procesa un evento de integración sin actor de usuario conocido
+> usa `ActorType.System`.
+
+#### Implicaciones de `ActorType` en autorización
+
+| ActorType | `ValidateScopeAsync` | `AuthorizeAsync` |
+|---|---|---|
+| `User` | ✅ ejecutado | ✅ completo (roles + permisos + políticas) |
+| `System` | ❌ no aplica | `Success` sin evaluación (trusted) |
+| `External` | ❌ omitido | `Forbidden` — error de configuración si llega aquí |
+
+> `ActorType.External` solo debe aparecer en endpoints `[AllowAnonymous]` que
+> no declaran `[Authorize]`. Si un actor External llega a `AuthorizeAsync`, el
+> sistema devuelve `Forbidden` — es un error de configuración del endpoint.
 
 #### Formato de ActorId
 
@@ -46,11 +62,10 @@ user:{guid}        — usuario autenticado de la plataforma
 service:{name}     — servicio interno actuando de forma autónoma
 job:{name}         — trabajo programado o por lotes
 external:{name}    — llamante externo no autenticado (IP, fuente de webhook, etc.)
-
 ```
 
-Se aplica en tiempo de construcción mediante `ExecutionContext.IsValidActorIdFormat(actorId)`.
-Métodos de fábrica: `CreateUserActorId`, `CreateServiceActorId`, `CreateJobActorId`, `CreateExternalActorId`.
+Métodos de fábrica: `CreateUserActorId`, `CreateServiceActorId`,
+`CreateJobActorId`, `CreateExternalActorId`.
 
 ---
 
@@ -61,13 +76,10 @@ Representa el sistema que está ejecutando realmente la acción.
 ```csharp
 string Executor           // ej. "cinema-reservation-api-command"
 ExecutorType ExecutorType // SmartEnum: service | worker | tool
-
 ```
 
-#### Ejemplos
-
 | Servicio | Executor | ExecutorType |
-| --- | --- | --- |
+|---|---|---|
 | API | `cinema-reservation-api-command` | service |
 | Worker | `cinema-reservation-reactor-worker` | worker |
 
@@ -80,42 +92,21 @@ ExecutorType ExecutorType // SmartEnum: service | worker | tool
 ```csharp
 Guid  CorrelationId  // Requerido. Nunca vacío.
 Guid? CausationId    // Opcional. Identifica el evento desencadenante.
-
 ```
 
-#### CorrelationId
+**CorrelationId** — identifica toda la cadena de ejecución. Se genera en el
+punto de entrada y se propaga siempre.
 
-* Identifica **toda la cadena de ejecución** desde el punto de entrada hasta la finalización.
-* Generado en el punto de entrada (API Gateway o primer servicio).
-* Siempre se propaga mediante el encabezado `x-correlation-id`.
-* Se genera un nuevo `Guid` si el encabezado está ausente o vacío.
-
-#### CausationId
-
-* Identifica **el evento o comando específico que desencadenó directamente esta solicitud** — distinto del `CorrelationId` que rastrea toda la cadena.
-* Extraído del encabezado `x-causation-id`.
-* `null` para solicitudes HTTP directas no provocadas por un evento previo.
-* Uso típico: un manejador de reacción reenvía el ID del evento al que está reaccionando, de modo que se pueda reconstruir el gráfico completo de causa y efecto.
-
-#### Ejemplo de flujo
+**CausationId** — identifica el evento o command específico que desencadenó
+directamente esta request. Permite reconstruir el grafo completo de causa y efecto.
 
 ```
-Solicitud HTTP (acción de usuario)
-  CorrelationId = A
-  CausationId   = null
-
-  → UserRegisteredEvent publicado
-      Id            = E1
-      CorrelationId = A
-      CausationId   = null
-
-  → Reacción: POST /send-welcome-email
-      x-correlation-id: A       (misma cadena)
-      x-causation-id:   E1      (el evento que causó esta llamada)
-
-      CorrelationId = A
-      CausationId   = E1
-
+Solicitud HTTP → CorrelationId=A, CausationId=null
+  → UserRegisteredEvent (Id=E1, CorrelationId=A)
+  → POST /send-welcome-email
+      x-correlation-id: A
+      x-causation-id:   E1
+      → CorrelationId=A, CausationId=E1
 ```
 
 ---
@@ -126,71 +117,75 @@ Solicitud HTTP (acción de usuario)
 Guid  TenantId     // Requerido. Nunca vacío.
 Guid? PartitionId  // Opcional. No debe ser Guid.Empty si se proporciona.
 Guid? DomainId     // Opcional. No debe ser Guid.Empty si se proporciona.
-
 ```
 
 Representa el **ámbito funcional** donde ocurre la acción:
 
 * Tenant → empresa u organización.
-* Partition → subdivisión regional o área dentro de un tenant.
-* Domain → instancia de contexto delimitado específico (ej. un cine).
+* Partition → subdivisión regional o área.
+* Domain → instancia de contexto delimitado (ej. un cine).
 
-Para actores no autenticados (External) donde no se proporciona un encabezado de tenant, se utiliza un ID de tenant a nivel de sistema como respaldo. Cada endpoint es responsable de aplicar requisitos de tenant más estrictos si es necesario.
+Para actores External sin `x-tenant-id`, se usa `SystemConstants.SystemTenantId`
+como fallback. Cada endpoint es responsable de aplicar requisitos más estrictos.
 
 ---
 
 ## ⚙️ Cómo funciona
 
-### 📍 1. En la entrada HTTP
+### 📍 1. En la entrada HTTP (ExecutionContextMiddleware)
 
-El `ExecutionContextMiddleware` se ejecuta una vez por solicitud en este orden:
-
-1. **Omisión de infraestructura** — las rutas que coinciden con prefijos de infraestructura conocidos (`/swagger`, `/health`, `/metrics`, etc.) omiten toda la lógica de contexto por completo.
-2. **Resolver actor** — intenta extraer el claim `oid` del JWT:
-* JWT presente y `oid` válido → `ActorType.User`, `actorId = user:{guid}`
-* JWT presente pero sin `oid` válido → **401 No autorizado**
-* Sin JWT + endpoint tiene `[AllowAnonymous]` → `ActorType.External`, `actorId = external:{clientIp}`
-* Sin JWT + endpoint requiere autenticación → **401 No autorizado**
-
-
-3. **Resolver tenant** desde el encabezado `x-tenant-id`:
-* `ActorType.User` sin un tenant válido → **400 Solicitud incorrecta**
-* `ActorType.External` sin un tenant → utiliza `SystemConstants.SystemTenantId` como respaldo; el endpoint puede aplicar requisitos más estrictos.
-
-
-4. **Resolver** `CorrelationId` desde `x-correlation-id` (genera un nuevo `Guid` si está ausente o vacío) y `CausationId` desde `x-causation-id` (opcional; identifica el evento previo que activó esta solicitud).
-5. **Resolver encabezados de ámbito opcionales** (`x-partition-id`, `x-domain-id`), tratando los valores ausentes o `Guid.Empty` como `null`.
-6. **Abrir ámbito de registro estructurado** con todos los valores resueltos para que cada línea de registro en la solicitud lleve el contexto completo automáticamente.
+1. **Omisión de infraestructura** — rutas con prefijos conocidos (`/swagger`,
+   `/health`, etc.) omiten toda la lógica de contexto.
+2. **Resolver actor**:
+   - JWT con `oid` válido → `ActorType.User`, `actorId = user:{guid}`
+   - JWT sin `oid` válido → **401**
+   - Sin JWT + `[AllowAnonymous]` → `ActorType.External`, `actorId = external:{ip}`
+   - Sin JWT sin `[AllowAnonymous]` → **401**
+3. **Resolver tenant**:
+   - `User` sin `x-tenant-id` → **400**
+   - `External` sin `x-tenant-id` → `SystemTenantId` como fallback
+4. **Resolver** `CorrelationId` (genera uno nuevo si ausente) y `CausationId`
+   (opcional).
+5. **Resolver** `x-partition-id` y `x-domain-id` opcionales.
+6. **Abrir ámbito de logging** estructurado con todos los valores.
 7. **Construir** el `ExecutionContext`.
-8. **Validar autorización de ámbito** mediante `IAuthorizationService.ValidateScopeAsync` — solo para `ActorType.User`. Los actores externos omiten este paso ya que aún no tienen identidad en la plataforma. → **403 Prohibido** en caso de fallo.
-9. **Establecer** el contexto mediante `IExecutionContextService.SetExecutionContext`.
-10. **Añadir** `x-correlation-id` a los encabezados de respuesta.
-11. **Limpiar** el contexto en el bloque `finally` después de que la tubería se complete.
+8. **`ValidateScopeAsync`** — solo para `ActorType.User`. → **403** si falla.
+9. **`SetExecutionContext`**.
+10. **Añadir** `x-correlation-id` a la respuesta.
+11. **Limpiar** en el bloque `finally`.
+
+### 📍 2. En workers/consumers (sin HTTP)
+
+El `ExecutionContext` se construye directamente desde los metadatos del mensaje
+o evento, sin pasar por el middleware HTTP:
+
+- **KurrentDB subscription** (`KurrentDbAllStreamSubscription`): reconstruye
+  el contexto desde `EventStoreMetadata` vía `EventStoreMetadata.ToExecutionContext()`.
+  Si no hay metadata válida, usa un contexto de sistema de fallback.
+- **Consumers de eventos de integración**: reconstruyen el contexto desde los
+  metadatos del mensaje propagados (actor, correlationId, causationId, tenant).
+
+En ambos casos se usa `OverrideExecutionContext` en lugar de `SetExecutionContext`
+porque el contexto se establece en el ámbito del consumer, no desde el middleware.
 
 ---
 
-### 📍 2. Almacenamiento
+### 📍 3. Almacenamiento
 
 ```csharp
 AsyncLocal<ExecutionContext?>
-
 ```
 
-Garantías:
-
-* **Aislamiento de solicitudes** — cada solicitud tiene su propio contexto independiente.
-* **Seguridad en ejecución concurrente** — no hay estado compartido entre solicitudes paralelas.
-* **Propagación async/await** — el contexto fluye naturalmente a través de los límites de `await`.
-
-`SetExecutionContext` lanza una `InvalidOperationException` si se llama más de una vez dentro del mismo contexto asíncrono, evitando sobrescrituras accidentales.
-
-`OverrideExecutionContext` omite esa protección y está reservado exclusivamente para código de infraestructura que reconstruye el contexto a partir de metadatos externos (ej. manejadores de suscripción de KurrentDB). Nunca debe ser llamado desde código de aplicación o de dominio.
+- **Aislamiento de solicitudes** — sin estado compartido entre requests paralelas.
+- **Propagación async/await** — el contexto fluye naturalmente.
+- `SetExecutionContext` lanza `InvalidOperationException` si ya hay contexto —
+  previene sobrescrituras accidentales.
+- `OverrideExecutionContext` — solo para infraestructura que reconstruye el
+  contexto desde metadatos externos. **Nunca desde código de aplicación o dominio.**
 
 ---
 
 ## 🧾 Registro (logging) integrado
-
-Se abre un ámbito estructurado al inicio de cada solicitud:
 
 ```csharp
 logger.BeginScope(new Dictionary<string, object?>
@@ -204,63 +199,43 @@ logger.BeginScope(new Dictionary<string, object?>
     ["PartitionId"]   = partitionId,   // omitido por Serilog cuando es null
     ["DomainId"]      = domainId,      // omitido por Serilog cuando es null
 })
-
 ```
 
 ---
 
 ## 🔁 Propagación de contexto
 
-### HTTP saliente
-
-Propagar mediante un `DelegatingHandler`:
+### HTTP saliente (DelegatingHandler)
 
 ```
-x-correlation-id
-x-causation-id
-x-tenant-id
-x-partition-id
-x-domain-id
-
+x-correlation-id, x-causation-id, x-tenant-id, x-partition-id, x-domain-id
 ```
 
 ### Mensajería (MassTransit / RabbitMQ)
 
-Incluir en los metadatos del mensaje:
+```json
+{
+  "correlationId": "...", "causationId": "...",
+  "actorId": "...", "actorType": "...",
+  "tenantId": "...", "partitionId": "...", "domainId": "..."
+}
+```
+
+### EventStoreMetadata (KurrentDB)
 
 ```json
 {
-  "correlationId": "...",
-  "causationId":   "...",
-  "actorId":       "...",
-  "actorType":     "...",
-  "tenantId":      "...",
-  "partitionId":   "...",
-  "domainId":      "..."
+  "actorId": "user:123...", "actorType": "user",
+  "executor": "cinema-reservation-api-command", "executorType": "service",
+  "correlationId": "aaa...", "causationId": null,
+  "tenantId": "bbb...",
+  "traceParent": "00-{traceId}-{spanId}-01",
+  "dateOccurredOnUtc": "2025-05-30T14:32:00Z"
 }
-
 ```
 
-### Metadatos de eventos de KurrentDB
-
-Almacenado en `EventStoreMetadata` junto al TraceContext de W3C:
-
-```json
-{
-  "actorId":          "user:123...",
-  "actorType":        "user",
-  "executor":         "cinema-reservation-api-command",
-  "executorType":     "service",
-  "correlationId":    "aaa...",
-  "causationId":      null,
-  "tenantId":         "bbb...",
-  "traceParent":      "00-{traceId}-{spanId}-01",
-  "dateOccurredOnUtc":"2025-05-30T14:32:00Z"
-}
-
-```
-
-El `ExecutionContext` es reconstruido a partir de estos metadatos por el manejador de suscripción de KurrentDB para cada evento consumido.
+El `ExecutionContext` se reconstruye desde estos metadatos por
+`KurrentDbAllStreamSubscription` para cada evento consumido.
 
 ---
 
@@ -268,44 +243,50 @@ El `ExecutionContext` es reconstruido a partir de estos metadatos por el manejad
 
 ### ❌ No permitir acceso no autenticado sin consentimiento explícito
 
-Los endpoints que aceptan actores `External` deben estar marcados con `[AllowAnonymous]`. El middleware devuelve 401 para cualquier solicitud no autenticada a un endpoint que no lleve ese atributo, incluso si el endpoint no está protegido de otra manera por una política de autorización.
+Endpoints que aceptan `External` deben marcarse `[AllowAnonymous]`. Sin JWT +
+sin `[AllowAnonymous]` → 401.
+
+### ❌ `ActorType.External` nunca puede invocar commands con `[Authorize]`
+
+`AuthorizeAsync` devuelve `Forbidden` para External — es un error de
+configuración si llega ahí, no un caso de uso legítimo.
 
 ### ❌ No usar Actor como Executor
 
-Evita errores de auditoría donde un error de un worker parece culpa del usuario.
+Evita errores de auditoría donde un fallo de worker parece culpa del usuario.
 
 ### ❌ No validar dentro de ExecutionContextService
 
 | Componente | Responsabilidad |
-| --- | --- |
-| Middleware | Construcción + validación |
-| Servicio | Solo almacenamiento |
+|---|---|
+| Middleware / Worker | Construcción + validación |
+| ExecutionContextService | Solo almacenamiento |
 
-### ❌ No usar enumeraciones simples (plain enums)
+### ❌ No usar enumeraciones simples
 
-`SmartEnum` elimina las cadenas mágicas (magic strings), es extensible sin cambios que rompan la compatibilidad y se serializa limpiamente.
+`SmartEnum` elimina magic strings, es extensible y serializa limpiamente.
 
 ---
 
 ## ✅ Convenciones
 
-### Encabezados
+### Encabezados HTTP
 
-| Encabezado | Requerido para User | Requerido para External |
-| --- | --- | --- |
-| `x-tenant-id` | ✅ | opcional (respaldo del sistema) |
+| Encabezado | User | External |
+|---|---|---|
+| `x-tenant-id` | ✅ requerido | opcional (fallback SystemTenantId) |
 | `x-correlation-id` | opcional | opcional |
 | `x-causation-id` | opcional | opcional |
 | `x-partition-id` | opcional | opcional |
 | `x-domain-id` | opcional | opcional |
 
-### Reglas de validación
+### Reglas de validación del ExecutionContext
 
 | Campo | Regla |
-| --- | --- |
-| `ActorId` | No vacío, debe coincidir con un patrón de prefijo conocido |
+|---|---|
+| `ActorId` | No vacío, debe coincidir con prefijo conocido |
 | `CorrelationId` | `Guid` no vacío |
-| `TenantId` | `Guid` no vacío (GUID del sistema para External) |
+| `TenantId` | `Guid` no vacío (SystemTenantId para External) |
 | `PartitionId` | `null` o `Guid` no vacío |
 | `DomainId` | `null` o `Guid` no vacío |
 
@@ -313,59 +294,37 @@ Evita errores de auditoría donde un error de un worker parece culpa del usuario
 
 ## 🧪 Ejemplos completos
 
-### Solicitud de usuario autenticado
-
-```
-POST /showtimes
-Headers:
-  Authorization:    Bearer {jwt con claim oid}
-  x-tenant-id:      1111...
-  x-correlation-id: 2222...
-
-```
+### Usuario autenticado
 
 ```json
 {
-  "ActorId":       "user:123...",
-  "ActorType":     "user",
-  "Executor":      "cinema-reservation-api-command",
-  "ExecutorType":  "service",
-  "CorrelationId": "2222...",
-  "CausationId":   null,
-  "ScopeContext": {
-    "TenantId":    "1111...",
-    "PartitionId": null,
-    "DomainId":    null
-  }
+  "ActorId": "user:123...", "ActorType": "user",
+  "Executor": "cinema-reservation-api-command", "ExecutorType": "service",
+  "CorrelationId": "2222...", "CausationId": null,
+  "ScopeContext": { "TenantId": "1111...", "PartitionId": null, "DomainId": null }
 }
-
 ```
 
-### Solicitud externa no autenticada (ej. registro)
-
-```
-POST /auth/register   [AllowAnonymous]
-Headers:
-  x-correlation-id: 3333...
-  (sin encabezado Authorization, sin x-tenant-id)
-
-```
+### Actor externo (registro anónimo)
 
 ```json
 {
-  "ActorId":       "external:192.168.1.1",
-  "ActorType":     "external",
-  "Executor":      "cinema-reservation-api-command",
-  "ExecutorType":  "service",
-  "CorrelationId": "3333...",
-  "CausationId":   null,
-  "ScopeContext": {
-    "TenantId":    "00000000-0000-0000-0000-000000000001",
-    "PartitionId": null,
-    "DomainId":    null
-  }
+  "ActorId": "external:192.168.1.1", "ActorType": "external",
+  "Executor": "cinema-reservation-api-command", "ExecutorType": "service",
+  "CorrelationId": "3333...", "CausationId": null,
+  "ScopeContext": { "TenantId": "00000000-0000-0000-0000-000000000001", "PartitionId": null, "DomainId": null }
 }
+```
 
+### Consumer de evento de integración (ActorType.System)
+
+```json
+{
+  "ActorId": "service:cinema-reservation-reactor", "ActorType": "system",
+  "Executor": "cinema-reservation-reactor-worker", "ExecutorType": "worker",
+  "CorrelationId": "aaa...", "CausationId": "E1...",
+  "ScopeContext": { "TenantId": "1111...", "PartitionId": null, "DomainId": null }
+}
 ```
 
 ---
@@ -373,7 +332,7 @@ Headers:
 ## 🧠 Modelo mental
 
 | Concepto | Pregunta que responde |
-| --- | --- |
+|---|---|
 | **Actor** | ¿Quién quería que esto sucediera? |
 | **Executor** | ¿Quién lo está ejecutando realmente? |
 | **CorrelationId** | ¿Cuál es la cadena completa de eventos? |
@@ -385,7 +344,9 @@ Headers:
 ## 🚀 Beneficios
 
 * Auditoría real y confiable a través de flujos síncronos y asíncronos.
-* Depuración distribuida sencilla mediante correlación y causalidad.
-* Observabilidad completa: registros estructurados + trazas de OTel vinculadas de principio a fin.
-* Desacoplamiento entre servicios mediante contratos de encabezados consistentes.
-* Preparado para *event sourcing*: el contexto viaja de ida y vuelta a través de los metadatos de KurrentDB.
+* Depuración distribuida mediante correlación y causalidad.
+* Observabilidad completa: logs estructurados + trazas OTel end-to-end.
+* Desacoplamiento entre servicios mediante contratos de headers consistentes.
+* Preparado para event sourcing: el contexto viaja en `EventStoreMetadata`.
+* Integrado con el sistema de autorización: `ActorType` determina el nivel de
+  verificación aplicado en cada request.

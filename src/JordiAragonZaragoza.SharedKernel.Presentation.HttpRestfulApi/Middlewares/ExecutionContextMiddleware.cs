@@ -100,8 +100,8 @@
                     causationId,
                     scopeContext);
 
-                // La validación de scope solo aplica a actores User conocidos.
-                // External no tiene userId en nuestro sistema todavía.
+                // Scope validation only applies to known User actors.
+                // External actors do not have a userId in our system yet.
                 if (actorType == ActorType.User)
                 {
                     var accessResult = await authorizationService.ValidateScopeAsync(
