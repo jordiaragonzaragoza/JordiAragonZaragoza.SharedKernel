@@ -1,9 +1,9 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Infrastructure.ProjectionCheckpoint
 {
     using System;
-    using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.Contracts;
 
-    public sealed record class Checkpoint : IReadModel // TODO: Change to IDataEntity
+    public sealed record class Checkpoint : IDataEntity
     {
         public Checkpoint(
             Guid id,
@@ -35,7 +35,5 @@
         public ulong Position { get; set; }
 
         public DateTimeOffset CheckpointedAtOnUtc { get; set; }
-
-        public uint Version { get; set; }
     }
 }

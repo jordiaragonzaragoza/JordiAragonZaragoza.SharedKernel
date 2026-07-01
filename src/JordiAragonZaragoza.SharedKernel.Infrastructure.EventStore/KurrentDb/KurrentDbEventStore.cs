@@ -40,9 +40,11 @@
         {
             ArgumentNullException.ThrowIfNull(aggregateId, nameof(aggregateId));
 
+            var tenantId = this.executionContextService.CurrentContext?.ScopeContext.TenantId;
+
             var readResult = this.eventStoreClient.ReadStreamAsync(
                 Direction.Forwards,
-                StreamNameMapper.ToStreamId<TAggregate>(aggregateId),
+                StreamNameMapper.ToStreamId<TAggregate>(aggregateId, tenantId),
                 StreamPosition.Start,
                 cancellationToken: cancellationToken);
 
@@ -113,9 +115,8 @@
                 return;
             }
 
-            // TODO: Add TenantId.
-            ////var streamName = StreamNameMapper.ToStreamId(aggregate.GetType(), aggregate.Id, executionContext?.ScopeContext.TenantId);
-            var streamName = StreamNameMapper.ToStreamId(aggregate.GetType(), aggregate.Id);
+            var tenantId = executionContext?.ScopeContext.TenantId;
+            var streamName = StreamNameMapper.ToStreamId(aggregate.GetType(), aggregate.Id, tenantId);
 
             var expectedState = aggregate.Version is null
                 ? StreamState.NoStream

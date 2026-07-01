@@ -11,7 +11,7 @@
     public abstract class BaseReadRepository<TDataEntity> : RepositoryBase<TDataEntity>, ISpecificationReadRepository<TDataEntity, Guid>
         where TDataEntity : class, IDataEntity
     {
-        protected BaseReadRepository(BaseBusinessModelContext readContext)
+        protected BaseReadRepository(BaseReadModelContext readContext)
             : base(readContext)
         {
         }

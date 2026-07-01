@@ -38,5 +38,12 @@
             Implements the request invalidate caching service that handles cache invalidation logic for requests implementing the IInvalidateCacheRequest interface.
             </summary>
         </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.ReadModels.BaseOwnedReadModel">
+            <summary>
+            Base for read model entities that are owned by a root read model.
+            Owned entities inherit tenant visibility from their parent read model, so
+            they do not carry their own ScopeInfo.
+            </summary>
+        </member>
     </members>
 </doc>

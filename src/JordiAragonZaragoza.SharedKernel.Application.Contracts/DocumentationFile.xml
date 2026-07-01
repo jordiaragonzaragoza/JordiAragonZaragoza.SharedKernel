@@ -171,5 +171,37 @@
             An object that securely represents the current request, with its sensitive fields processed.
             </returns>
         </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IScopedReadModel">
+            <summary>
+            Marks a read model as scope-aware. All read models implement this
+            so that the tenant query filter and interceptor can operate generically.
+            ScopeInfo is an owned EF Core type flattened into the same table.
+            </summary>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ScopeInfo">
+            <summary>
+            Flat scope representation for read models. Uses primitive Guids
+            (not domain value objects) to stay decoupled from domain types.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ScopeInfo.From(JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ScopeContext)">
+            <summary>
+            Creates a ScopeInfo from the application-layer ScopeContext,
+            mapping DomainId to the same concept without domain type dependency.
+            </summary>
+            <param name="scopeContext">The scope context to convert.</param>
+            <returns>A new ScopeInfo instance.</returns>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ScopeInfo.Matches(System.Guid,System.Nullable{System.Guid},System.Nullable{System.Guid})">
+            <summary>
+            Mirrors User.Domain.Scope.Matches semantics: the narrowest defined
+            level wins. A read model with no PartitionId/DomainId is visible
+            across the entire tenant.
+            </summary>
+            <param name="tenantId">The tenant to match.</param>
+            <param name="partitionId">The partition to match.</param>
+            <param name="domainId">The domain to match.</param>
+            <returns>True if the scope matches, false otherwise.</returns>
+        </member>
     </members>
 </doc>

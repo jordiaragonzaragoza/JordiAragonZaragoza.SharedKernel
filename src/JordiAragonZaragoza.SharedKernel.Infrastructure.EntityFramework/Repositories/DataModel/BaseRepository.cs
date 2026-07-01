@@ -8,7 +8,7 @@
     public abstract class BaseRepository<TDataEntity> : BaseReadRepository<TDataEntity>, IRangeableRepository<TDataEntity, Guid>
         where TDataEntity : class, IDataEntity
     {
-        protected BaseRepository(BaseBusinessModelContext dbContext)
+        protected BaseRepository(BaseReadModelContext dbContext)
             : base(dbContext)
         {
         }
