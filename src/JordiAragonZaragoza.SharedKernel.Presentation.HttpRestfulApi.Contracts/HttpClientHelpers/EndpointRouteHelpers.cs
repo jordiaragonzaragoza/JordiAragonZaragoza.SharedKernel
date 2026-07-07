@@ -19,10 +19,15 @@
                     continue;
                 }
 
-                string placeholder = $"{{{key}}}";
-                bool wasReplaced = basePath.Contains(placeholder, StringComparison.OrdinalIgnoreCase);
+                string optionalPlaceholder = $"{{{key}?}}";
+                string requiredPlaceholder = $"{{{key}}}";
 
-                basePath = basePath.Replace(placeholder, value, StringComparison.OrdinalIgnoreCase);
+                bool wasReplaced = basePath.Contains(optionalPlaceholder, StringComparison.OrdinalIgnoreCase)
+                                || basePath.Contains(requiredPlaceholder, StringComparison.OrdinalIgnoreCase);
+
+                basePath = basePath
+                    .Replace(optionalPlaceholder, value, StringComparison.OrdinalIgnoreCase)
+                    .Replace(requiredPlaceholder, value, StringComparison.OrdinalIgnoreCase);
 
                 if (!wasReplaced)
                 {

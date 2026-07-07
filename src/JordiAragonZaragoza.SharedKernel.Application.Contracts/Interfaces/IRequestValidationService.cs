@@ -4,10 +4,9 @@
     using System.Threading.Tasks;
     using Ardalis.Result;
 
-    public interface IRequestValidationService<TRequest, TResponse>
+    public interface IRequestValidationService<TRequest>
         where TRequest : notnull
-        where TResponse : IResult
     {
-        Task<TResponse?> TryValidateAsync(TRequest request, CancellationToken cancellationToken = default);
+        Task<Result> TryValidateAsync(TRequest request, CancellationToken cancellationToken = default);
     }
 }

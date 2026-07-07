@@ -7,6 +7,13 @@
     using Ardalis.Result;
     using global::MediatR;
 
+    /// <summary>
+    /// ⚠️ Warning:. DO NOT USE WHEN USING EVENT SOURCING, AS IT CAN CAUSE INCONSISTENCIES.
+    /// This service is intended to be used in the command and query pipelines, but not when using projections in an event bus pipeline.
+    /// Implements the invalidate caching behavior that handles cache invalidation logic for requests implementing the IInvalidateCacheRequest interface.
+    /// </summary>
+    /// <typeparam name="TRequest"> the request type. </typeparam>
+    /// <typeparam name="TResponse"> the response type. </typeparam>
     public class InvalidateCachingBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
         where TRequest : IInvalidateCacheRequest
         where TResponse : IResult

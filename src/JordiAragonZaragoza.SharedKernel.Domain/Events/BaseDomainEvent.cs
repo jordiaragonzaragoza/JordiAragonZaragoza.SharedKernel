@@ -1,14 +1,14 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Domain.Events
 {
     using System;
+    using System.Text.Json.Serialization;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
 
     public abstract record class BaseDomainEvent(Guid AggregateId) : IDomainEvent
     {
-        public Guid Id { get; protected init; } = Guid.NewGuid();
+        public Guid Id { get; init; } = Guid.CreateVersion7();
 
-        public bool IsPublished { get; set; } // TODO: Add to Event Metadata
-
-        public DateTimeOffset DateOccurredOnUtc { get; protected init; } = DateTimeOffset.UtcNow; // TODO: Add to Event Metadata
+        [JsonIgnore]
+        public DateTimeOffset DateOccurredOnUtc { get; init; } = DateTimeOffset.UtcNow;
     }
 }

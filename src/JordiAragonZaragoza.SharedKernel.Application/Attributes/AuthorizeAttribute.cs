@@ -11,11 +11,16 @@
         /// <summary>
         /// Gets or sets a comma delimited list of roles that are allowed to access the resource.
         /// </summary>
-        public string Roles { get; set; } = string.Empty;
+        public string? Roles { get; set; }
 
         /// <summary>
-        /// Gets or sets the policy name that determines access to the resource.
+        /// Gets or sets a comma delimited list of policies that determine access to the resource.
         /// </summary>
-        public string Policy { get; set; } = string.Empty;
+        public string? Policies { get; set; }
+
+        /// <summary>
+        /// Gets or sets a comma delimited list of permissions that determine access to the resource.
+        /// </summary>
+        public string? Permissions { get; set; }
     }
 }

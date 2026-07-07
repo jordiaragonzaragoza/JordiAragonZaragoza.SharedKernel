@@ -1,11 +1,10 @@
 name: Build, Test, and SonarCloud Analysis on .NET Core
 on:
-  push:
-    branches:
-      - main
-      - develop
-      - release
   pull_request:
+    types:
+      - opened
+      - synchronize
+      - reopened
     branches:
       - main
       - develop

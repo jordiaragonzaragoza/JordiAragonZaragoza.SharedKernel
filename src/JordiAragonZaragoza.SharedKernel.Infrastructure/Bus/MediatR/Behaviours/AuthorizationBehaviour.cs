@@ -11,9 +11,9 @@
         where TRequest : IRequest<TResponse>
         where TResponse : IResult
     {
-        private readonly IRequestAuthorizationService<TRequest, TResponse> authorizationHandlerService;
+        private readonly IRequestAuthorizationService<TRequest> authorizationHandlerService;
 
-        public AuthorizationBehaviour(IRequestAuthorizationService<TRequest, TResponse> authorizationHandlerService)
+        public AuthorizationBehaviour(IRequestAuthorizationService<TRequest> authorizationHandlerService)
         {
             this.authorizationHandlerService = authorizationHandlerService ?? throw new ArgumentNullException(nameof(authorizationHandlerService));
         }
@@ -24,9 +24,11 @@
 
             var authorizationResult = await this.authorizationHandlerService.TryAuthorizeAsync(request, cancellationToken);
 
-            if (authorizationResult is not null)
+            if (!authorizationResult.IsSuccess)
             {
-                return authorizationResult;
+                return ResultFactoryHelper.CreateFromStatus<TResponse>(
+                        authorizationResult.Status,
+                        authorizationResult.Errors);
             }
 
             return await next(cancellationToken);
