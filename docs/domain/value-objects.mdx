@@ -1,0 +1,177 @@
+---
+title: "Value Objects with BaseValueObject in SharedKernel"
+sidebarTitle: "Value Objects"
+description: "Implement immutable DDD value objects using BaseValueObject. Covers equality by components, comparison, and EF Core proxy compatibility."
+---
+
+Value objects are immutable domain concepts defined entirely by their attributes rather than by a unique identity. Two `Money` instances both representing `€9.99` are interchangeable — what matters is what they are, not which object they are. `BaseValueObject` provides a battle-tested base class that enforces structural equality through a single abstract method, `GetEqualityComponents()`, and handles ORM-proxy edge cases transparently so your domain model stays clean.
+
+## BaseValueObject
+
+`BaseValueObject` implements `IComparable` and `IComparable<BaseValueObject>`. Subclasses must override only `GetEqualityComponents()` to declare which fields constitute the value object's identity.
+
+```csharp
+[Serializable]
+public abstract class BaseValueObject : IComparable, IComparable<BaseValueObject>
+{
+    // Equality operators delegate to Equals()
+    public static bool operator ==(BaseValueObject a, BaseValueObject b);
+    public static bool operator !=(BaseValueObject a, BaseValueObject b);
+
+    public override bool Equals(object? obj);
+    public override int GetHashCode();
+
+    public int CompareTo(object? obj);
+    public int CompareTo(BaseValueObject? other);
+
+    // Guard helper — throws BusinessRuleValidationException when rule.IsBroken()
+    protected static void CheckRule(IBusinessRule rule);
+
+    // Declare the fields that define equality
+    protected abstract IEnumerable<object> GetEqualityComponents();
+}
+```
+
+### Key members
+
+| Member | Behaviour |
+|---|---|
+| `==` / `!=` | Null-safe structural equality via `Equals`. |
+| `Equals` | Compares `GetEqualityComponents()` sequences. Uses `GetUnproxiedType` to resolve ORM proxy types before comparing, so `Castle.Proxies.MoneyProxy == Money` works correctly. |
+| `GetHashCode` | Computed once from `GetEqualityComponents()` and cached in `cachedHashCode` using a multiply-and-accumulate strategy `(current * 23) + component.GetHashCode()`. |
+| `CompareTo` | Compares component-by-component via `IComparable`. Type names are compared ordinally when the types differ. |
+| `CheckRule` | Static guard identical to the one on `BaseEntity` — throws `BusinessRuleValidationException` if the rule is broken. |
+| `GetEqualityComponents()` | **Abstract.** Yield every field that contributes to value identity. |
+
+### ORM proxy awareness
+
+EF Core and NHibernate may wrap value objects in dynamically generated proxy classes at runtime. `GetUnproxiedType` strips the proxy back to the real type so that equality checks are never confused by proxy-generated class names:
+
+```csharp
+internal static Type GetUnproxiedType(object obj)
+{
+    const string EFCoreProxyPrefix  = "Castle.Proxies.";
+    const string NHibernateProxyPostfix = "Proxy";
+
+    var type       = obj.GetType();
+    var typeString = type.ToString();
+
+    if (typeString.Contains(EFCoreProxyPrefix, StringComparison.InvariantCulture)
+        || typeString.EndsWith(NHibernateProxyPostfix, StringComparison.InvariantCulture))
+    {
+        return type.BaseType!;
+    }
+
+    return type;
+}
+```
+
+You never call this method directly; it is invoked automatically inside `Equals` and `CompareTo`.
+
+---
+
+## Implementing a value object — Money
+
+```csharp
+public sealed class Money : BaseValueObject
+{
+    public Money(decimal amount, string currency)
+    {
+        CheckRule(new AmountMustBePositiveRule(amount));
+        CheckRule(new CurrencyMustBeValidIsoCodeRule(currency));
+
+        this.Amount   = amount;
+        this.Currency = currency;
+    }
+
+    // Required by EF Core
+    private Money() { }
+
+    public decimal Amount   { get; private init; }
+    public string  Currency { get; private init; } = string.Empty;
+
+    // Convenience factory
+    public static Money Of(decimal amount, string currency) => new(amount, currency);
+
+    // Express domain semantics as methods, not operators
+    public Money Add(Money other)
+    {
+        CheckRule(new MoneyMustHaveSameCurrencyRule(this, other));
+        return new Money(this.Amount + other.Amount, this.Currency);
+    }
+
+    protected override IEnumerable<object> GetEqualityComponents()
+    {
+        yield return this.Amount;
+        yield return this.Currency;
+    }
+}
+```
+
+Usage:
+
+```csharp
+var price    = Money.Of(9.99m,  "EUR");
+var shipping = Money.Of(2.50m,  "EUR");
+var total    = price.Add(shipping);   // Money(12.49, "EUR")
+
+Console.WriteLine(price == Money.Of(9.99m, "EUR")); // True — structural equality
+Console.WriteLine(price == shipping);               // False
+```
+
+---
+
+## Typed IDs as value objects — BaseEntityId\<TIdType\>
+
+`BaseEntityId<TIdType>` extends `BaseValueObject` and models a strongly-typed entity identifier. Using a dedicated ID class instead of a raw `Guid` or `int` prevents passing the wrong kind of ID to a method.
+
+```csharp
+public abstract class BaseEntityId<TIdType> : BaseValueObject, IEntityId<TIdType>
+    where TIdType : notnull
+{
+    protected BaseEntityId(TIdType value);
+
+    // Required by EF Core
+    protected BaseEntityId();
+
+    public TIdType Value { get; init; }
+
+    // Implicitly convert to the underlying primitive — no .Value call needed
+    public static implicit operator TIdType(BaseEntityId<TIdType> self);
+
+    public override string? ToString();
+
+    protected override IEnumerable<object> GetEqualityComponents()
+    {
+        yield return this.Value;
+    }
+}
+```
+
+The constructor guards against default values (e.g. `Guid.Empty`), so a stray `new OrderId(Guid.Empty)` throws immediately rather than silently propagating a sentinel value.
+
+### Example — OrderId
+
+```csharp
+public sealed class OrderId : BaseAggregateRootId<Guid>
+{
+    public OrderId(Guid value) : base(value) { }
+
+    public static OrderId New() => new(Guid.NewGuid());
+}
+
+// BaseAggregateRootId<TId> is a thin specialisation of BaseEntityId<TId>:
+// public abstract class BaseAggregateRootId<TId> : BaseEntityId<TId>
+//     where TId : notnull
+```
+
+Because of the implicit conversion operator you can pass an `OrderId` anywhere a `Guid` is expected:
+
+```csharp
+OrderId orderId = OrderId.New();
+Guid rawGuid = orderId;   // implicit — no .Value needed
+```
+
+<Tip>
+Use strongly-typed IDs derived from `BaseEntityId<TIdType>` (or `BaseAggregateRootId<TIdType>`) for every aggregate and entity. This eliminates *primitive obsession* and makes method signatures self-documenting: `void Ship(OrderId orderId)` is far safer than `void Ship(Guid orderId)`.
+</Tip>

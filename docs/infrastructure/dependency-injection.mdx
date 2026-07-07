@@ -1,0 +1,277 @@
+---
+title: "Registering SharedKernel Services with Dependency Injection"
+sidebarTitle: "Dependency Injection"
+description: "Register all SharedKernel services using the provided IServiceCollection extension methods for infrastructure, application pipelines, event buses, and MediatR behaviors."
+---
+
+SharedKernel exposes clean, composable `IServiceCollection` extension methods organized by architectural concern. Rather than one monolithic registration call, you opt into each subsystem — core infrastructure services, the command bus, the query bus, and projections — independently. This keeps your composition root explicit and makes it straightforward to replace or extend individual pieces without disturbing others.
+
+## Extension Methods Overview
+
+<CardGroup cols={2}>
+  <Card title="AddSharedKernelInfrastructure" icon="layer-group">
+    Registers core singletons: `IDateTime`, `IIdGenerator`, `IPartitionContextService`, `IUserContextService`, `ICacheService`, and `IIdentityService`.
+  </Card>
+  <Card title="AddSharedKernelInfrastructureCommandBus" icon="arrow-right-arrow-left">
+    Registers the MediatR command pipeline with all behaviors and binds `ICommandBus` to `CommandBus`.
+  </Card>
+  <Card title="AddSharedKernelInfrastructureQueryBus" icon="magnifying-glass">
+    Registers the MediatR query pipeline with all behaviors and binds `IQueryBus` to `QueryBus`.
+  </Card>
+  <Card title="AddSharedKernelInfrastructureProjections" icon="bolt">
+    Registers the projection event bus pipeline and binds `IEventBus` to `InMemoryEventBus`.
+  </Card>
+</CardGroup>
+
+## Infrastructure Layer Registration
+
+### `AddSharedKernelInfrastructure`
+
+Registers the foundational cross-cutting services needed by all application code.
+
+```csharp
+public static IServiceCollection AddSharedKernelInfrastructure(
+    this IServiceCollection services)
+{
+    services.AddSingleton<IDateTime, DateTimeService>();
+    services.AddSingleton<IIdGenerator, IdGeneratorService>();
+    services.AddSingleton<IPartitionContextService, PartitionContextService>();
+    services.AddSingleton<IUserContextService, UserContextService>();
+    services.AddTransient<ICacheService, CacheService>();
+    services.AddTransient<IIdentityService, IdentityService>();
+
+    return services;
+}
+```
+
+The table below describes each registered service:
+
+| Interface | Implementation | Lifetime | Purpose |
+|---|---|---|---|
+| `IDateTime` | `DateTimeService` | Singleton | Abstracts `DateTimeOffset.UtcNow` for testability |
+| `IIdGenerator` | `IdGeneratorService` | Singleton | Generates UUIDv7 identifiers via `Guid.CreateVersion7()` |
+| `IPartitionContextService` | `PartitionContextService` | Singleton | Holds the current `tenantId` / `partitionId` in `AsyncLocal` storage |
+| `IUserContextService` | `UserContextService` | Singleton | Holds the current `userId` in `AsyncLocal` storage |
+| `ICacheService` | `CacheService` | Transient | Provides get/set/remove-by-prefix caching abstraction |
+| `IIdentityService` | `IdentityService` | Transient | Provides identity/authorization helpers |
+
+#### `IPartitionContextService` and `IUserContextService`
+
+Both services store their context in `AsyncLocal<T>` fields, so each async flow (e.g., each HTTP request) has its own isolated context without risk of data leaking across concurrent requests.
+
+```csharp
+// Set context early in your middleware or request handler
+partitionContextService.SetPartitionContext(tenantId: "acme", partitionId: "us-east");
+userContextService.SetUserContext(userId: "user-123");
+
+// Read context later in domain/infrastructure code
+var tenant = partitionContextService.CurrentContext.TenantId;
+var user   = userContextService.CurrentContext.UserId;
+```
+
+---
+
+### `AddSharedKernelInfrastructureCommandBus`
+
+Wires up the MediatR command pipeline and registers `ICommandBus`.
+
+```csharp
+public static IServiceCollection AddSharedKernelInfrastructureCommandBus(
+    this IServiceCollection services)
+{
+    services.AddMediatRRegistrationsCommandBus();
+    services.AddTransient<ICommandBus, CommandBus>();
+
+    return services;
+}
+```
+
+`CommandBus` delegates to MediatR's `ISender`:
+
+```csharp
+public class CommandBus : ICommandBus
+{
+    private readonly ISender sender;
+
+    public CommandBus(ISender sender)
+        => this.sender = sender ?? throw new ArgumentNullException(nameof(sender));
+
+    public Task<Result> SendAsync(ICommand command, CancellationToken cancellationToken = default)
+        => this.sender.Send(command, cancellationToken);
+
+    public Task<Result<TResponse>> SendAsync<TResponse>(
+        ICommand<TResponse> command, CancellationToken cancellationToken = default)
+        where TResponse : notnull
+        => this.sender.Send(command, cancellationToken);
+}
+```
+
+---
+
+### `AddSharedKernelInfrastructureQueryBus`
+
+Wires up the MediatR query pipeline and registers `IQueryBus`.
+
+```csharp
+public static IServiceCollection AddSharedKernelInfrastructureQueryBus(
+    this IServiceCollection services)
+{
+    services.AddMediatRRegistrationsQueryBus();
+    services.AddTransient<IQueryBus, QueryBus>();
+
+    return services;
+}
+```
+
+`QueryBus` delegates to MediatR's `ISender`:
+
+```csharp
+public class QueryBus : IQueryBus
+{
+    private readonly ISender sender;
+
+    public QueryBus(ISender sender)
+        => this.sender = sender ?? throw new ArgumentNullException(nameof(sender));
+
+    public Task<Result<TResponse>> SendAsync<TResponse>(
+        IQuery<TResponse> query, CancellationToken cancellationToken = default)
+        => this.sender.Send(query, cancellationToken);
+}
+```
+
+---
+
+### `AddSharedKernelInfrastructureProjections`
+
+Registers the in-process event publication pipeline used by projections.
+
+```csharp
+public static IServiceCollection AddSharedKernelInfrastructureProjections(
+    this IServiceCollection services)
+{
+    services.AddMediatRRegistrationsProjectionBus();
+    services.AddTransient<IEventBus, InMemoryEventBus>();
+
+    return services;
+}
+```
+
+`InMemoryEventBus` wraps MediatR's `IPublisher` to fan out domain events to all registered `INotificationHandler` projections:
+
+```csharp
+public class InMemoryEventBus : IEventBus
+{
+    public async Task PublishAsync(IEvent @event, CancellationToken cancellationToken = default)
+    {
+        @event.IsPublished = true;
+        await this.publisher.Publish(@event, cancellationToken).ConfigureAwait(true);
+    }
+}
+```
+
+---
+
+## Application Layer Registration
+
+The Application layer registers the pipeline *service* objects that the MediatR behaviors delegate to. These must be registered alongside the infrastructure bus registrations.
+
+### `AddSharedKernelApplicationCommandBus`
+
+```csharp
+public static IServiceCollection AddSharedKernelApplicationCommandBus(
+    this IServiceCollection services)
+{
+    services.AddTransient<IRequestLoggerService, RequestLoggerService>();
+    services.AddTransient<IRequestExceptionHandlerService, RequestExceptionHandlerService>();
+    services.AddTransient<IRequestUnitOfWorkService, RequestUnitOfWorkService>();
+    services.AddTransient(typeof(IRequestAuthorizationService<,>), typeof(RequestAuthorizationService<,>));
+    services.AddTransient(typeof(IRequestValidationService<,>), typeof(RequestValidationService<,>));
+    services.AddTransient<IRequestCachingService, RequestCachingService>();
+    services.AddTransient<IRequestInvalidateCachingService, RequestInvalidateCachingService>();
+    services.AddTransient<IRequestPerformanceTrackingService, RequestPerformanceTrackingService>();
+
+    return services;
+}
+```
+
+### `AddSharedKernelApplicationQueryBus`
+
+Identical to the command variant except `IRequestUnitOfWorkService` is omitted — queries are read-only and do not require a transactional unit of work.
+
+```csharp
+public static IServiceCollection AddSharedKernelApplicationQueryBus(
+    this IServiceCollection services)
+{
+    services.AddTransient<IRequestLoggerService, RequestLoggerService>();
+    services.AddTransient<IRequestExceptionHandlerService, RequestExceptionHandlerService>();
+    services.AddTransient(typeof(IRequestAuthorizationService<,>), typeof(RequestAuthorizationService<,>));
+    services.AddTransient(typeof(IRequestValidationService<,>), typeof(RequestValidationService<,>));
+    services.AddTransient<IRequestCachingService, RequestCachingService>();
+    services.AddTransient<IRequestInvalidateCachingService, RequestInvalidateCachingService>();
+    services.AddTransient<IRequestPerformanceTrackingService, RequestPerformanceTrackingService>();
+
+    return services;
+}
+```
+
+---
+
+## MediatR Pipeline Behaviors
+
+<Note>
+  The command bus pipeline runs behaviors in the following order. Each behavior in the chain calls `next()` to pass control to the subsequent behavior and ultimately to your handler:
+
+  1. **`LoggerBehaviour<TRequest>`** *(pre-processor)* — logs the incoming request before the pipeline runs.
+  2. **`ExceptionHandlerPipelineBehaviour<TRequest, TResponse>`** — wraps the pipeline in a try/catch and converts exceptions to `Result` errors.
+  3. **`UnitOfWorkBehaviour<TRequest, TResponse>`** — begins a database transaction for commands that implement `ITransactionalCommand`, commits on success, rolls back on failure.
+  4. **`AuthorizationBehaviour<TRequest, TResponse>`** — evaluates authorization rules; short-circuits with a `Forbidden` result when the caller is not authorized.
+  5. **`ValidationBehaviour<TRequest, TResponse>`** — runs FluentValidation validators; short-circuits with an `Invalid` result on failure.
+  6. **`CachingBehavior<TRequest, TResponse>`** — checks the cache for requests implementing `ICacheRequest`; returns cached value or populates it after the handler runs.
+  7. **`InvalidateCachingBehavior<TRequest, TResponse>`** — evicts cache entries by prefix for requests implementing `IInvalidateCacheRequest`.
+  8. **`PerformancePipelineBehaviour<TRequest, TResponse>`** — tracks and logs slow-running requests.
+
+  The query bus pipeline is identical but omits **`UnitOfWorkBehaviour`** (step 3).
+</Note>
+
+---
+
+## Complete `Program.cs` Example
+
+<Steps>
+  <Step title="Install NuGet packages">
+    ```xml
+    <PackageReference Include="JordiAragonZaragoza.SharedKernel.Infrastructure" Version="*" />
+    <PackageReference Include="JordiAragonZaragoza.SharedKernel.Application" Version="*" />
+    ```
+  </Step>
+  <Step title="Register services in Program.cs">
+    ```csharp
+    var builder = WebApplication.CreateBuilder(args);
+
+    // 1. Core infrastructure services (IDateTime, IIdGenerator, context services, cache…)
+    builder.Services.AddSharedKernelInfrastructure();
+
+    // 2. Application-layer pipeline service objects for commands
+    builder.Services.AddSharedKernelApplicationCommandBus();
+
+    // 3. Infrastructure-layer MediatR pipeline + ICommandBus
+    builder.Services.AddSharedKernelInfrastructureCommandBus();
+
+    // 4. Application-layer pipeline service objects for queries
+    builder.Services.AddSharedKernelApplicationQueryBus();
+
+    // 5. Infrastructure-layer MediatR pipeline + IQueryBus
+    builder.Services.AddSharedKernelInfrastructureQueryBus();
+
+    // 6. In-memory event bus for projections
+    builder.Services.AddSharedKernelInfrastructureProjections();
+
+    // Register your own application handlers, validators, etc.
+    builder.Services.AddMediatR(options =>
+        options.RegisterServicesFromAssembly(typeof(Program).Assembly));
+
+    var app = builder.Build();
+    app.Run();
+    ```
+  </Step>
+</Steps>

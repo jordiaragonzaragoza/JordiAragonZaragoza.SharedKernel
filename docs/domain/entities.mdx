@@ -1,0 +1,315 @@
+---
+title: "Entities and Aggregate Roots in SharedKernel"
+sidebarTitle: "Entities"
+description: "Learn how to model domain entities and aggregate roots using BaseEntity, BaseAggregateRoot, and BaseEventSourcedAggregateRoot in SharedKernel."
+---
+
+In Domain-Driven Design, entities are objects with a distinct identity that persists over time, while aggregate roots are the entry points to clusters of related entities that are treated as a unit for data changes. SharedKernel provides abstract base classes — `BaseEntity<TId>`, `BaseAggregateRoot<TId>`, and `BaseEventSourcedAggregateRoot<TId>` — that encode these patterns so your domain model gets identity equality, domain-event collection, optimistic concurrency, and business-rule enforcement out of the box.
+
+## BaseEntity\<TId\>
+
+`BaseEntity<TId>` is the foundation of every domain entity. It enforces a strongly-typed identity, provides structural equality by ID, and exposes the `CheckRule` guard that keeps invariant validation inside the domain.
+
+```csharp
+public abstract class BaseEntity<TId> : IEqualityComparer<BaseEntity<TId>>, IEntity<TId>
+    where TId : class, IEntityId
+{
+    protected BaseEntity(TId id);
+
+    // Required by EF Core — do not call directly.
+    protected BaseEntity();
+
+    public TId Id { get; protected set; }
+
+    public bool Equals(BaseEntity<TId>? x, BaseEntity<TId>? y);
+    public int GetHashCode(BaseEntity<TId> obj);
+
+    protected static void CheckRule(IBusinessRule rule);
+}
+```
+
+| Member | Purpose |
+|---|---|
+| `Id` | Strongly-typed entity identity. Set in the constructor; protected-settable so persistence layers can hydrate it. |
+| `Equals` / `GetHashCode` | Two entities are equal when their IDs are equal — reference equality is checked first for performance. |
+| `CheckRule(IBusinessRule)` | Throws `BusinessRuleValidationException` if `rule.IsBroken()`. Call this inside any mutating method to enforce invariants. |
+
+<Note>
+The parameterless `protected BaseEntity()` constructor is present solely to satisfy Entity Framework Core's proxy requirements. Always use the `(TId id)` constructor in your own code.
+</Note>
+
+---
+
+## BaseAggregateRoot\<TId\>
+
+`BaseAggregateRoot<TId>` inherits from `BaseEntity<TId>` and adds the machinery needed for aggregate roots: domain-event collection, optimistic concurrency via `Version`, and the `Apply` / `When` / `EnsureValidState` lifecycle that keeps state changes auditable and valid.
+
+```csharp
+public abstract class BaseAggregateRoot<TId> : BaseEntity<TId>, IAggregateRoot<TId>
+    where TId : class, IEntityId
+{
+    public uint? Version { get; protected set; }
+
+    [NotMapped]
+    public IEnumerable<IDomainEvent> Events { get; }   // read-only view of collected events
+
+    public void ClearEvents();
+
+    protected void Apply(IDomainEvent domainEvent);
+
+    // Project the event into aggregate state.
+    protected abstract void When(IDomainEvent domainEvent);
+
+    // Validate that the aggregate is in a consistent state after a change.
+    protected abstract void EnsureValidState();
+}
+```
+
+### The Apply → When → EnsureValidState cycle
+
+Every state-changing operation on an aggregate calls the `protected Apply(domainEvent)` method. Internally it follows a strict three-step sequence:
+
+<Steps>
+  <Step title="When(domainEvent)">
+    Dispatches the event to the concrete aggregate's `When` override, which mutates the aggregate's fields to reflect the change described by the event.
+  </Step>
+  <Step title="EnsureValidState()">
+    Validates that the aggregate is in a consistent, legal state after the mutation. Throw `InvalidAggregateStateException` here when the post-event state is invalid.
+  </Step>
+  <Step title="Store the event">
+    Only if both previous steps succeed is the event appended to the internal `domainEvents` list, ensuring the event log only contains events that produced valid state transitions.
+  </Step>
+</Steps>
+
+### Two-parameter convenience form
+
+A two-type-parameter variant removes boilerplate when your ID type extends `BaseAggregateRootId<TIdType>`:
+
+```csharp
+public abstract class BaseAggregateRoot<TId, TIdType> : BaseAggregateRoot<TId>
+    where TId : BaseAggregateRootId<TIdType>
+    where TIdType : notnull
+```
+
+This form lets you write `BaseAggregateRoot<OrderId, Guid>` instead of tracking the constraints yourself.
+
+---
+
+## BaseEventSourcedAggregateRoot\<TId\>
+
+`BaseEventSourcedAggregateRoot<TId>` extends `BaseAggregateRoot<TId>` and implements `IEventSourcedAggregateRoot<TId>`. It adds a `Load` method that replays a historical event stream to reconstruct aggregate state from scratch — the core of the event-sourcing pattern.
+
+```csharp
+public abstract class BaseEventSourcedAggregateRoot<TId> : BaseAggregateRoot<TId>, IEventSourcedAggregateRoot<TId>
+    where TId : class, IEntityId
+{
+    public void Load(IEnumerable<IDomainEvent> history);
+}
+```
+
+`Load` sets `Version` to `0`, iterates the history calling `When(event)` for each entry, and increments `Version` on each step so that the final `Version` equals `(eventCount - 1)` — matching 0-based indexing from the event store.
+
+The two-parameter convenience form is also available:
+
+```csharp
+public abstract class BaseEventSourcedAggregateRoot<TId, TIdType> : BaseEventSourcedAggregateRoot<TId>
+    where TId : BaseAggregateRootId<TIdType>
+    where TIdType : notnull
+```
+
+---
+
+## Typed IDs — BaseAggregateRootId and BaseEntityId
+
+SharedKernel encourages using strongly-typed IDs modelled as value objects. Two base classes support this:
+
+```csharp
+// For any entity ID
+public abstract class BaseEntityId<TIdType> : BaseValueObject, IEntityId<TIdType>
+    where TIdType : notnull
+{
+    protected BaseEntityId(TIdType value);
+
+    public TIdType Value { get; init; }
+
+    // Implicit conversion to the underlying type — e.g. (Guid)orderId
+    public static implicit operator TIdType(BaseEntityId<TIdType> self);
+
+    public override string? ToString();
+
+    protected override IEnumerable<object> GetEqualityComponents()
+    {
+        yield return this.Value;
+    }
+}
+
+// Specialization for aggregate-root IDs
+public abstract class BaseAggregateRootId<TId> : BaseEntityId<TId>
+    where TId : notnull
+{
+    protected BaseAggregateRootId(TId value) : base(value) { }
+}
+```
+
+Typed IDs prevent accidentally passing the wrong kind of ID to a method. The implicit conversion operator lets you hand off the raw value to infrastructure code without a manual `.Value` call.
+
+---
+
+## EntityByIdSpec
+
+`EntityByIdSpec<TEntity, TId>` is an [Ardalis.Specification](https://github.com/ardalis/Specification) `SingleResultSpecification` that queries a repository for the entity matching a given typed ID.
+
+```csharp
+public sealed class EntityByIdSpec<TEntity, TId> : SingleResultSpecification<TEntity>
+    where TEntity : class, IEntity<TId>
+    where TId : class, IEntityId
+{
+    public EntityByIdSpec(TId entityId);
+}
+```
+
+**Usage example:**
+
+```csharp
+var spec = new EntityByIdSpec<Order, OrderId>(orderId);
+var order = await repository.SingleOrDefaultAsync(spec, cancellationToken);
+```
+
+---
+
+## Full example
+
+The example below shows a complete aggregate using event sourcing. The `Order` aggregate raises an `OrderCreatedEvent` on creation, and its `When` method projects it into state.
+
+<Tabs>
+  <Tab title="Standard aggregate (no event sourcing)">
+```csharp
+// Typed ID
+public sealed class OrderId : BaseAggregateRootId<Guid>
+{
+    public OrderId(Guid value) : base(value) { }
+    public static OrderId New() => new(Guid.NewGuid());
+}
+
+// Domain event
+public sealed record OrderCreatedEvent(Guid AggregateId, string CustomerName)
+    : BaseDomainEvent(AggregateId);
+
+// Aggregate
+public sealed class Order : BaseAggregateRoot<OrderId, Guid>
+{
+    private Order(OrderId id, string customerName) : base(id)
+    {
+        this.Apply(new OrderCreatedEvent(id.Value, customerName));
+    }
+
+    // Required by EF Core
+    private Order() { }
+
+    public string CustomerName { get; private set; } = string.Empty;
+
+    public static Order Create(OrderId id, string customerName)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        CheckRule(new CustomerNameMustNotBeEmptyRule(customerName));
+        return new Order(id, customerName);
+    }
+
+    protected override void When(IDomainEvent domainEvent)
+    {
+        switch (domainEvent)
+        {
+            case OrderCreatedEvent e:
+                this.CustomerName = e.CustomerName;
+                break;
+        }
+    }
+
+    protected override void EnsureValidState()
+    {
+        if (string.IsNullOrWhiteSpace(this.CustomerName))
+        {
+            throw new InvalidAggregateStateException<Order, OrderId>(
+                this, "CustomerName must not be empty.");
+        }
+    }
+}
+```
+  </Tab>
+  <Tab title="Event-sourced aggregate">
+```csharp
+// Typed ID (same as above)
+public sealed class OrderId : BaseAggregateRootId<Guid>
+{
+    public OrderId(Guid value) : base(value) { }
+    public static OrderId New() => new(Guid.NewGuid());
+}
+
+// Domain event
+public sealed record OrderCreatedEvent(Guid AggregateId, string CustomerName)
+    : BaseDomainEvent(AggregateId);
+
+// Event-sourced aggregate
+public sealed class Order : BaseEventSourcedAggregateRoot<OrderId, Guid>
+{
+    private Order(OrderId id, string customerName) : base(id)
+    {
+        this.Apply(new OrderCreatedEvent(id.Value, customerName));
+    }
+
+    private Order() { }
+
+    public string CustomerName { get; private set; } = string.Empty;
+
+    public static Order Create(OrderId id, string customerName)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        CheckRule(new CustomerNameMustNotBeEmptyRule(customerName));
+        return new Order(id, customerName);
+    }
+
+    // Rebuild from stored events
+    public static Order LoadFromHistory(OrderId id, IEnumerable<IDomainEvent> history)
+    {
+        var order = new Order();
+        order.Load(history);
+        return order;
+    }
+
+    protected override void When(IDomainEvent domainEvent)
+    {
+        switch (domainEvent)
+        {
+            case OrderCreatedEvent e:
+                this.CustomerName = e.CustomerName;
+                break;
+            default:
+                throw new EventCannotBeAppliedToAggregateException<Order, OrderId>(this, domainEvent);
+        }
+    }
+
+    protected override void EnsureValidState()
+    {
+        if (string.IsNullOrWhiteSpace(this.CustomerName))
+        {
+            throw new InvalidAggregateStateException<Order, OrderId>(
+                this, "CustomerName must not be empty.");
+        }
+    }
+}
+```
+  </Tab>
+</Tabs>
+
+---
+
+## When to use BaseAggregateRoot vs BaseEventSourcedAggregateRoot
+
+<CardGroup cols={2}>
+  <Card title="BaseAggregateRoot" icon="database">
+    Use when your aggregate is persisted via a traditional ORM (e.g. EF Core) and you need domain events for side-effect notifications only. State is reconstructed by loading the current row from the database, not by replaying events.
+  </Card>
+  <Card title="BaseEventSourcedAggregateRoot" icon="clock-rotate-left">
+    Use when state must be fully reconstructable from a sequence of domain events stored in an event store (e.g. EventStoreDB). Provides a complete audit trail and enables temporal queries, but requires an event store in infrastructure.
+  </Card>
+</CardGroup>

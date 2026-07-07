@@ -1,0 +1,281 @@
+---
+title: "SharedKernel .NET NuGet Packages Complete Reference"
+sidebarTitle: "Packages"
+description: "All SharedKernel NuGet packages by Clean Architecture layer, with key exported types for Domain, Application, Infrastructure, and Presentation."
+---
+
+SharedKernel is published as **12 focused NuGet packages** organised by Clean Architecture layer. Each package targets .NET 10 and carries only the dependencies it genuinely needs — you pull in the packages that match the layers you are building, keeping your final binary free from unnecessary transitive dependencies.
+
+<Note>
+  All SharedKernel packages follow **semantic versioning** and are published to [nuget.org](https://www.nuget.org/profiles/JordiAragonZaragoza). Pin your versions centrally (e.g. with `Directory.Packages.props`) to keep every layer of your solution aligned.
+</Note>
+
+---
+
+## Core layer
+
+The Core packages provide the lowest-level shared contracts and utility infrastructure that every other layer depends on. They carry no domain or application semantics.
+
+<CardGroup cols={2}>
+  <Card title="JordiAragonZaragoza.SharedKernel" icon="wrench">
+    **Utility helpers and DI markup interfaces.**
+
+    Depends on `Microsoft.Extensions.DependencyInjection`, `Microsoft.Extensions.Configuration`, and the `SharedKernel.Contracts` project.
+
+    | Key type | Purpose |
+    |---|---|
+    | DI markup interfaces | Auto-registration of scoped/transient/singleton services by convention |
+    | Configuration helpers | Strongly typed options binding utilities |
+  </Card>
+  <Card title="JordiAragonZaragoza.SharedKernel.Contracts" icon="file-contract">
+    **Cross-cutting abstraction interfaces (no implementations).**
+
+    Zero external NuGet dependencies — safe to reference from any layer.
+
+    | Key type | Purpose |
+    |---|---|
+    | `IEvent` | Marker for all event types |
+    | `IEventsContainer` | Aggregate event collection contract |
+    | `IBaseModel<TId>` | Root model identity contract |
+    | `IOptimisticLockable` | `Version` property for optimistic concurrency |
+    | `IRepository<T, TId>` | Generic repository abstraction |
+    | `IReadRepository<T, TId>` | Read-only repository abstraction |
+    | `ICachedSpecificationRepository<T, TId>` | Specification + cache repository |
+    | `IDateTime` | Abstraction over `DateTimeOffset.UtcNow` |
+  </Card>
+</CardGroup>
+
+---
+
+## Domain layer
+
+The Domain packages contain every DDD building block your model needs. `Domain.Contracts` holds pure interfaces; `Domain` provides concrete base classes.
+
+<CardGroup cols={2}>
+  <Card title="JordiAragonZaragoza.SharedKernel.Domain.Contracts" icon="shield">
+    **Pure domain interface contracts.**
+
+    No NuGet dependencies. Reference this from any project that needs to _declare_ domain types without pulling in implementations.
+
+    | Key type | Purpose |
+    |---|---|
+    | `IAggregateRoot<TId>` | Marks an entity as an aggregate root with event collection |
+    | `IEventSourcedAggregateRoot<TId>` | Extends `IAggregateRoot` for event-sourced aggregates |
+    | `IEntity<TId>` | Strongly typed entity identity contract |
+    | `IEntityId` / `IEntityId<TIdType>` | Value-object ID contract |
+    | `IDomainEvent` | Marker for domain events with `Id`, `AggregateId`, `DateOccurredOnUtc` |
+    | `IBusinessRule` | `Message` + `IsBroken()` for guard-clause validation |
+    | `IEventBus` | In-process domain-event dispatch contract |
+    | `IEventsDispatcherService` | Service contract for draining aggregate event queues |
+    | `IDomainService` | Marker for domain service classes |
+    | `IAggregateStore` | Repository contract for event-sourced aggregates |
+  </Card>
+  <Card title="JordiAragonZaragoza.SharedKernel.Domain" icon="cube">
+    **Concrete DDD building blocks.**
+
+    Depends on `SharedKernel`, `SharedKernel.Domain.Contracts`, `Ardalis.SmartEnum`, and `Microsoft.Extensions.Logging`.
+
+    | Key type | Purpose |
+    |---|---|
+    | `BaseAggregateRoot<TId>` | Aggregate root with `Apply()`, `When()`, `EnsureValidState()`, and event collection |
+    | `BaseEventSourcedAggregateRoot<TId>` | Event-sourced variant — state is fully rehydrated from events |
+    | `BaseEntity<TId>` | Entity base with structural equality and `CheckRule()` |
+    | `BaseValueObject` | Value object with `GetEqualityComponents()`, cached hash code, `==`/`!=` operators |
+    | `BaseEntityId<TIdType>` | Value-object ID with implicit conversion to the underlying primitive |
+    | `BaseAggregateRootId<TId>` | Specialisation of `BaseEntityId` for aggregate roots |
+    | `BaseDomainEvent(AggregateId)` | Abstract `record class` base for all domain events |
+    | `SmartEnum` | Re-exported Ardalis SmartEnum base for type-safe enumerations |
+    | `BusinessRuleValidationException` | Thrown by `CheckRule()` when a rule is broken |
+  </Card>
+</CardGroup>
+
+---
+
+## Application layer
+
+The Application packages wire CQRS abstractions, MediatR pipeline behaviors, integration-event contracts, and validation helpers. They sit between the domain and the infrastructure.
+
+<CardGroup cols={2}>
+  <Card title="JordiAragonZaragoza.SharedKernel.Application.Contracts" icon="arrows-split-up-and-left">
+    **CQRS and application service contracts.**
+
+    Depends on `MediatR.Contracts`, `Ardalis.Result`, and `SharedKernel.Domain.Contracts`.
+
+    | Key type | Purpose |
+    |---|---|
+    | `ICommand<TResponse>` | Transactional command that returns `Result<TResponse>` |
+    | `ICommand` | Void transactional command that returns `Result` |
+    | `ICommandHandler<TCommand, TResponse>` | MediatR handler for typed commands |
+    | `ICommandBus` | `SendAsync` overloads for dispatching commands |
+    | `IQuery<TResponse>` | Query that returns `Result<TResponse>` |
+    | `IQueryHandler<TQuery, TResponse>` | MediatR handler for queries |
+    | `IQueryBus` | `SendAsync` for dispatching queries |
+    | `IUnitOfWork` | `ExecuteInTransactionAsync` wraps an operation in a database transaction, committing or rolling back automatically |
+    | `ICacheService` | Get/set/remove cache abstraction |
+    | `ICacheRequest` / `IInvalidateCacheRequest` | Markers to opt a request into caching behavior |
+    | `IUserContextService` | Authenticated user identity and claims |
+    | `IIdGenerator` | Deterministic or random ID generation |
+    | `IPaginatedQuery` / `PaginatedCollectionOutputDto<T>` | Pagination contracts |
+    | `BaseReadModel` | Abstract record base class for read-model response DTOs, carrying `Id` and `Version` |
+  </Card>
+  <Card title="JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration" icon="plug">
+    **Cross-service integration messaging contracts.**
+
+    No external NuGet dependencies — safe to share between service boundaries.
+
+    | Key type | Purpose |
+    |---|---|
+    | `IIntegrationEvent` | Marker for events published across service boundaries |
+    | `IIntegrationCommand` | Cross-service command contract |
+    | `IIntegrationQuery` | Cross-service query contract |
+    | `IIntegrationEventBus` | Publish integration events |
+    | `IIntegrationCommandBus` | Send integration commands |
+    | `IIntegrationQueryBus` | Send integration queries |
+    | `IIntegrationMessage` | Common base for all integration message types |
+  </Card>
+</CardGroup>
+
+<CardGroup cols={2}>
+  <Card title="JordiAragonZaragoza.SharedKernel.Application" icon="gears">
+    **Pipeline behavior implementations and DI extensions.**
+
+    Depends on `SharedKernel.Application.Contracts`, `SharedKernel.Domain`, `FluentValidation`, `Ardalis.Result.FluentValidation`, and `Microsoft.Extensions.Logging`.
+
+    | Key type | Purpose |
+    |---|---|
+    | `RequestLoggerService` | Structured logging for every request |
+    | `RequestExceptionHandlerService` | Translates unhandled exceptions to `Result.Error` |
+    | `RequestUnitOfWorkService` | Wraps command handlers in a `SaveChangesAsync` transaction |
+    | `RequestAuthorizationService<,>` | Policy-based authorization check before handling |
+    | `RequestValidationService<,>` | FluentValidation execution; returns `Result.Invalid` on failure |
+    | `RequestCachingService` | Response caching for `ICacheRequest` queries |
+    | `RequestInvalidateCachingService` | Cache eviction for `IInvalidateCacheRequest` commands |
+    | `RequestPerformanceTrackingService` | Logs slow requests above a configurable threshold |
+    | `AddSharedKernelApplicationCommandBus()` | Registers all command-bus pipeline services |
+    | `AddSharedKernelApplicationQueryBus()` | Registers all query-bus pipeline services |
+  </Card>
+</CardGroup>
+
+---
+
+## Infrastructure layer
+
+Infrastructure packages contain concrete adapters: the MediatR bus, EF Core contexts and repositories, and the KurrentDB event store.
+
+<CardGroup cols={2}>
+  <Card title="JordiAragonZaragoza.SharedKernel.Infrastructure" icon="server">
+    **MediatR bus wires, caching, context services, and DI helpers.**
+
+    Depends on `SharedKernel`, `SharedKernel.Application`, `SharedKernel.Domain`, `MassTransit`, `MassTransit.RabbitMQ`, `Ardalis.Result`, `FluentValidation`, and `Microsoft.Extensions.Options`.
+
+    | Key type | Purpose |
+    |---|---|
+    | `CommandBus` | `ICommandBus` implementation via MediatR |
+    | `QueryBus` | `IQueryBus` implementation via MediatR |
+    | `InMemoryEventBus` | `IEventBus` implementation for in-process domain-event dispatch |
+    | `CacheService` | `ICacheService` implementation using `IMemoryCache` / `IDistributedCache` |
+    | `DateTimeService` | `IDateTime` implementation wrapping `DateTimeOffset.UtcNow` |
+    | `IdGeneratorService` | `IIdGenerator` backed by `Guid.NewGuid()` |
+    | `UserContextService` | `IUserContextService` reading from `IHttpContextAccessor` claims |
+    | `PartitionContextService` | Multi-tenant partition resolution |
+    | `IdentityService` | `IIdentityService` implementation |
+    | `AddSharedKernelInfrastructure()` | Registers all singleton/transient infrastructure services |
+    | `AddSharedKernelInfrastructureCommandBus()` | Registers MediatR pipeline + `ICommandBus` |
+    | `AddSharedKernelInfrastructureQueryBus()` | Registers MediatR pipeline + `IQueryBus` |
+    | `AddSharedKernelInfrastructureProjections()` | Registers projection event bus |
+  </Card>
+  <Card title="JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework" icon="table">
+    **EF Core base contexts and Ardalis Specification repositories.**
+
+    Depends on `Ardalis.Specification.EntityFrameworkCore`, `Ardalis.SmartEnum.EFCore`, and `Microsoft.EntityFrameworkCore`.
+
+    | Key type | Purpose |
+    |---|---|
+    | `BaseContext` | Base `DbContext` that configures logging, sensitive-data logging, and Ardalis SmartEnum EF Core conventions |
+    | `BaseBusinessModelContext` | Specialised context for the write (business model) side |
+    | `BaseReadModelContext` | Specialised context for the read-model / projections side |
+    | `BaseProjectionsStore` | EF Core store for projection read models |
+    | `BaseRepository<T, TId>` | Full read/write repository implementing Ardalis `IRepository` |
+    | `BaseReadRepository<T, TId>` | Read-only repository implementing Ardalis `IReadRepository` |
+    | `BaseCachedSpecificationRepository<T, TId>` | Caching wrapper for specification-based queries |
+    | `BaseAggregateRootTypeConfiguration<T, TId>` | EF Core `IEntityTypeConfiguration` base for aggregate roots |
+    | `SoftDeleteEntitySaveChangesInterceptor` | Intercepts `SaveChanges` to set `DeletedAt` instead of deleting rows |
+  </Card>
+</CardGroup>
+
+<CardGroup cols={2}>
+  <Card title="JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore" icon="timeline">
+    **KurrentDB (formerly EventStoreDB) event-sourcing integration.**
+
+    Depends on `KurrentDB.Client` and `Newtonsoft.Json`.
+
+    | Key type | Purpose |
+    |---|---|
+    | `IEventStore` | Append and load event streams |
+    | `KurrentDbEventStore` | `IEventStore` implementation backed by KurrentDB |
+    | `KurrentDbOptions` | Connection and serialization configuration |
+    | `StreamNameMapper` | Converts aggregate type + ID to a stream name string |
+    | `EventTypeMapper` | Bidirectional mapping between CLR event types and stream event-type names |
+    | `BaseRepository<T, TId>` | Event-sourced aggregate repository using `IEventStore` |
+    | `KurrentDbAllStreamSubscription` | Catch-up subscription worker for all-stream projections |
+    | `AllStreamSubscriptionBackgroundWorker` | `IHostedService` wrapper for persistent catch-up subscriptions |
+  </Card>
+</CardGroup>
+
+---
+
+## Presentation layer
+
+Presentation packages add HTTP and messaging surface to your application. They depend on the Application contracts but remain ignorant of Infrastructure internals.
+
+<CardGroup cols={2}>
+  <Card title="JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi" icon="globe">
+    **ASP.NET Core controllers, middleware, and response helpers.**
+
+    Depends on `FastEndpoints`, `Ardalis.Result`, `SharedKernel.Application.Contracts`, and `SharedKernel.Infrastructure`.
+
+    | Key type | Purpose |
+    |---|---|
+    | `BaseApiCommandController` | `ControllerBase` subclass pre-wired with `ICommandBus` |
+    | `BaseApiQueryController` | `ControllerBase` subclass pre-wired with `IQueryBus` |
+    | `ExceptionMiddleware` | Converts unhandled exceptions to ProblemDetails JSON responses |
+    | `UserContextMiddleware` | Populates `IUserContextService` from the JWT bearer token |
+    | `PartitionContextMiddleware` | Populates `IPartitionContextService` from request headers or claims |
+    | `ResponseBuilderHelper` | Maps `Result<T>` to typed `ActionResult<T>` with correct HTTP status codes |
+    | `ResultExtensions` | Extension methods for translating `Result` to `IResult` (minimal APIs) |
+  </Card>
+  <Card title="JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts" icon="file-code">
+    **HTTP presentation contracts shared between service and client.**
+
+    Minimal dependencies — safe to reference from API client projects.
+
+    | Key type | Purpose |
+    |---|---|
+    | Request/response DTOs | Shared contract types for HTTP endpoints |
+    | Pagination contracts | `PaginatedRequest` and related types for consistent pagination |
+  </Card>
+</CardGroup>
+
+<CardGroup cols={2}>
+  <Card title="JordiAragonZaragoza.SharedKernel.Presentation.Integration" icon="envelopes-bulk">
+    **MassTransit integration event bus producers and consumers.**
+
+    Depends on `MassTransit`, `MassTransit.RabbitMQ`, and `SharedKernel.Application.Contracts.Integration`.
+
+    | Key type | Purpose |
+    |---|---|
+    | `IntegrationEventBus` | `IIntegrationEventBus` implementation publishing via MassTransit |
+    | Integration consumers | Base consumer wiring for receiving integration events |
+    | Integration producers | Helpers for publishing integration events to the message broker |
+  </Card>
+  <Card title="JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts" icon="code-merge">
+    **Integration presentation contracts.**
+
+    No infrastructure dependencies — safe to reference from any service that needs to describe integration message shapes.
+
+    | Key type | Purpose |
+    |---|---|
+    | `IIntegrationEventHandler<T>` | Consumer handler contract for integration events |
+    | Integration message base types | Shared record bases for versioned integration messages |
+  </Card>
+</CardGroup>
