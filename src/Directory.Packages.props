@@ -11,7 +11,7 @@
     <PackageVersion Include="Ardalis.SmartEnum" Version="8.2.0" />
     <PackageVersion Include="Ardalis.SmartEnum.EFCore" Version="8.2.0" />
     <PackageVersion Include="KurrentDB.Client" Version="1.4.0" />
-    <PackageVersion Include="FastEndpoints" Version="8.1.0" />
+    <PackageVersion Include="FastEndpoints" Version="8.2.0" />
     <PackageVersion Include="FluentValidation" Version="12.1.1" />
     <!-- Do not update to MassTransit 9 without licence -->
     <PackageVersion Include="MassTransit" Version="8.5.10" />

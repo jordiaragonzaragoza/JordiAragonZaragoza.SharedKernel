@@ -11,6 +11,11 @@ namespace JordiAragonZaragoza.SharedKernel.Helpers
             "Security",
             "CA5350:Do Not Use Weak Cryptographic Algorithms",
             Justification = "SHA-1 is required by RFC 4122 §4.3 for UUID v5 generation. This is not a cryptographic use.")]
+        [SuppressMessage(
+            "Critical Vulnerability",
+            "S4790:Weak hashing algorithms should not be used",
+            Justification = "SHA-1 is required by RFC 4122 §4.3 for UUID v5 generation. This is not a cryptographic use.")]
+
         public static Guid CreateDeterministicGuid(Guid namespaceId, string name)
         {
             ArgumentNullException.ThrowIfNull(name);
