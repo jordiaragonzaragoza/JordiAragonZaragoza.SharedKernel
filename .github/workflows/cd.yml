@@ -2,33 +2,50 @@ name: Publish JordiAragonZaragoza.SharedKernel to Nuget.org
 
 on:
   push:
-    branches: [ release ]
     tags:
-    - 'v*'  
+      - 'v*'
 jobs:
   build:
-
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+
+    - name: Verify tag is on release branch
+      id: verify-release
+      shell: bash
+      run: |
+        git fetch origin release --depth=1
+        if git merge-base --is-ancestor "${GITHUB_SHA}" origin/release; then
+          echo "should_publish=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "should_publish=false" >> "$GITHUB_OUTPUT"
+          echo "Tag is not on the release branch. Skipping deployment."
+        fi
     
     - name: Setup .NET Core
+      if: steps.verify-release.outputs.should_publish == 'true'
       uses: actions/setup-dotnet@v3
       with:
           dotnet-version: '10.x'
 
     - name: Install dependencies
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: dotnet restore
 
     - name: Build
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: dotnet build --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --no-restore
 
     - name: Get version
+      if: steps.verify-release.outputs.should_publish == 'true'
       id: version
       uses: battila7/get-version-action@v2.2.1
 
     - name: Publish JordiAragonZaragoza.SharedKernel to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel/JordiAragonZaragoza.SharedKernel.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget

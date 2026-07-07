@@ -6,11 +6,12 @@
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Bus;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Bus.MediatR;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Cache;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.Context.Partition;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.Context.User;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.Context;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.Contracts;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.DateTime;
-    using JordiAragonZaragoza.SharedKernel.Infrastructure.Identity;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.IdGenerator;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.Security;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.ServiceIdentity;
     using Microsoft.Extensions.DependencyInjection;
 
     public static class InfrastructureDependencyInjection
@@ -20,10 +21,18 @@
         {
             services.AddSingleton<IDateTime, DateTimeService>();
             services.AddSingleton<IIdGenerator, IdGeneratorService>();
-            services.AddSingleton<IPartitionContextService, PartitionContextService>();
-            services.AddSingleton<IUserContextService, UserContextService>();
+            services.AddSingleton<IExecutionContextService, ExecutionContextService>();
             services.AddTransient<ICacheService, CacheService>();
-            services.AddTransient<IIdentityService, IdentityService>();
+            services.AddHybridCache();
+
+            services.AddOptions<ServiceIdentityOptions>()
+                .BindConfiguration(ServiceIdentityOptions.Section)
+                .ValidateDataAnnotations()
+                .ValidateOnStart();
+
+            services.AddTransient<IServiceIdentityProvider, ServiceIdentityProvider>();
+
+            services.AddScoped<IPolicyEnforcer, PolicyEnforcer>();
 
             return services;
         }
@@ -50,6 +59,17 @@
             this IServiceCollection services)
         {
             services.AddMediatRRegistrationsProjectionBus();
+            services.AddTransient<IEventBus, InMemoryEventBus>();
+
+            return services;
+        }
+
+        public static IServiceCollection AddSharedKernelInfrastructureReactorBus(
+            this IServiceCollection services)
+        {
+            services.AddMediatRRegistrationsCommandBus();
+
+            services.AddTransient<ICommandBus, CommandBus>();
             services.AddTransient<IEventBus, InMemoryEventBus>();
 
             return services;

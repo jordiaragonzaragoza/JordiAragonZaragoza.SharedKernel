@@ -22,7 +22,7 @@
     /// <typeparam name="TRequest">The command.</typeparam>
     /// <typeparam name="TResponse">The command response.</typeparam>
     public class DomainEventsDispatcherBehaviour<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
-        where TRequest : IRequest<TResponse>, ITransactionalCommand
+        where TRequest : IRequest<TResponse>, IBaseCommand
         where TResponse : IResult
     {
         private readonly IEventsDispatcherService domainEventsDispatcher;

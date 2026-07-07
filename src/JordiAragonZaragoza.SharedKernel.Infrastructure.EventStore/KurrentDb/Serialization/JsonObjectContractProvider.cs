@@ -18,10 +18,14 @@
             Type objectType,
             Func<ConstructorInfo, JsonPropertyCollection, IList<JsonProperty>> createConstructorParameters)
         {
-            return Constructors.GetOrAdd(objectType?.AssemblyQualifiedName!, _ =>
-            {
-                ArgumentNullException.ThrowIfNull(objectType, nameof(objectType));
+            ArgumentNullException.ThrowIfNull(objectType);
 
+            var assemblyQualifiedName = objectType.AssemblyQualifiedName
+                ?? throw new InvalidOperationException(
+                    $"Type '{objectType}' does not have an AssemblyQualifiedName.");
+
+            return Constructors.GetOrAdd(assemblyQualifiedName, _ =>
+            {
                 var nonDefaultConstructor = GetNonDefaultConstructor(objectType);
 
                 if (nonDefaultConstructor == null)
