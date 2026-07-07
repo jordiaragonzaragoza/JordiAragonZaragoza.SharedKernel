@@ -3,7 +3,11 @@
     using System;
     using System.Text;
     using global::KurrentDB.Client;
+    using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
+    using JordiAragonZaragoza.SharedKernel.Domain.Events;
+    using JordiAragonZaragoza.SharedKernel.Helpers;
+    using JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore;
     using Newtonsoft.Json;
 
     public static class SerializerHelper
@@ -11,29 +15,98 @@
         private static readonly JsonSerializerSettings SerializerSettings = new()
         {
             ContractResolver = new NonDefaultConstructorContractResolver(),
-            Converters = { new KurrentDbEventMetadataJsonConverter() },
+            MissingMemberHandling = MissingMemberHandling.Ignore,
+            NullValueHandling = NullValueHandling.Ignore,
         };
 
-        public static EventData Serialize(IDomainEvent @event, object? metadata = null)
+        public static EventData Serialize(IDomainEvent @event, ExecutionContext? executionContext)
         {
             ArgumentNullException.ThrowIfNull(@event);
 
+            var eventId = ResolveEventId(@event, executionContext);
+            if (@event is BaseDomainEvent baseDomainEvent && baseDomainEvent.Id != eventId)
+            {
+                @event = baseDomainEvent with { Id = eventId };
+            }
+
+            var metadata = executionContext is not null
+                ? EventStoreMetadata.From(executionContext, @event.DateOccurredOnUtc)
+                : null;
+
             return new EventData(
-                eventId: Uuid.FromGuid(@event.Id),
+                eventId: Uuid.FromGuid(eventId),
                 type: EventTypeMapper.Instance.ToName(@event.GetType()),
-                data: Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(@event, SerializerSettings)),
-                metadata: Encoding.UTF8.GetBytes(JsonConvert.SerializeObject(metadata ?? new { }, SerializerSettings)));
+                data: Encoding.UTF8.GetBytes(
+                    JsonConvert.SerializeObject(@event, SerializerSettings)),
+                metadata: Encoding.UTF8.GetBytes(
+                    JsonConvert.SerializeObject(metadata ?? (object)new { }, SerializerSettings)));
         }
 
-        public static IDomainEvent Deserialize(ResolvedEvent resolvedEvent)
+        public static (IDomainEvent Event, EventStoreMetadata? Metadata) Deserialize(
+            ResolvedEvent resolvedEvent)
         {
             var dataType = EventTypeMapper.Instance.ToType(resolvedEvent.Event.EventType);
 
             var data = Encoding.UTF8.GetString(resolvedEvent.Event.Data.Span);
             var domainEvent = JsonConvert.DeserializeObject(data, dataType, SerializerSettings)
-                ?? throw new InvalidOperationException($"Deserialization failed for event type '{resolvedEvent.Event.EventType}'.");
+                ?? throw new InvalidOperationException(
+                    $"Deserialization failed for event type '{resolvedEvent.Event.EventType}'.");
 
-            return (IDomainEvent)domainEvent;
+            var metadataJson = Encoding.UTF8.GetString(resolvedEvent.Event.Metadata.Span);
+            var eventMetadata = DeserializeMetadata(metadataJson);
+
+            if (domainEvent is BaseDomainEvent baseDomainEvent)
+            {
+                var canonicalId = resolvedEvent.Event.EventId.ToGuid();
+
+                domainEvent = eventMetadata is not null
+                    ? baseDomainEvent with { Id = canonicalId, DateOccurredOnUtc = eventMetadata.DateOccurredOnUtc }
+                    : baseDomainEvent with { Id = canonicalId };
+            }
+
+            return ((IDomainEvent)domainEvent, eventMetadata);
+        }
+
+        private static Guid ResolveEventId(IDomainEvent @event, ExecutionContext? executionContext)
+        {
+            // We only generate a deterministic ID for caused events (side effects).
+            // If causationId is null, the event comes from the user's direct intent
+            // and we use the original event ID (already assigned by the domain).
+            if (executionContext?.CausationId is not Guid causationId)
+            {
+                return @event.Id;
+            }
+
+            // Unique name = event type + causationId as namespace.
+            // This ensures that the same secondary event caused by the same cause
+            // always produces the same eventId → KurrentDB discards it if it already exists.
+            var name = @event.GetType().FullName
+                ?? throw new InvalidOperationException(
+                    $"Cannot determine FullName for event type '{@event.GetType()}'.");
+
+            return GuidHelper.CreateDeterministicGuid(causationId, name);
+        }
+
+        private static EventStoreMetadata? DeserializeMetadata(string metadataJson)
+        {
+            if (string.IsNullOrWhiteSpace(metadataJson) || metadataJson == "{}")
+            {
+                return null;
+            }
+
+            try
+            {
+                var metadata = JsonConvert.DeserializeObject<EventStoreMetadata>(
+                    metadataJson, SerializerSettings);
+
+                // If required fields are empty, it's either native KurrentDB/Aspire metadata ($traceId/$spanId)
+                // or a legacy event without context.
+                return metadata?.IsValid() == true ? metadata : null;
+            }
+            catch (JsonException)
+            {
+                return null;
+            }
         }
     }
 }

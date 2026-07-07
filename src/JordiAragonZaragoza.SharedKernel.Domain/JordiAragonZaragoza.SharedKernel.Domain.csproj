@@ -6,7 +6,6 @@
 		<AssemblyName>JordiAragonZaragoza.SharedKernel.Domain</AssemblyName>
 	</PropertyGroup>
 	<ItemGroup>
-		<PackageReference Include="Ardalis.SmartEnum" />
 		<PackageReference Include="Microsoft.Extensions.Logging" />
 	</ItemGroup>
 	<ItemGroup>

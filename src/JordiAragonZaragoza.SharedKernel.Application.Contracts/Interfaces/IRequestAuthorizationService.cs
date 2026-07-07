@@ -4,10 +4,9 @@
     using System.Threading.Tasks;
     using Ardalis.Result;
 
-    public interface IRequestAuthorizationService<TRequest, TResponse>
+    public interface IRequestAuthorizationService<TRequest>
         where TRequest : notnull
-        where TResponse : IResult
     {
-        Task<TResponse?> TryAuthorizeAsync(TRequest request, CancellationToken cancellationToken = default);
+        Task<Result> TryAuthorizeAsync(TRequest request, CancellationToken cancellationToken = default);
     }
 }

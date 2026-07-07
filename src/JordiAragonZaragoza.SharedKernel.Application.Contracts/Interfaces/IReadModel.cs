@@ -6,7 +6,7 @@
     /// <summary>
     /// Generic abstraction for a application read model.
     /// </summary>
-    public interface IReadModel : IBaseModel<Guid>
+    public interface IReadModel : IBaseModel<Guid>, IScopedReadModel
     {
     }
 }

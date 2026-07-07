@@ -1,39 +1,45 @@
 ﻿namespace JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Middlewares
 {
     using System;
+    using System.Linq;
     using Microsoft.AspNetCore.Http;
 
     public static class AnonymousRequestHelper
     {
-        public static bool IsAnonymousAllowed(HttpContext context)
+        // Paths that correspond to pure infrastructure.
+        // UseSwaggerUI is a classic middleware — it has no endpoint metadata,
+        // so detection must be done by path prefix.
+        private static readonly string[] InfrastructurePrefixes = new[]
+        {
+            "/swagger",
+            "/health",
+            "/metrics",
+            "/ready",
+            "/alive",
+            "/favicon.ico",
+        };
+
+        /// <summary>
+        /// True for pure infrastructure paths (swagger, health, metrics).
+        /// These are either classic middlewares without endpoint metadata
+        /// or endpoints explicitly marked with InfrastructureEndpointAttribute.
+        /// </summary>
+        /// <param name="context">The current HTTP context.</param>
+        /// <returns>True if the request is for an infrastructure endpoint; otherwise, false.</returns>
+        public static bool IsInfrastructureEndpoint(HttpContext context)
         {
             ArgumentNullException.ThrowIfNull(context);
 
-            var path = context.Request.Path.Value ?? string.Empty;
+            var path = context.Request.Path;
 
-            // Infrastructure (no authentication and no partition context)
-            if (path.StartsWith("/swagger", StringComparison.InvariantCulture) ||
-                path.StartsWith("/health", StringComparison.InvariantCulture) ||
-                path.StartsWith("/metrics", StringComparison.InvariantCulture))
+            if (InfrastructurePrefixes.Any(prefix => path.StartsWithSegments(prefix, StringComparison.OrdinalIgnoreCase)))
             {
                 return true;
             }
 
-            // TODO: REMOVE! TEMPORAL TILL AUTH IS IMPLEMENTED
-            if (path.Equals("/api/v1/auditoriums", StringComparison.OrdinalIgnoreCase) ||
-                path.StartsWith("/api/v1/auditoriums", StringComparison.OrdinalIgnoreCase) ||
-                path.Equals("/api/v2/auditoriums", StringComparison.OrdinalIgnoreCase) ||
-                path.Equals("/api/v1/movies", StringComparison.OrdinalIgnoreCase) ||
-                path.Equals("/api/v2/movies", StringComparison.OrdinalIgnoreCase) ||
-                path.Equals("/api/v2/showtimes", StringComparison.OrdinalIgnoreCase) ||
-                path.StartsWith("/api/v2/showtimes/", StringComparison.OrdinalIgnoreCase) ||
-                path.Equals("/api/v2/users", StringComparison.OrdinalIgnoreCase) ||
-                path.StartsWith("/api/v2/users/", StringComparison.OrdinalIgnoreCase))
-            {
-                return true;
-            }
-
-            return false;
+            return context.GetEndpoint()
+                ?.Metadata
+                .GetMetadata<InfrastructureEndpointAttribute>() is not null;
         }
     }
 }

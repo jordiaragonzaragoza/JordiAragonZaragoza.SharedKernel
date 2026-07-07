@@ -29,7 +29,12 @@
                 return;
             }
 
-            var events = eventables.SelectMany(static x => x.Events).Where(static e => !e.IsPublished).OrderBy(static e => e.DateOccurredOnUtc).ToList();
+            var events = eventables
+            .SelectMany(static x => x.Events)
+            .OfType<IInMemoryEvent>()
+            .Where(static e => !e.IsPublished)
+            .OrderBy(static e => e.DateOccurredOnUtc)
+            .ToList();
 
             // Filter to not include IEventSourcedAggregateRoot events.
             // This event notifications will come from event store subscription.

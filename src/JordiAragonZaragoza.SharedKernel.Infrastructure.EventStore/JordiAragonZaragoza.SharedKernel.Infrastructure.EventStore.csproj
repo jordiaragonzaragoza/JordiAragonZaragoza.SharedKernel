@@ -9,7 +9,6 @@
 		<PackageReference Include="KurrentDB.Client" />
 		<PackageReference Include="FluentValidation" />
 		<PackageReference Include="Newtonsoft.Json" />
-		<PackageReference Include="OpenTelemetry" />
 	</ItemGroup>
 	<ItemGroup>
 	  <ProjectReference Include="..\JordiAragonZaragoza.SharedKernel\JordiAragonZaragoza.SharedKernel.csproj" />

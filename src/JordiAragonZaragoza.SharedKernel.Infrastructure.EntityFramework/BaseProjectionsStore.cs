@@ -38,9 +38,7 @@
                         // Execute operation
                         var response = await operation();
 
-                        // Get Ardalis.Result.IsSuccess or Ardalis.Result<T>.IsSuccess
-                        var isSuccessResponse = typeof(TResponse).GetProperty("IsSuccess")?.GetValue(response, null) ?? false;
-                        if ((bool)isSuccessResponse)
+                        if (response.Status is ResultStatus.Ok or ResultStatus.NoContent or ResultStatus.Created)
                         {
                             await this.transaction.CommitAsync(ct);
                         }

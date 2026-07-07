@@ -31,7 +31,10 @@
 
             try
             {
-                @event.IsPublished = true;
+                if (@event is IInMemoryEvent inMemoryEvent)
+                {
+                    inMemoryEvent.IsPublished = true;
+                }
 
                 this.logger.LogDebug("Published in memory event {Event} {Id} at {DateTime}", @event.GetType().Name, @event.Id, this.dateTime.UtcNow);
 
@@ -39,7 +42,10 @@
             }
             catch (Exception exception)
             {
-                @event.IsPublished = false;
+                if (@event is IInMemoryEvent inMemoryEvent)
+                {
+                    inMemoryEvent.IsPublished = false;
+                }
 
                 this.logger.LogError(
                    exception,

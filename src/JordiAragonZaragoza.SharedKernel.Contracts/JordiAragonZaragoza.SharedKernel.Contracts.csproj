@@ -6,6 +6,7 @@
     <AssemblyName>JordiAragonZaragoza.SharedKernel.Contracts</AssemblyName>
   </PropertyGroup>
   <ItemGroup>
+      <PackageReference Include="Ardalis.SmartEnum" />
       <PackageReference Include="MediatR.Contracts" />
       <PackageReference Include="Ardalis.Specification" />
   </ItemGroup>

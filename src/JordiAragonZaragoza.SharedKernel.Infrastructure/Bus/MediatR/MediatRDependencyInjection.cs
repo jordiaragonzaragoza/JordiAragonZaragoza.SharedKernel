@@ -15,12 +15,11 @@
 
                 // Configure MediatR Pipeline
                 options.AddOpenRequestPreProcessor(typeof(LoggerBehaviour<>));
+                options.AddOpenBehavior(typeof(CommandActivityBehavior<,>));
                 options.AddOpenBehavior(typeof(ExceptionHandlerPipelineBehaviour<,>));
                 options.AddOpenBehavior(typeof(UnitOfWorkBehaviour<,>));
                 options.AddOpenBehavior(typeof(AuthorizationBehaviour<,>));
                 options.AddOpenBehavior(typeof(ValidationBehaviour<,>));
-                options.AddOpenBehavior(typeof(CachingBehavior<,>));
-                options.AddOpenBehavior(typeof(InvalidateCachingBehavior<,>));
                 options.AddOpenBehavior(typeof(PerformancePipelineBehaviour<,>));
             });
 
@@ -38,11 +37,10 @@
 
                 // Configure MediatR Pipeline
                 options.AddOpenRequestPreProcessor(typeof(LoggerBehaviour<>));
+                options.AddOpenBehavior(typeof(QueryActivityBehavior<,>));
                 options.AddOpenBehavior(typeof(ExceptionHandlerPipelineBehaviour<,>));
                 options.AddOpenBehavior(typeof(AuthorizationBehaviour<,>));
                 options.AddOpenBehavior(typeof(ValidationBehaviour<,>));
-                options.AddOpenBehavior(typeof(CachingBehavior<,>));
-                options.AddOpenBehavior(typeof(InvalidateCachingBehavior<,>));
                 options.AddOpenBehavior(typeof(PerformancePipelineBehaviour<,>));
             });
 

@@ -9,12 +9,11 @@
         public static IServiceCollection AddSharedKernelApplicationCommandBus(this IServiceCollection services)
         {
             services.AddTransient<IRequestLoggerService, RequestLoggerService>();
+            services.AddTransient(typeof(IRequestCommandActivityService<>), typeof(RequestCommandActivityService<>));
             services.AddTransient<IRequestExceptionHandlerService, RequestExceptionHandlerService>();
             services.AddTransient<IRequestUnitOfWorkService, RequestUnitOfWorkService>();
-            services.AddTransient(typeof(IRequestAuthorizationService<,>), typeof(RequestAuthorizationService<,>));
-            services.AddTransient(typeof(IRequestValidationService<,>), typeof(RequestValidationService<,>));
-            services.AddTransient<IRequestCachingService, RequestCachingService>();
-            services.AddTransient<IRequestInvalidateCachingService, RequestInvalidateCachingService>();
+            services.AddTransient(typeof(IRequestAuthorizationService<>), typeof(RequestAuthorizationService<>));
+            services.AddTransient(typeof(IRequestValidationService<>), typeof(RequestValidationService<>));
             services.AddTransient<IRequestPerformanceTrackingService, RequestPerformanceTrackingService>();
 
             return services;
@@ -23,11 +22,10 @@
         public static IServiceCollection AddSharedKernelApplicationQueryBus(this IServiceCollection services)
         {
             services.AddTransient<IRequestLoggerService, RequestLoggerService>();
+            services.AddTransient(typeof(IRequestQueryActivityService<>), typeof(RequestQueryActivityService<>));
             services.AddTransient<IRequestExceptionHandlerService, RequestExceptionHandlerService>();
-            services.AddTransient(typeof(IRequestAuthorizationService<,>), typeof(RequestAuthorizationService<,>));
-            services.AddTransient(typeof(IRequestValidationService<,>), typeof(RequestValidationService<,>));
-            services.AddTransient<IRequestCachingService, RequestCachingService>();
-            services.AddTransient<IRequestInvalidateCachingService, RequestInvalidateCachingService>();
+            services.AddTransient(typeof(IRequestAuthorizationService<>), typeof(RequestAuthorizationService<>));
+            services.AddTransient(typeof(IRequestValidationService<>), typeof(RequestValidationService<>));
             services.AddTransient<IRequestPerformanceTrackingService, RequestPerformanceTrackingService>();
 
             return services;

@@ -4,5 +4,89 @@
         <name>JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework</name>
     </assembly>
     <members>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Repositories.ReadModel.BaseCachedSpecificationRepository`1.CacheKey">
+            <summary>
+            Gets the base prefix for all cache entries of this read model type.
+            Uses the short type name (no namespace) so that renaming or moving
+            namespaces does not leave orphaned entries in the distributed cache.
+            All per-parameter keys are registered under this prefix so that a
+            single RemoveByPrefixAsync call invalidates every cached variant.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Repositories.ReadModel.BaseCachedSpecificationRepository`1.UpdateAsync(`0,System.Threading.CancellationToken)">
+            <summary>
+            Updates the read model in the database.
+            Cache is invalidated before the write so concurrent reads go to the DB
+            and get fresh data once the write completes.
+            The entity is reloaded from the DB with tracking active before saving
+            because the DbContext is configured globally with NoTracking, and the
+            incoming entity may have come from cache (detached). Without reloading,
+            EF cannot obtain the correct PostgreSQL xmin concurrency token and the
+            UPDATE fails with DbUpdateConcurrencyException (0 rows affected).
+            Trade-off: this costs an extra roundtrip per update. Acceptable given
+            the read-heavy nature of read models and the NoTracking design choice.
+            </summary>
+            <param name="entity">The read model entity to update. Must have a valid Id and match an existing DB record.</param>
+            <param name="cancellationToken">Cancellation token.</param>
+            <returns>Number of records updated (1 if successful).</returns>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Repositories.ReadModel.BaseCachedSpecificationRepository`1.OwnedKeysMatch(System.Object,System.Object,System.Collections.Generic.IReadOnlyList{Microsoft.EntityFrameworkCore.Metadata.IProperty})">
+            <summary>
+            Returns true when <paramref name="source"/> and <paramref name="destination"/>
+            share identical values for all <paramref name="keyProperties"/>.
+            Uses reflection because owned items are not tracked at this point and their
+            CLR property values are the only reliable source of identity.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Repositories.ReadModel.BaseCachedSpecificationRepository`1.ResolveCacheKey(Ardalis.Specification.ISpecification{`0})">
+            <summary>
+            Resolves the final cache key for a specification.
+            Always prefixed with the read model type name so that
+            RemoveByPrefixAsync(this.CacheKey) correctly invalidates all entries.
+            <para>
+            If the specification has CacheEnabled (i.e. WithCacheKey was called),
+            its parameter-aware CacheKey is used — safe for parameterized specs.
+            Otherwise falls back to the specification's short type name, which is
+            only correct for parameterless specifications that always return the
+            same result set. Parameterized specs without WithCacheKey will collide.
+            </para>
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Repositories.ReadModel.BaseCachedSpecificationRepository`1.ResolveCacheKey``1(Ardalis.Specification.ISpecification{`0,``0})">
+            <summary>
+            Overload for projected specifications. Both ISpecification&lt;T, TResult&gt;
+            and ISpecification&lt;T&gt; share the same CacheKey/CacheEnabled contract
+            via the base Specification&lt;T&gt; class, so the logic is identical.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Repositories.ReadModel.BaseCachedSpecificationRepository`1.GetEntityId(`0)">
+            <summary>
+            Extracts the primary key value from the entity using EF Core metadata.
+            Avoids hardcoding a property name so the method works for any TReadModel.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.Repositories.ReadModel.BaseCachedSpecificationRepository`1.ApplyOwnedCollectionChanges(`0,`0)">
+            <summary>
+            Reconciles owned collection navigations between the tracked DB entity
+            (<paramref name="destination"/>) and the incoming detached entity
+            (<paramref name="source"/>).
+            <para>
+            Items present only in <paramref name="source"/> are marked Added.
+            Items present only in <paramref name="destination"/> are marked Deleted.
+            Items present in both are left untouched (scalar values are already
+            covered by SetValues on the parent entry).
+            </para>
+            <para>
+            Collection detection uses the FK metadata (non-unique ownership FK) instead
+            of INavigationBase.IsCollection to avoid MissingMethodException on EF Core
+            builds where that property is not available.
+            </para>
+            <para>
+            Identity matching uses reflection on the CLR properties corresponding to
+            the owned entity's configured primary key. Reflection is limited to write
+            operations and is not on the read hot path.
+            </para>
+            </summary>
+        </member>
     </members>
 </doc>

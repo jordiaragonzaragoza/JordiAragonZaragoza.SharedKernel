@@ -11,9 +11,9 @@
          where TRequest : IRequest<TResponse>
          where TResponse : IResult
     {
-        private readonly IRequestValidationService<TRequest, TResponse> validationHandlerService;
+        private readonly IRequestValidationService<TRequest> validationHandlerService;
 
-        public ValidationBehaviour(IRequestValidationService<TRequest, TResponse> validationHandlerService)
+        public ValidationBehaviour(IRequestValidationService<TRequest> validationHandlerService)
         {
             this.validationHandlerService = validationHandlerService ?? throw new ArgumentNullException(nameof(validationHandlerService));
         }
@@ -23,9 +23,9 @@
             ArgumentNullException.ThrowIfNull(next);
 
             var validationResult = await this.validationHandlerService.TryValidateAsync(request, cancellationToken);
-            if (validationResult is not null)
+            if (!validationResult.IsSuccess)
             {
-                return validationResult;
+                return ResultFactoryHelper.CreateInvalid<TResponse>(validationResult.ValidationErrors);
             }
 
             return await next(cancellationToken);

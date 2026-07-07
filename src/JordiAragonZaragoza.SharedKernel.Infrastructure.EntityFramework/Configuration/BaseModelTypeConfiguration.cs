@@ -11,7 +11,7 @@
     {
         public virtual void Configure(EntityTypeBuilder<TModel> builder)
         {
-            ArgumentNullException.ThrowIfNull(builder, nameof(builder));
+            ArgumentNullException.ThrowIfNull(builder);
 
             _ = builder.HasKey(static x => x.Id);
         }

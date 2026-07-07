@@ -6,6 +6,11 @@
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using Microsoft.Extensions.Logging;
 
+    /// <summary>
+    /// ⚠️ Warning:. DO NOT USE WHEN USING EVENT SOURCING, AS IT CAN CAUSE INCONSISTENCIES.
+    /// This service is intended to be used in the command and query pipelines, but not when using projections in an event bus pipeline.
+    /// Implements the request caching service that handles caching logic for requests implementing the ICacheRequest interface.
+    /// </summary>
     public class RequestCachingService : IRequestCachingService
     {
         private readonly ICacheService cacheService;
