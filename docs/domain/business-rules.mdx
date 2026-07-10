@@ -1,0 +1,259 @@
+---
+title: "Business Rules and Validation in SharedKernel"
+sidebarTitle: "Business Rules"
+description: "Enforce domain invariants with IBusinessRule and BusinessRuleValidationException. Keeps validation logic inside the domain model where it belongs."
+---
+
+Domain invariants are conditions that must always hold true for an entity or value object to be in a valid state. Placing this validation inside the domain layer — rather than in application services, controllers, or validators — means the domain model is self-protecting: it is impossible to construct or mutate an aggregate into an illegal state, regardless of where the call originates. SharedKernel provides `IBusinessRule`, `BusinessRuleValidationException`, and the `CheckRule` static helper to make this pattern concise and consistent.
+
+## IBusinessRule
+
+Every business rule is a class that implements `IBusinessRule`:
+
+```csharp
+public interface IBusinessRule
+{
+    string Message { get; }
+
+    bool IsBroken();
+}
+```
+
+| Member | Purpose |
+|---|---|
+| `Message` | Human-readable description of the invariant, surfaced in the exception message when the rule is broken. |
+| `IsBroken()` | Returns `true` when the invariant is violated. Return `false` to indicate the rule is satisfied. |
+
+---
+
+## BusinessRuleValidationException
+
+When a rule is broken, `CheckRule` throws `BusinessRuleValidationException`, which wraps the offending rule:
+
+```csharp
+public class BusinessRuleValidationException : Exception
+{
+    public BusinessRuleValidationException(IBusinessRule brokenRule);
+
+    public IBusinessRule BrokenRule { get; }
+
+    public override string ToString()
+        => $"{this.BrokenRule.GetType().FullName}: {this.BrokenRule.Message}";
+}
+```
+
+The exception message is taken directly from `brokenRule.Message`. `BrokenRule` is available on the exception so that handlers (e.g. an exception middleware) can inspect which rule was violated and produce a structured error response.
+
+---
+
+## CheckRule — the guard helper
+
+`CheckRule` is a static helper present on `BaseEntity<TId>`, `BaseValueObject`, and `BaseDomainService`:
+
+```csharp
+protected static void CheckRule(IBusinessRule rule)
+{
+    ArgumentNullException.ThrowIfNull(rule);
+
+    if (rule.IsBroken())
+    {
+        throw new BusinessRuleValidationException(rule);
+    }
+}
+```
+
+Call it at the top of any factory method or mutating operation before applying any changes. Because it is `protected static`, it is available in every concrete aggregate, entity, value object, and domain service without needing to inject anything.
+
+---
+
+## Full example
+
+### Implementing IBusinessRule
+
+```csharp
+// Rule: an order must have at least one item before it can be placed.
+public sealed class OrderMustHaveAtLeastOneItemRule : IBusinessRule
+{
+    private readonly int itemCount;
+
+    public OrderMustHaveAtLeastOneItemRule(int itemCount)
+        => this.itemCount = itemCount;
+
+    public string Message => "An order must contain at least one item.";
+
+    public bool IsBroken() => this.itemCount < 1;
+}
+```
+
+### Calling CheckRule inside an aggregate
+
+```csharp
+public sealed class Order : BaseAggregateRoot<OrderId, Guid>
+{
+    private readonly List<OrderItem> items = [];
+
+    private Order(OrderId id) : base(id) { }
+    private Order() { }
+
+    public IReadOnlyList<OrderItem> Items => this.items.AsReadOnly();
+
+    public static Order Create(OrderId id)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        return new Order(id);
+    }
+
+    public void AddItem(ProductId productId, int quantity, Money unitPrice)
+    {
+        // Rule enforced before any state change
+        CheckRule(new QuantityMustBeGreaterThanZeroRule(quantity));
+
+        this.Apply(new OrderItemAddedEvent(this.Id.Value, productId.Value, quantity));
+    }
+
+    public void Place()
+    {
+        // Composite guard: multiple rules can be checked in sequence
+        CheckRule(new OrderMustHaveAtLeastOneItemRule(this.items.Count));
+        CheckRule(new OrderMustNotAlreadyBePlacedRule(this.IsPlaced));
+
+        this.Apply(new OrderPlacedEvent(this.Id.Value, DateTimeOffset.UtcNow));
+    }
+
+    // ... When / EnsureValidState omitted for brevity
+}
+```
+
+### Calling CheckRule inside a value object
+
+```csharp
+public sealed class Money : BaseValueObject
+{
+    public Money(decimal amount, string currency)
+    {
+        CheckRule(new AmountMustBePositiveRule(amount));
+        CheckRule(new CurrencyMustBeValidIsoCodeRule(currency));
+
+        this.Amount   = amount;
+        this.Currency = currency;
+    }
+
+    public decimal Amount   { get; private init; }
+    public string  Currency { get; private init; } = string.Empty;
+
+    protected override IEnumerable<object> GetEqualityComponents()
+    {
+        yield return this.Amount;
+        yield return this.Currency;
+    }
+}
+```
+
+---
+
+## Domain Exceptions
+
+SharedKernel ships several domain exceptions beyond `BusinessRuleValidationException`. Each plays a distinct role:
+
+<Accordion title="BusinessRuleValidationException">
+**Thrown by:** `CheckRule(IBusinessRule rule)` on `BaseEntity`, `BaseValueObject`, or `BaseDomainService`.
+
+**When:** A domain invariant expressed as an `IBusinessRule` is violated — for example, placing an order with no items.
+
+```csharp
+public class BusinessRuleValidationException : Exception
+{
+    public BusinessRuleValidationException(IBusinessRule brokenRule);
+    public IBusinessRule BrokenRule { get; }
+}
+```
+
+Catch this in application-layer exception handlers to translate it into a `400 Bad Request` or a validation error response.
+</Accordion>
+
+<Accordion title="NotFoundException">
+**Thrown by:** Repository or application-service logic when an entity cannot be located by its ID.
+
+**When:** A required aggregate or read-model record is missing from the data store.
+
+```csharp
+public class NotFoundException : Exception
+{
+    public NotFoundException();
+    public NotFoundException(string message);
+    public NotFoundException(string name, object key);   // e.g. new NotFoundException("Order", orderId)
+    public NotFoundException(string message, Exception innerException);
+}
+```
+
+The `(name, key)` overload produces the message `"{name}: {key} not found."`. Map this to a `404 Not Found` in your exception middleware.
+</Accordion>
+
+<Accordion title="InvalidAggregateStateException&lt;TAggregate, TId&gt;">
+**Thrown by:** `EnsureValidState()` inside an aggregate when a state transition would leave the aggregate in an inconsistent state.
+
+**When:** The post-event state of the aggregate fails an invariant that cannot be expressed as a simple pre-condition (e.g. cross-field constraints that only make sense after the event is applied).
+
+```csharp
+public sealed class InvalidAggregateStateException<TAggregate, TId> : Exception
+    where TAggregate : class, IAggregateRoot<TId>
+    where TId : class, IEntityId
+{
+    public InvalidAggregateStateException();
+    public InvalidAggregateStateException(string message);
+    public InvalidAggregateStateException(string message, Exception innerException);
+
+    // Convenience — produces "Aggregate {name} - {id} state change rejected. {message}"
+    public InvalidAggregateStateException(TAggregate aggregate, string? message = null);
+}
+```
+
+Usage inside `EnsureValidState`:
+
+```csharp
+protected override void EnsureValidState()
+{
+    if (this.IsShipped && this.ShippedAtUtc is null)
+    {
+        throw new InvalidAggregateStateException<Order, OrderId>(
+            this, "ShippedAtUtc must be set when IsShipped is true.");
+    }
+}
+```
+</Accordion>
+
+<Accordion title="EventCannotBeAppliedToAggregateException&lt;TAggregate, TId&gt;">
+**Thrown by:** The `default` case inside a `When` switch when an unrecognised event arrives.
+
+**When:** An event type is dispatched to an aggregate that has no handler for it — typically a sign of a configuration error or a mismatch between aggregate and event-store stream.
+
+```csharp
+public sealed class EventCannotBeAppliedToAggregateException<TAggregate, TId> : Exception
+    where TAggregate : class, IAggregateRoot<TId>
+    where TId : class, IEntityId
+{
+    public EventCannotBeAppliedToAggregateException();
+    public EventCannotBeAppliedToAggregateException(string message);
+    public EventCannotBeAppliedToAggregateException(string message, Exception innerException);
+
+    // Convenience — produces "Domain Event {eventName} - {eventId} can not be applied
+    //                          to current aggregate {aggregateName} - {aggregateId}"
+    public EventCannotBeAppliedToAggregateException(TAggregate aggregate, IDomainEvent domainEvent);
+}
+```
+
+Usage inside a `When` switch:
+
+```csharp
+protected override void When(IDomainEvent domainEvent)
+{
+    switch (domainEvent)
+    {
+        case OrderCreatedEvent e: /* ... */ break;
+        case OrderShippedEvent e: /* ... */ break;
+        default:
+            throw new EventCannotBeAppliedToAggregateException<Order, OrderId>(this, domainEvent);
+    }
+}
+```
+</Accordion>
