@@ -1,0 +1,283 @@
+---
+title: "Integration Events, Commands, and Queries in SharedKernel"
+sidebarTitle: "Integration Events"
+description: "Publish and consume cross-service messages using IIntegrationEvent, IIntegrationEventBus, IIntegrationCommandBus, and IIntegrationQueryBus in SharedKernel."
+---
+
+In a distributed system built with Domain-Driven Design, two kinds of events exist side by side. **Domain events** are in-process notifications raised by aggregates and dispatched inside a single bounded context using MediatR's in-memory notification pipeline. **Integration events** cross those process boundaries — they are part of the *Published Language* that lets bounded contexts communicate without sharing a domain model. SharedKernel provides a thin, transport-agnostic abstraction for publishing and consuming integration messages, with a concrete MassTransit/RabbitMQ implementation available in the Presentation layer.
+
+---
+
+## Message Hierarchy
+
+All integration messages share a common identity and traceability contract through `IIntegrationMessage`:
+
+```csharp
+public interface IIntegrationMessage
+{
+    Guid Id { get; }
+    string UserId { get; }
+    DateTimeOffset DateOccurredOnUtc { get; }
+    DateTimeOffset? DateDispatchedOnUtc { get; set; }
+}
+```
+
+The three specialisations extend this base marker:
+
+<CardGroup cols={3}>
+  <Card title="IIntegrationEvent" icon="bolt">
+    Fire-and-forget notifications. Broadcast to any number of subscribers. The canonical integration message type — prefer this over commands or queries.
+  </Card>
+  <Card title="IIntegrationCommand" icon="arrow-right">
+    Directed intent sent to a single recipient. Use sparingly — cross-context commands introduce coupling.
+  </Card>
+  <Card title="IIntegrationQuery" icon="magnifying-glass">
+    Request/response across services. Returns data from a remote bounded context. Use sparingly for the same reasons.
+  </Card>
+</CardGroup>
+
+### `IIntegrationEvent`
+
+```csharp
+public interface IIntegrationEvent : IIntegrationMessage
+{
+}
+```
+
+### `IIntegrationCommand`
+
+```csharp
+/// <summary>
+/// Represents an integration command sent through a messaging system.
+/// ⚠️ A bounded context should not send commands to another bounded context
+/// to enforce state changes — prefer integration events.
+/// </summary>
+public interface IIntegrationCommand : IIntegrationMessage
+{
+}
+```
+
+### `IIntegrationQuery`
+
+```csharp
+/// <summary>
+/// Represents an integration query sent through a messaging system.
+/// ⚠️ A bounded context should not query another bounded context
+/// to enforce state changes — prefer integration events.
+/// </summary>
+public interface IIntegrationQuery : IIntegrationMessage
+{
+}
+```
+
+---
+
+## Publishing Side
+
+### `IIntegrationEventBus`
+
+Use `IIntegrationEventBus` to publish integration events from the application layer (typically from a domain-event handler):
+
+```csharp
+public interface IIntegrationEventBus
+{
+    Task PublishAsync<T>(T @event, CancellationToken cancellationToken = default)
+        where T : class, IIntegrationEvent;
+}
+```
+
+### `IIntegrationCommandBus`
+
+Send a directed command to another service when strictly necessary:
+
+```csharp
+public interface IIntegrationCommandBus
+{
+    Task<Result> SendAsync<TCommand>(TCommand command, CancellationToken cancellationToken = default)
+        where TCommand : class, IIntegrationCommand;
+
+    Task<Result<TResponse>> SendAsync<TCommand, TResponse>(TCommand command, CancellationToken cancellationToken = default)
+        where TCommand : class, IIntegrationCommand
+        where TResponse : notnull;
+}
+```
+
+### `IIntegrationQueryBus`
+
+Request data from another service:
+
+```csharp
+public interface IIntegrationQueryBus
+{
+    Task<Result<TResponse>> SendAsync<TQuery, TResponse>(TQuery query, CancellationToken cancellationToken = default)
+        where TQuery : class, IIntegrationQuery
+        where TResponse : notnull;
+}
+```
+
+<Note>
+The concrete implementations of `IIntegrationEventBus`, `IIntegrationCommandBus`, and `IIntegrationQueryBus` use **MassTransit over RabbitMQ** and are registered in the Presentation Integration layer. See the [Presentation — Integration Bus](/presentation/integration-bus) docs for setup and transport configuration.
+</Note>
+
+---
+
+## Defining Integration Events
+
+Declare integration events as immutable records implementing `IIntegrationEvent`:
+
+```csharp
+public sealed record OrderCreatedIntegrationEvent(
+    Guid Id,
+    string UserId,
+    DateTimeOffset DateOccurredOnUtc,
+    Guid OrderId,
+    Guid CustomerId,
+    decimal Total) : IIntegrationEvent
+{
+    public DateTimeOffset? DateDispatchedOnUtc { get; set; }
+}
+```
+
+<Tip>
+Keep integration events small and stable. They form the public contract between services — every property change is a potential breaking change for consumers. Prefer adding new event types over modifying existing ones.
+</Tip>
+
+---
+
+## Publishing an Integration Event
+
+Inject `IIntegrationEventBus` wherever you need to publish. The most common place is an application-layer domain-event handler:
+
+```csharp
+public sealed class OrderCreatedEventHandler
+    : BaseEventHandler<OrderCreatedEvent>
+{
+    private readonly IIntegrationEventBus _integrationEventBus;
+    private readonly IUserContextService _userContextService;
+
+    public OrderCreatedEventHandler(
+        IIntegrationEventBus integrationEventBus,
+        IUserContextService userContextService)
+    {
+        _integrationEventBus = integrationEventBus;
+        _userContextService = userContextService;
+    }
+
+    public override async Task HandleAsync(
+        OrderCreatedEvent @event,
+        CancellationToken cancellationToken)
+    {
+        var integrationEvent = new OrderCreatedIntegrationEvent(
+            Id: Guid.NewGuid(),
+            UserId: _userContextService.CurrentContext.UserId,
+            DateOccurredOnUtc: @event.DateOccurredOnUtc,
+            OrderId: @event.OrderId,
+            CustomerId: @event.CustomerId,
+            Total: @event.Total);
+
+        await _integrationEventBus.PublishAsync(integrationEvent, cancellationToken);
+    }
+}
+```
+
+`BaseEventHandler<TEvent>` implements `IInMemoryEventHandler<TEvent>` which in turn implements `INotificationHandler<TEvent>` from MediatR, so it participates in the standard in-process event dispatch.
+
+---
+
+## Consuming Integration Messages
+
+On the subscribing service, implement `IBaseIntegrationMessageHandler<TIntegrationMessage>` from the `Presentation.Integration.Contracts` package:
+
+```csharp
+public interface IBaseIntegrationMessageHandler<in TIntegrationMessage>
+    where TIntegrationMessage : IIntegrationMessage
+{
+    Task HandleAsync(TIntegrationMessage integrationMessage, CancellationToken cancellationToken);
+}
+```
+
+For integration **events**, use the more specific `IIntegrationEventHandler<TEvent>`:
+
+```csharp
+public interface IIntegrationEventHandler<in TEvent>
+    : IBaseIntegrationMessageHandler<TEvent>, IConsumer<TEvent>
+    where TEvent : class, IIntegrationEvent
+{
+}
+```
+
+**Example consumer in the Inventory service:**
+
+```csharp
+public sealed class OrderCreatedIntegrationEventHandler
+    : IIntegrationEventHandler<OrderCreatedIntegrationEvent>
+{
+    private readonly ICommandBus _commandBus;
+
+    public OrderCreatedIntegrationEventHandler(ICommandBus commandBus)
+        => _commandBus = commandBus;
+
+    public Task Consume(ConsumeContext<OrderCreatedIntegrationEvent> context)
+        => HandleAsync(context.Message, context.CancellationToken);
+
+    public async Task HandleAsync(
+        OrderCreatedIntegrationEvent integrationEvent,
+        CancellationToken cancellationToken)
+    {
+        var command = new ReserveStockCommand(
+            integrationEvent.OrderId,
+            integrationEvent.CustomerId);
+
+        await _commandBus.SendAsync(command, cancellationToken);
+    }
+}
+```
+
+For integration **commands**, use `IIntegrationCommandHandler<TCommand>`:
+
+```csharp
+public interface IIntegrationCommandHandler<in TCommand>
+    : IBaseIntegrationMessageHandler<TCommand>, IConsumer<TCommand>
+    where TCommand : class, IIntegrationCommand
+{
+}
+```
+
+<Note>
+`IIntegrationEventHandler` and `IIntegrationCommandHandler` both extend MassTransit's `IConsumer<T>`. Registration with the MassTransit bus is handled in the Presentation Integration layer. See [Presentation — Integration Bus](/presentation/integration-bus) for transport setup.
+</Note>
+
+---
+
+## Mapping Domain Events to Integration Events
+
+<Tip>
+The recommended pattern is to keep domain events internal and map them to integration events inside application-layer `BaseEventHandler<TEvent>` implementations. This keeps the domain model free of messaging infrastructure concerns and gives you full control over what data leaves the bounded context.
+</Tip>
+
+<Steps>
+  <Step title="Aggregate raises a domain event">
+    ```csharp
+    // Inside the Order aggregate
+    this.RaiseDomainEvent(new OrderCreatedEvent(this.Id, this.CustomerId, this.Total));
+    ```
+  </Step>
+  <Step title="Domain event is dispatched in-process by MediatR">
+    The infrastructure layer dispatches `OrderCreatedEvent` notifications after committing the unit of work.
+  </Step>
+  <Step title="Application-layer handler maps and publishes">
+    ```csharp
+    public sealed class OrderCreatedEventHandler
+        : BaseEventHandler<OrderCreatedEvent>
+    {
+        // ... (see full example above)
+        public override Task HandleAsync(OrderCreatedEvent @event, CancellationToken ct)
+            => _integrationEventBus.PublishAsync(
+                new OrderCreatedIntegrationEvent(...), ct);
+    }
+    ```
+  </Step>
+  <Step title="Integration event travels over the bus">
+    MassTransit serialises the event and delivers it to RabbitMQ. Any subscribed service receives and processes it independently.
+  </Step>
+</Steps>

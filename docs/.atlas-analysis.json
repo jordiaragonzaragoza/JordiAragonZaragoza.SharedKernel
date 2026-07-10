@@ -1,0 +1,116 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "SharedKernel",
+  "projectDescription": "A collection of .NET NuGet packages providing DDD and Clean Architecture building blocks — domain entities, value objects, CQRS pipelines, repository abstractions, Entity Framework and Event Store infrastructure, and RESTful API presentation helpers.",
+  "theme": "luma",
+  "primaryColor": "#044c84",
+  "lightColor": null,
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "packages"
+            ]
+          },
+          {
+            "group": "Domain Layer",
+            "pages": [
+              "domain/entities",
+              "domain/value-objects",
+              "domain/domain-events",
+              "domain/business-rules",
+              "domain/enums"
+            ]
+          },
+          {
+            "group": "Application Layer",
+            "pages": [
+              "application/cqrs",
+              "application/pipelines",
+              "application/integration-events"
+            ]
+          },
+          {
+            "group": "Infrastructure Layer",
+            "pages": [
+              "infrastructure/dependency-injection",
+              "infrastructure/entity-framework",
+              "infrastructure/event-store",
+              "infrastructure/caching"
+            ]
+          },
+          {
+            "group": "Presentation Layer",
+            "pages": [
+              "presentation/http-restful-api",
+              "presentation/integration-bus"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "DDD building blocks: BaseAggregateRoot, BaseEntity, BaseValueObject, BaseEntityId",
+    "Event Sourcing support via BaseEventSourcedAggregateRoot and KurrentDB integration",
+    "CQRS with ICommand, IQuery, ICommandBus, IQueryBus interfaces backed by MediatR",
+    "MediatR pipeline behaviors for validation, caching, authorization, logging, and unit of work",
+    "Entity Framework Core base repositories, DbContexts, and soft-delete interceptor",
+    "MassTransit-based integration event/command bus over RabbitMQ",
+    "RESTful API helpers: BaseApiCommandController, BaseApiQueryController, ExceptionMiddleware, ResponseBuilder",
+    "Business rule enforcement with IBusinessRule and BusinessRuleValidationException",
+    "SmartEnum base class wrapping Ardalis.SmartEnum",
+    "Partition and user context services for multi-tenant scenarios",
+    "Architecture tests enforcing Clean Architecture dependency rules"
+  ],
+  "publicApiSurface": [
+    "BaseAggregateRoot<TId>",
+    "BaseEventSourcedAggregateRoot<TId>",
+    "BaseEntity<TId>",
+    "BaseValueObject",
+    "BaseEntityId<TIdType>",
+    "BaseAggregateRootId<TId>",
+    "BaseDomainEvent",
+    "IBusinessRule",
+    "BusinessRuleValidationException",
+    "SmartEnum<TEnum>",
+    "ICommand / ICommand<TResult>",
+    "IQuery<TResult>",
+    "ICommandBus",
+    "IQueryBus",
+    "ICommandHandler / IQueryHandler",
+    "IIntegrationEvent / IIntegrationCommand / IIntegrationQuery",
+    "IIntegrationEventBus / IIntegrationCommandBus / IIntegrationQueryBus",
+    "ApplicationDependencyInjection.AddSharedKernelApplicationCommandBus()",
+    "ApplicationDependencyInjection.AddSharedKernelApplicationQueryBus()",
+    "InfrastructureDependencyInjection.AddSharedKernelInfrastructure()",
+    "InfrastructureDependencyInjection.AddSharedKernelInfrastructureCommandBus()",
+    "InfrastructureDependencyInjection.AddSharedKernelInfrastructureQueryBus()",
+    "InfrastructureDependencyInjection.AddSharedKernelInfrastructureProjections()",
+    "MassTransitDependencyInjection.AddSharedKernelPresentationIntegrationBusRegistrations()",
+    "BaseContext / BaseBusinessModelContext / BaseReadModelContext",
+    "BaseRepository<TAggregate, TId>",
+    "BaseReadRepository<TAggregate, TId>",
+    "BaseCachedSpecificationRepository",
+    "KurrentDbEventStore",
+    "IEventStore",
+    "StreamNameMapper",
+    "BaseApiCommandController",
+    "BaseApiQueryController",
+    "ExceptionMiddleware",
+    "ResponseBuilderHelper",
+    "ResultExtensions",
+    "BaseIntegrationEventHandler",
+    "ICacheService / CacheService",
+    "IIdGenerator / IdGeneratorService",
+    "IPartitionContextService",
+    "IUserContextService"
+  ]
+}
