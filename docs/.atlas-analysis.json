@@ -1,0 +1,125 @@
+{
+  "projectType": "sdk-library",
+  "projectName": "SharedKernel",
+  "projectDescription": "A collection of NuGet packages providing DDD and Clean Architecture building blocks for .NET applications, covering domain modeling, CQRS, event sourcing, infrastructure integrations, and HTTP REST API presentation layers.",
+  "theme": "luma",
+  "primaryColor": "#044c84",
+  "lightColor": null,
+  "darkColor": null,
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "packages"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/ddd-overview",
+              "concepts/clean-architecture",
+              "concepts/cqrs",
+              "concepts/event-sourcing"
+            ]
+          },
+          {
+            "group": "Domain Layer",
+            "pages": [
+              "domain/entities-aggregates",
+              "domain/value-objects",
+              "domain/domain-events",
+              "domain/business-rules"
+            ]
+          },
+          {
+            "group": "Application Layer",
+            "pages": [
+              "application/commands-queries",
+              "application/pipelines",
+              "application/caching",
+              "application/integration-events"
+            ]
+          },
+          {
+            "group": "Infrastructure",
+            "pages": [
+              "infrastructure/setup",
+              "infrastructure/entity-framework",
+              "infrastructure/event-store",
+              "infrastructure/messaging"
+            ]
+          },
+          {
+            "group": "Presentation",
+            "pages": [
+              "presentation/http-rest-api",
+              "presentation/integration-bus"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "keyFeatures": [
+    "Strongly-typed Entity and Aggregate Root base classes with built-in domain event support",
+    "Value Object base class with structural equality and comparison",
+    "Event-sourced aggregate roots via BaseEventSourcedAggregateRoot with replay from history",
+    "CQRS command and query buses backed by MediatR",
+    "Pre-built MediatR pipeline behaviors: validation, authorization, caching, logging, performance tracking, unit of work",
+    "Integration event and command buses using MassTransit over RabbitMQ",
+    "Entity Framework Core base repositories with auditing, soft-delete, and outbox pattern support",
+    "KurrentDB (EventStoreDB) integration for event-sourced aggregates with catch-up and persistent subscriptions",
+    "Hybrid cache service abstraction for transparent caching/invalidation in queries",
+    "HTTP REST API presentation helpers: BaseApiCommandController, BaseApiQueryController, ExceptionMiddleware, ProblemDetails response builder"
+  ],
+  "publicApiSurface": [
+    "BaseAggregateRoot<TId>",
+    "BaseAggregateRoot<TId, TIdType>",
+    "BaseEventSourcedAggregateRoot<TId>",
+    "BaseEntity<TId>",
+    "BaseValueObject",
+    "BaseEntityId<TIdType>",
+    "BaseAggregateRootId<TId>",
+    "BaseDomainEvent",
+    "BaseInMemoryDomainEvent",
+    "BaseDomainService",
+    "BusinessRuleValidationException",
+    "NotFoundException",
+    "ICommand / ICommand<TResult> / ICommandHandler<TCommand>",
+    "IQuery<TResult> / IQueryHandler<TQuery, TResult>",
+    "ICommandBus / IQueryBus",
+    "IIntegrationEvent / IIntegrationEventBus",
+    "IIntegrationCommand / IIntegrationCommandBus",
+    "IIntegrationQuery / IIntegrationQueryBus",
+    "ICacheRequest / IInvalidateCacheRequest",
+    "ICacheService",
+    "IUnitOfWork",
+    "IEventStore",
+    "IAggregateStore",
+    "AddSharedKernelDomain(IServiceCollection)",
+    "AddSharedKernelInfrastructure(IServiceCollection)",
+    "AddSharedKernelInfrastructureCommandBus(IServiceCollection)",
+    "AddSharedKernelInfrastructureQueryBus(IServiceCollection)",
+    "AddSharedKernelInfrastructureProjections(IServiceCollection)",
+    "AddSharedKernelApplicationCommandBus(IServiceCollection)",
+    "AddSharedKernelApplicationQueryBus(IServiceCollection)",
+    "AddSharedKernelInfrastructureKurrentDbBusiness(IServiceCollection)",
+    "AddSharedKernelInfrastructureKurrentDbAllStreamCatchUpSubscription(IServiceCollection)",
+    "AddSharedKernelInfrastructureKurrentDbAllStreamPersistentSubscription(IServiceCollection)",
+    "AddSharedKernelPresentationIntegrationBusRegistrations(IServiceCollection, string)",
+    "BaseApiCommandController",
+    "BaseApiQueryController",
+    "ExceptionMiddleware",
+    "ResponseBuilderHelper",
+    "BaseReadModel / BaseOwnedReadModel",
+    "BasePaginatedQueryValidator",
+    "PaginatedCollectionOutputDto / FileOutputDto",
+    "ServiceCollectionHelper.Remove<TService>(IServiceCollection)"
+  ]
+}

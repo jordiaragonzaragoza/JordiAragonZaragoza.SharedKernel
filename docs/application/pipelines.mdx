@@ -1,0 +1,201 @@
+---
+title: "Pipeline behaviors and execution order in SharedKernel"
+sidebarTitle: "Pipelines"
+description: "SharedKernel wires MediatR pipeline behaviors for logging, tracing, exception handling, authorization, validation, and performance tracking automatically."
+---
+
+Every command and query dispatched through `ICommandBus` or `IQueryBus` passes through an ordered chain of **MediatR pipeline behaviors** before reaching your handler. Think of these behaviors as middleware: each one wraps the next, so they execute in registration order on the way in and in reverse order on the way out. SharedKernel registers the full set for you when you call the DI extension methods — you only need to understand the order and what each stage does so you can write your handlers and validators correctly.
+
+<Note>
+  The command pipeline and the query pipeline share most behaviors but differ in two key places: commands get **UnitOfWork** wrapping and **CommandActivity** tracing, while queries get **QueryActivity** tracing and skip the UnitOfWork stage entirely. Caching and cache-invalidation behaviors activate only when a request implements `ICacheRequest` or `IInvalidateCacheRequest` respectively.
+</Note>
+
+---
+
+## Registration
+
+Call the following pairs of extension methods during application startup — one pair for the application-layer services and one pair for the infrastructure-layer MediatR registrations and bus implementations:
+
+```csharp
+// Program.cs / Startup.cs
+
+// Application layer
+builder.Services.AddSharedKernelApplicationCommandBus();
+builder.Services.AddSharedKernelApplicationQueryBus();
+
+// Infrastructure layer (registers MediatR + bus implementations)
+builder.Services.AddSharedKernelInfrastructureCommandBus();
+builder.Services.AddSharedKernelInfrastructureQueryBus();
+```
+
+The `AddSharedKernelInfrastructure()` call also registers `ICacheService` (backed by .NET HybridCache), `IPolicyEnforcer`, and other cross-cutting singletons required by the behaviors.
+
+---
+
+## Command pipeline execution order
+
+The command pipeline processes behaviors in this order:
+
+<Steps>
+  <Step title="LoggerBehaviour (pre-processor)">
+    Runs as a MediatR `IRequestPreProcessor` — it fires **before** any pipeline behavior. It serializes the request and writes it to the structured log. If the request implements `ISanitizableRequest`, it calls `GetSanitized()` first so sensitive fields are never written in plain text.
+  </Step>
+  <Step title="CommandActivityBehavior">
+    Opens an **OpenTelemetry activity** (span) named after the command type. The activity wraps all subsequent stages, so your traces capture the full command lifetime including validation, handler execution, and database commit.
+  </Step>
+  <Step title="ExceptionHandlerPipelineBehaviour">
+    Wraps all inner stages in a try/catch. Any unhandled exception thrown inside a handler or behavior is caught here and converted to a `Result.Error(...)` response — preventing raw exceptions from leaking to the caller.
+  </Step>
+  <Step title="UnitOfWorkBehaviour">
+    Calls `IUnitOfWork.ExecuteInTransactionAsync(...)`, which wraps the remaining pipeline in a database transaction. If the handler returns a successful result the transaction commits; on failure or exception it rolls back. This behavior applies **only to commands** (types that implement `IBaseCommand`).
+  </Step>
+  <Step title="AuthorizationBehaviour">
+    Reads `[Authorize]` attributes on the command class and calls `IAuthorizationService.AuthorizeAsync(...)` with the collected roles, permissions, and policy names. If authorization fails it returns `Result.Unauthorized()` or `Result.Forbidden()` immediately and the handler is never invoked.
+  </Step>
+  <Step title="ValidationBehaviour">
+    Resolves all `IValidator<TCommand>` instances registered in the DI container and runs them in parallel. If any validator produces failures, it returns `Result.Invalid(validationErrors)` and short-circuits — the handler is never reached. Errors are also logged at `Information` level.
+  </Step>
+  <Step title="PerformancePipelineBehaviour">
+    Wraps the handler call with a `Stopwatch`. If execution exceeds the configured threshold it logs a warning so you can identify slow operations in production.
+  </Step>
+  <Step title="Your command handler">
+    Your `ICommandHandler` implementation runs here, after all cross-cutting concerns have been applied.
+  </Step>
+</Steps>
+
+---
+
+## Query pipeline execution order
+
+The query pipeline is identical to the command pipeline except it uses `QueryActivityBehavior` instead of `CommandActivityBehavior` and **does not include `UnitOfWorkBehaviour`**:
+
+| Step | Behavior |
+|---|---|
+| 1 | `LoggerBehaviour` (pre-processor) |
+| 2 | `QueryActivityBehavior` |
+| 3 | `ExceptionHandlerPipelineBehaviour` |
+| 4 | `AuthorizationBehaviour` |
+| 5 | `ValidationBehaviour` |
+| 6 | `PerformancePipelineBehaviour` |
+| 7 | Your query handler |
+
+<Note>
+  `CachingBehavior` and `InvalidateCachingBehavior` are **not** part of the registered pipeline sequence above. They are open generic behaviors that MediatR resolves automatically based on type constraints: `CachingBehavior<TRequest, TResponse>` is only instantiated when the request implements `ICacheRequest`, and `InvalidateCachingBehavior<TRequest, TResponse>` only when it implements `IInvalidateCacheRequest`. If your request implements either interface, the corresponding behavior inserts itself after `PerformancePipelineBehaviour` and before your handler. See [Caching](/application/caching) for details.
+</Note>
+
+---
+
+## Behavior reference
+
+### LoggerBehaviour
+
+Implemented as a MediatR `IRequestPreProcessor<TRequest>`, so it always fires first regardless of behavior registration order. It delegates to `IRequestLoggerService.LogRequestAsync(...)`.
+
+```csharp
+// Runs automatically — no code needed in your handler
+// Output example:
+// [Information] CreateProductCommand User ID: "abc-123"
+//   Request Data: {"Name":"Widget","Price":9.99}
+```
+
+### CommandActivityBehavior / QueryActivityBehavior
+
+Creates an `Activity` using `System.Diagnostics.ActivitySource` named after the request type. Integrate with any OpenTelemetry-compatible backend (Jaeger, Zipkin, OTLP) via the standard .NET tracing pipeline.
+
+### ExceptionHandlerPipelineBehaviour
+
+Catches `Exception` and converts it to a `Result.Error(...)` so callers always receive a typed result rather than an exception propagating up to the HTTP layer. Unhandled exceptions are also logged at `Error` level.
+
+### UnitOfWorkBehaviour
+
+Delegates to `IUnitOfWork.ExecuteInTransactionAsync(...)`. This interface is implemented by the EF Core infrastructure package and wraps your handler in a database transaction:
+
+```csharp
+// IUnitOfWork contract
+Task<TResponse> ExecuteInTransactionAsync<TResponse>(
+    Func<Task<TResponse>> operation,
+    CancellationToken cancellationToken = default)
+    where TResponse : IResult;
+```
+
+The behavior applies **only when the request implements `IBaseCommand`**, so query handlers are never wrapped in a transaction.
+
+### AuthorizationBehaviour
+
+Reads `[Authorize]` attributes placed on the command or query class. All attributes on a single class are aggregated — if you stack two `[Authorize]` attributes the required roles, permissions, and policies from both are combined.
+
+```csharp
+[Authorize(Roles = "Admin,Manager", Permissions = "products:write")]
+public record CreateProductCommand(string Name, decimal Price) : ICommand<Guid>;
+```
+
+Attribute properties are comma-delimited strings:
+
+| Property | Description |
+|---|---|
+| `Roles` | Comma-delimited list of roles; the user must have at least one |
+| `Permissions` | Comma-delimited list of permissions; all must be satisfied |
+| `Policies` | Comma-delimited list of named `IAuthorizationPolicy` implementations |
+
+If you need resource-level authorization (e.g. "the current user owns this product"), implement `IPolicyResourceRequest` on your command and provide a `ResourceId`. The pipeline passes it to the policy evaluator automatically.
+
+### ValidationBehaviour
+
+Discovers and runs all `IValidator<TCommand>` or `IValidator<TQuery>` instances registered with the DI container. Validators are run in parallel and failures are aggregated before returning a single `Result.Invalid(...)`. Register validators using FluentValidation's `AddValidatorsFromAssembly(...)`:
+
+```csharp
+builder.Services.AddValidatorsFromAssembly(typeof(CreateProductCommand).Assembly);
+```
+
+### PerformancePipelineBehaviour
+
+Wraps each handler call in a `Stopwatch`. When execution exceeds the threshold (default: 500 ms), it emits a structured warning log. No configuration is required — override the threshold by implementing `IRequestPerformanceTrackingService` if you need custom logic.
+
+---
+
+## Full example: command with authorization and validation
+
+```csharp
+// 1. Command — decorated with [Authorize]
+[Authorize(Roles = "Admin", Permissions = "products:write")]
+public record CreateProductCommand(string Name, decimal Price)
+    : ICommand<Guid>;
+
+// 2. FluentValidation validator — discovered automatically
+public class CreateProductCommandValidator
+    : AbstractValidator<CreateProductCommand>
+{
+    public CreateProductCommandValidator()
+    {
+        RuleFor(x => x.Name)
+            .NotEmpty().WithMessage("Name is required.")
+            .MaximumLength(200);
+
+        RuleFor(x => x.Price)
+            .GreaterThan(0).WithMessage("Price must be positive.");
+    }
+}
+
+// 3. Handler — only reached after auth + validation pass
+public sealed class CreateProductCommandHandler
+    : ICommandHandler<CreateProductCommand, Guid>
+{
+    private readonly IProductRepository _repository;
+
+    public CreateProductCommandHandler(IProductRepository repository)
+        => _repository = repository;
+
+    public async Task<Result<Guid>> Handle(
+        CreateProductCommand request,
+        CancellationToken cancellationToken)
+    {
+        var product = Product.Create(request.Name, request.Price);
+        await _repository.AddAsync(product, cancellationToken);
+        return Result<Guid>.Success(product.Id);
+    }
+}
+```
+
+<Note>
+  The pipeline guarantees a strict ordering: the logger runs first, the exception handler catches anything below it, authorization blocks unauthorized requests before they reach validation, and the unit-of-work transaction commits only after the handler succeeds. You do not need to add `try/catch`, transaction management, or authorization checks inside your handlers.
+</Note>

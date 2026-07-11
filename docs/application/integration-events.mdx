@@ -1,0 +1,291 @@
+---
+title: "SharedKernel integration events and cross-service buses"
+sidebarTitle: "Integration Events"
+description: "Publish integration events and send integration commands or queries across service boundaries using SharedKernel's MassTransit-backed bus interfaces."
+---
+
+Integration events are the mechanism SharedKernel provides for **cross-service communication**. Unlike domain events — which are in-process notifications dispatched within a single bounded context via MediatR — integration events cross service and process boundaries through a message broker. They are part of your service's **Published Language**: once you publish an integration event its schema becomes a public contract that consuming services depend on.
+
+<Note>
+  SharedKernel uses **MassTransit over RabbitMQ** as the default transport for integration messaging. See [Infrastructure — Messaging](/infrastructure/messaging) for configuration details and transport registration.
+</Note>
+
+---
+
+## Concepts at a glance
+
+| Concept | Direction | Coupling | When to use |
+|---|---|---|---|
+| `IIntegrationEvent` | One-to-many (fan-out) | Low | Notify other services that something happened |
+| `IIntegrationCommand` | Point-to-point | Higher | Instruct a specific service to do something |
+| `IIntegrationQuery` | Request/response | Higher | Ask another service for data |
+
+---
+
+## IIntegrationMessage
+
+All integration types share the `IIntegrationMessage` base interface, which carries the metadata that the message broker and consumers need:
+
+```csharp
+public interface IIntegrationMessage
+{
+    Guid           Id                  { get; }
+    string         UserId              { get; }
+    DateTimeOffset DateOccurredOnUtc   { get; }
+    DateTimeOffset? DateDispatchedOnUtc { get; set; }
+}
+```
+
+You never implement `IIntegrationMessage` directly — implement `IIntegrationEvent`, `IIntegrationCommand`, or `IIntegrationQuery` instead.
+
+---
+
+## Integration events
+
+### IIntegrationEvent
+
+`IIntegrationEvent` marks a record as a publishable, fan-out message. Any number of consumers in any number of services can subscribe to the same event type.
+
+```csharp
+public interface IIntegrationEvent : IIntegrationMessage { }
+```
+
+### IIntegrationEventBus
+
+Inject `IIntegrationEventBus` into your application services or domain-event handlers to publish events:
+
+```csharp
+public interface IIntegrationEventBus
+{
+    Task PublishAsync<T>(T @event, CancellationToken cancellationToken = default)
+        where T : class, IIntegrationEvent;
+}
+```
+
+### Defining and publishing an integration event
+
+<Steps>
+  <Step title="Define the event record">
+    Create a record in your application's contracts project. Use a class or record that carries only the data consumers need — avoid leaking domain internals:
+
+    ```csharp
+    // In YourService.Application.Contracts.Integration
+    public record OrderCreatedIntegrationEvent(
+        Guid   Id,
+        string UserId,
+        DateTimeOffset DateOccurredOnUtc,
+        DateTimeOffset? DateDispatchedOnUtc,
+        Guid   OrderId,
+        string CustomerEmail,
+        decimal TotalAmount)
+        : IIntegrationEvent;
+    ```
+  </Step>
+  <Step title="Publish from a domain-event handler or command handler">
+    Publish the integration event after the state change has been committed to the database. The safest place is inside a domain-event handler that fires after the transaction, or at the end of a command handler:
+
+    ```csharp
+    public sealed class OrderCreatedDomainEventHandler
+        : INotificationHandler<OrderCreatedDomainEvent>
+    {
+        private readonly IIntegrationEventBus _integrationEventBus;
+        private readonly ICurrentUserService  _currentUser;
+
+        public OrderCreatedDomainEventHandler(
+            IIntegrationEventBus integrationEventBus,
+            ICurrentUserService currentUser)
+        {
+            _integrationEventBus = integrationEventBus;
+            _currentUser         = currentUser;
+        }
+
+        public async Task Handle(
+            OrderCreatedDomainEvent notification,
+            CancellationToken cancellationToken)
+        {
+            var integrationEvent = new OrderCreatedIntegrationEvent(
+                Id:                 Guid.NewGuid(),
+                UserId:             _currentUser.UserId,
+                DateOccurredOnUtc:  notification.DateOccurredOnUtc,
+                DateDispatchedOnUtc: null,
+                OrderId:            notification.OrderId,
+                CustomerEmail:      notification.CustomerEmail,
+                TotalAmount:        notification.TotalAmount);
+
+            await _integrationEventBus.PublishAsync(
+                integrationEvent, cancellationToken);
+        }
+    }
+    ```
+  </Step>
+  <Step title="Consume in another service">
+    Implement a MassTransit consumer in the target service. See [Presentation — Integration Bus](/presentation/integration-bus) for how to register consumers and configure the endpoint topology.
+
+    ```csharp
+    // In NotificationService.Application
+    public sealed class OrderCreatedIntegrationEventConsumer
+        : IConsumer<OrderCreatedIntegrationEvent>
+    {
+        private readonly IEmailSender _emailSender;
+
+        public OrderCreatedIntegrationEventConsumer(IEmailSender emailSender)
+            => _emailSender = emailSender;
+
+        public async Task Consume(ConsumeContext<OrderCreatedIntegrationEvent> context)
+        {
+            await _emailSender.SendOrderConfirmationAsync(
+                context.Message.CustomerEmail,
+                context.Message.OrderId,
+                context.CancellationToken);
+        }
+    }
+    ```
+  </Step>
+</Steps>
+
+---
+
+## Integration commands
+
+`IIntegrationCommand` represents a point-to-point instruction sent to a specific service. Use it only when you need guaranteed single-recipient delivery and when the producing service genuinely "owns" the target operation.
+
+<Warning>
+  Sending integration commands from one bounded context to another introduces **strong coupling**. The producing context is now dictating behavior inside the consuming context. Prefer integration events — let consumers react to facts rather than receiving direct instructions.
+</Warning>
+
+### IIntegrationCommand
+
+```csharp
+public interface IIntegrationCommand : IIntegrationMessage { }
+```
+
+### IIntegrationCommandBus
+
+```csharp
+public interface IIntegrationCommandBus
+{
+    Task<Result> SendAsync<TCommand>(
+        TCommand command,
+        CancellationToken cancellationToken = default)
+        where TCommand : class, IIntegrationCommand;
+
+    Task<Result<TResponse>> SendAsync<TCommand, TResponse>(
+        TCommand command,
+        CancellationToken cancellationToken = default)
+        where TCommand : class, IIntegrationCommand
+        where TResponse : notnull;
+}
+```
+
+### Example
+
+```csharp
+// Define the command
+public record ReserveInventoryIntegrationCommand(
+    Guid   Id,
+    string UserId,
+    DateTimeOffset DateOccurredOnUtc,
+    DateTimeOffset? DateDispatchedOnUtc,
+    Guid   ProductId,
+    int    Quantity)
+    : IIntegrationCommand;
+
+// Send it
+public sealed class PlaceOrderCommandHandler
+    : ICommandHandler<PlaceOrderCommand, Guid>
+{
+    private readonly IIntegrationCommandBus _commandBus;
+
+    public PlaceOrderCommandHandler(IIntegrationCommandBus commandBus)
+        => _commandBus = commandBus;
+
+    public async Task<Result<Guid>> Handle(
+        PlaceOrderCommand request,
+        CancellationToken cancellationToken)
+    {
+        // ... create order ...
+
+        var reserveCommand = new ReserveInventoryIntegrationCommand(
+            Id:                 Guid.NewGuid(),
+            UserId:             request.UserId,
+            DateOccurredOnUtc:  DateTimeOffset.UtcNow,
+            DateDispatchedOnUtc: null,
+            ProductId:          request.ProductId,
+            Quantity:           request.Quantity);
+
+        var reserveResult = await _commandBus.SendAsync(
+            reserveCommand, cancellationToken);
+
+        return reserveResult.IsSuccess
+            ? Result<Guid>.Success(order.Id)
+            : reserveResult.Map(_ => Guid.Empty);
+    }
+}
+```
+
+---
+
+## Integration queries
+
+`IIntegrationQuery` provides a synchronous request/response pattern over the message broker. Use it to ask another service for data when you cannot share a database and an HTTP call is not appropriate for your architecture.
+
+<Warning>
+  Like integration commands, integration queries couple the calling bounded context to the responding one. Evaluate whether the data can instead be replicated via integration events before reaching for `IIntegrationQuery`.
+</Warning>
+
+### IIntegrationQuery
+
+```csharp
+public interface IIntegrationQuery : IIntegrationMessage { }
+```
+
+### IIntegrationQueryBus
+
+```csharp
+public interface IIntegrationQueryBus
+{
+    Task<Result<TResponse>> SendAsync<TQuery, TResponse>(
+        TQuery query,
+        CancellationToken cancellationToken = default)
+        where TQuery    : class, IIntegrationQuery
+        where TResponse : notnull;
+}
+```
+
+### Example
+
+```csharp
+// Define the query
+public record GetCustomerCreditScoreIntegrationQuery(
+    Guid   Id,
+    string UserId,
+    DateTimeOffset DateOccurredOnUtc,
+    DateTimeOffset? DateDispatchedOnUtc,
+    Guid   CustomerId)
+    : IIntegrationQuery;
+
+// Send it and handle the response
+var query = new GetCustomerCreditScoreIntegrationQuery(
+    Id:                 Guid.NewGuid(),
+    UserId:             currentUser.Id,
+    DateOccurredOnUtc:  DateTimeOffset.UtcNow,
+    DateDispatchedOnUtc: null,
+    CustomerId:         customerId);
+
+var result = await _integrationQueryBus
+    .SendAsync<GetCustomerCreditScoreIntegrationQuery, CreditScoreDto>(
+        query, cancellationToken);
+
+if (!result.IsSuccess)
+    return Result.Error("Credit score service unavailable.");
+
+var score = result.Value;
+```
+
+---
+
+## Wiring up consumers
+
+Register your MassTransit consumers and configure the RabbitMQ endpoint topology in the presentation layer. See [Presentation — Integration Bus](/presentation/integration-bus) for the `AddSharedKernelIntegrationBus(...)` extension method and consumer registration patterns.
+
+The infrastructure package wires `IIntegrationEventBus`, `IIntegrationCommandBus`, and `IIntegrationQueryBus` to their MassTransit-backed implementations. You only need to register the transport once per service host.

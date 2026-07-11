@@ -1,0 +1,56 @@
+---
+title: "SharedKernel: DDD & Clean Architecture building blocks for .NET"
+sidebarTitle: "Home"
+description: "SharedKernel provides NuGet packages with battle-tested DDD and Clean Architecture abstractions for .NET. Build domain models, CQRS pipelines, and event-sourced systems faster."
+---
+
+SharedKernel is a suite of NuGet packages that gives .NET developers a solid foundation for applying Domain-Driven Design (DDD) and Clean Architecture. Instead of writing the same aggregate root, value object, CQRS bus, and MediatR pipeline boilerplate in every project, you install the relevant packages and focus on your domain logic.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install your first package and define a domain aggregate in minutes.
+  </Card>
+  <Card title="Packages" icon="box" href="/packages">
+    Browse all available NuGet packages and choose the right ones for your project.
+  </Card>
+  <Card title="Core Concepts" icon="lightbulb" href="/concepts/ddd-overview">
+    Understand DDD, Clean Architecture, CQRS, and Event Sourcing as used in SharedKernel.
+  </Card>
+  <Card title="Domain Layer" icon="layer-group" href="/domain/entities-aggregates">
+    Build aggregates, entities, value objects, domain events, and business rules.
+  </Card>
+  <Card title="Application Layer" icon="arrows-split-up-and-left" href="/application/commands-queries">
+    Wire up commands, queries, and pre-built MediatR pipeline behaviors.
+  </Card>
+  <Card title="Infrastructure" icon="server" href="/infrastructure/setup">
+    Set up Entity Framework, KurrentDB event store, and MassTransit messaging.
+  </Card>
+</CardGroup>
+
+## What's inside
+
+SharedKernel is split into focused packages so you only take what you need:
+
+- **Domain** — `BaseAggregateRoot`, `BaseEntity`, `BaseValueObject`, domain events, and business-rule validation
+- **Application** — CQRS command/query bus contracts, MediatR pipeline behaviors (logging, validation, authorization, caching, unit of work)
+- **Infrastructure** — EF Core repositories with auditing and soft-delete, KurrentDB event store, MassTransit integration bus
+- **Presentation** — HTTP REST API base controllers, exception middleware, ProblemDetails response builder, and integration event handlers
+
+<Steps>
+  <Step title="Choose your packages">
+    Browse the [packages page](/packages) and install the NuGet packages matching your architecture layers.
+  </Step>
+  <Step title="Register services">
+    Call the provided `AddSharedKernel*` extension methods in your `Program.cs` to wire up all dependencies automatically.
+  </Step>
+  <Step title="Model your domain">
+    Inherit from `BaseAggregateRoot` and `BaseValueObject` to build your domain entities with built-in event support.
+  </Step>
+  <Step title="Build CQRS handlers">
+    Implement `ICommandHandler` and `IQueryHandler` interfaces — the pipeline behaviors run automatically around every request.
+  </Step>
+</Steps>
+
+<Note>
+  SharedKernel targets **.NET 10**. Previous versions for .NET 7, 8, and 9 are available on their respective branches.
+</Note>

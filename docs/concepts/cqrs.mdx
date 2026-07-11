@@ -1,0 +1,208 @@
+---
+title: "Learn CQRS with SharedKernel: commands, queries, and buses"
+sidebarTitle: "CQRS"
+description: "How SharedKernel implements CQRS with MediatR: define commands and queries, write handlers, and dispatch requests through the command and query buses."
+---
+
+Command Query Responsibility Segregation (CQRS) splits every use case into one of two shapes: a **command** that changes state and returns nothing (or a minimal result), or a **query** that reads state and never mutates it. SharedKernel bakes this pattern into the Application layer through a set of interfaces backed by MediatR, giving you a consistent, testable way to handle every operation in your system.
+
+## How it works
+
+```
+Caller
+  │
+  ├─ ICommandBus.SendAsync(command)  ──►  ICommandHandler  ──►  Aggregate / DB
+  │
+  └─ IQueryBus.SendAsync(query)      ──►  IQueryHandler    ──►  Read Model / DB
+```
+
+The caller never imports MediatR directly. It depends only on `ICommandBus` or `IQueryBus`, both defined in `JordiAragonZaragoza.SharedKernel.Application.Contracts`. The Infrastructure layer provides the concrete `CommandBus` and `QueryBus` implementations, which delegate to MediatR's `ISender` internally.
+
+All results are wrapped in `Ardalis.Result<T>` so handlers communicate success, validation errors, not-found, and unexpected failures in a uniform, exception-free way.
+
+## Commands
+
+Use a **command** whenever the operation changes state: creating an entity, updating a field, deleting a record, or triggering a process.
+
+### Interfaces
+
+```csharp
+// No return value — pure DDD command
+public interface ICommand : IRequest<Result>, IBaseCommand { }
+
+// Returns a value (e.g. the new aggregate ID)
+public interface ICommand<TResponse> : IRequest<Result<TResponse>>, IBaseCommand
+    where TResponse : notnull { }
+
+// Handler for a void command
+public interface ICommandHandler<TCommand> : IRequestHandler<TCommand, Result>
+    where TCommand : ICommand { }
+
+// Handler for a command with a response
+public interface ICommandHandler<TCommand, TResponse> : IRequestHandler<TCommand, Result<TResponse>>
+    where TCommand : ICommand<TResponse>
+    where TResponse : notnull { }
+```
+
+### Command example
+
+```csharp
+// Command — carries the intent and the data it needs
+public sealed record PlaceOrderCommand(
+    Guid CustomerId,
+    IEnumerable<OrderLineRequest> Lines) : ICommand<Guid>;
+
+// Handler — orchestrates the use case
+public sealed class PlaceOrderHandler : ICommandHandler<PlaceOrderCommand, Guid>
+{
+    private readonly IOrderRepository repository;
+    private readonly IIdGenerator idGenerator;
+
+    public PlaceOrderHandler(IOrderRepository repository, IIdGenerator idGenerator)
+    {
+        this.repository = repository;
+        this.idGenerator = idGenerator;
+    }
+
+    public async Task<Result<Guid>> Handle(
+        PlaceOrderCommand command,
+        CancellationToken cancellationToken)
+    {
+        var orderId = new OrderId(this.idGenerator.NewId());
+
+        var order = Order.Place(orderId, command.CustomerId, command.Lines);
+
+        await this.repository.AddAsync(order, cancellationToken);
+
+        return Result.Success(orderId.Value);
+    }
+}
+```
+
+### Sending a command
+
+Inject `ICommandBus` into your controller or endpoint and call `SendAsync`:
+
+```csharp
+public sealed class OrdersController : BaseApiController
+{
+    private readonly ICommandBus commandBus;
+
+    public OrdersController(ICommandBus commandBus)
+        => this.commandBus = commandBus;
+
+    [HttpPost]
+    public async Task<IActionResult> PlaceOrder(
+        PlaceOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new PlaceOrderCommand(request.CustomerId, request.Lines);
+
+        var result = await this.commandBus.SendAsync(command, cancellationToken);
+
+        return this.Ok(result);
+    }
+}
+```
+
+## Queries
+
+Use a **query** whenever the operation only reads data. Queries never modify aggregates, never trigger domain events, and never go through the Unit of Work pipeline.
+
+### Interfaces
+
+```csharp
+// Query returns Result<TResponse> — always has a value
+public interface IQuery<TResponse> : IRequest<Result<TResponse>> { }
+
+// Handler for a query
+public interface IQueryHandler<TQuery, TResponse> : IRequestHandler<TQuery, Result<TResponse>>
+    where TQuery : IQuery<TResponse> { }
+```
+
+### Query example
+
+```csharp
+// Query — describes what data to return
+public sealed record GetOrderByIdQuery(Guid OrderId) : IQuery<OrderResponse>;
+
+// Handler — reads directly from the read model or database
+public sealed class GetOrderByIdHandler : IQueryHandler<GetOrderByIdQuery, OrderResponse>
+{
+    private readonly IReadRepository<OrderReadModel> readRepository;
+
+    public GetOrderByIdHandler(IReadRepository<OrderReadModel> readRepository)
+        => this.readRepository = readRepository;
+
+    public async Task<Result<OrderResponse>> Handle(
+        GetOrderByIdQuery query,
+        CancellationToken cancellationToken)
+    {
+        var readModel = await this.readRepository.GetByIdAsync(
+            new OrderId(query.OrderId), cancellationToken);
+
+        if (readModel is null)
+            return Result.NotFound($"Order {query.OrderId} not found.");
+
+        return Result.Success(readModel.ToResponse());
+    }
+}
+```
+
+### Sending a query
+
+```csharp
+[HttpGet("{id:guid}")]
+public async Task<IActionResult> GetOrder(
+    Guid id,
+    CancellationToken cancellationToken)
+{
+    var query = new GetOrderByIdQuery(id);
+
+    var result = await this.queryBus.SendAsync(query, cancellationToken);
+
+    return this.Ok(result);
+}
+```
+
+## The command and query buses
+
+Both buses are thin wrappers around MediatR's `ISender`:
+
+```csharp
+// ICommandBus
+Task<Result> SendAsync(ICommand command, CancellationToken cancellationToken = default);
+Task<Result<TResponse>> SendAsync<TResponse>(ICommand<TResponse> command, CancellationToken cancellationToken = default);
+
+// IQueryBus
+Task<Result<TResponse>> SendAsync<TResponse>(IQuery<TResponse> query, CancellationToken cancellationToken = default);
+```
+
+The concrete `CommandBus` and `QueryBus` classes live in `JordiAragonZaragoza.SharedKernel.Infrastructure` and are registered automatically when you call `AddInfrastructureServices`.
+
+<Note>
+  Your Presentation and Application code only sees the `ICommandBus` and `IQueryBus` interfaces from `SharedKernel.Application.Contracts`. The MediatR dependency stays in the Infrastructure layer, keeping your inner layers framework-free.
+</Note>
+
+## Pipeline behaviours
+
+Every command and query automatically passes through a chain of MediatR pipeline behaviours before and after your handler runs. SharedKernel ships these behaviours out of the box:
+
+| Behaviour | Applies to | What it does |
+|---|---|---|
+| `LoggerBehaviour` | Commands & queries | Logs request name, user, and duration |
+| `CommandActivityBehavior` | Commands | Creates an OpenTelemetry activity span |
+| `QueryActivityBehavior` | Queries | Creates an OpenTelemetry activity span |
+| `ExceptionHandlerPipelineBehaviour` | Commands & queries | Catches unhandled exceptions and maps them to error results |
+| `UnitOfWorkBehaviour` | Commands | Wraps the handler in a transaction; commits on success, rolls back on failure |
+| `AuthorizationBehaviour` | Commands & queries | Enforces `[Authorize]` policy attributes |
+| `ValidationBehaviour` | Commands & queries | Runs FluentValidation validators and returns `Result.Invalid` on failure |
+| `PerformancePipelineBehaviour` | Commands & queries | Warns when a request exceeds the performance threshold |
+| `CachingBehavior` | Queries | Returns cached results for queries that implement `ICacheRequest` |
+| `InvalidateCachingBehavior` | Commands | Evicts cache entries for commands that implement `IInvalidateCacheRequest` |
+
+For full details on configuring and extending the pipeline, see [Pipeline Behaviours](/application/pipelines).
+
+<Tip>
+  You don't need to register pipeline behaviours manually. Calling `AddApplicationServices` or `AddInfrastructureServices` wires them up in the correct order.
+</Tip>

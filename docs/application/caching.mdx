@@ -1,0 +1,218 @@
+---
+title: "SharedKernel request-level caching for query handlers"
+sidebarTitle: "Caching"
+description: "Add transparent caching to query handlers with ICacheRequest, and invalidate stale entries from command handlers using IInvalidateCacheRequest."
+---
+
+SharedKernel provides two layers of caching that work together without any boilerplate inside your handlers. At the **request level**, query records implement `ICacheRequest` and the `CachingBehavior` MediatR pipeline behavior intercepts the request, checks the cache before calling your handler, and writes the result back to the cache on a miss. At the **repository level**, `BaseCachedSpecificationRepository<T>` wraps every read-model query in the same `ICacheService` abstraction. Both layers share the same backing store — .NET's `HybridCache` — so cached values benefit from both in-process L1 and distributed L2 storage automatically.
+
+<Warning>
+  Do **not** use `ICacheRequest` or `IInvalidateCacheRequest` when your application uses **event sourcing** for read-model projections. Cache entries written during a command may be served to queries before the projection event has been processed, producing stale reads. Disable request-level caching for projection pipelines.
+</Warning>
+
+---
+
+## How request caching works
+
+When a query record implements `ICacheRequest`, the `CachingBehavior` pipeline behavior intercepts the MediatR dispatch:
+
+1. It calls `ICacheService.GetAsync<TResponse>(cacheKey)`.
+2. If `ICacheValue<TResponse>.HasValue` is `true` and `IsNull` is `false`, the cached value is returned immediately and your handler is **never called**.
+3. On a cache miss, the behavior calls your handler, then calls `ICacheService.SetAsync(cacheKey, response, expiration)` before returning the result.
+
+```
+IQueryBus.SendAsync(query)
+   → LoggerBehaviour
+   → QueryActivityBehavior
+   → ExceptionHandlerPipelineBehaviour
+   → AuthorizationBehaviour
+   → ValidationBehaviour
+   → PerformancePipelineBehaviour
+   → CachingBehavior  ← checks cache; calls handler only on miss
+       → Your IQueryHandler
+```
+
+---
+
+## ICacheRequest
+
+Implement `ICacheRequest` on any query record to opt into request-level caching:
+
+```csharp
+public interface ICacheRequest
+{
+    string CacheKey { get; }
+    TimeSpan? AbsoluteExpirationInSeconds { get; }
+}
+```
+
+| Property | Type | Description |
+|---|---|---|
+| `CacheKey` | `string` | Unique identifier for this cached response. Include all query parameters that affect the result. |
+| `AbsoluteExpirationInSeconds` | `TimeSpan?` | How long the entry lives before being evicted. Pass `null` to use the cache's default expiry. |
+
+<Tip>
+  Build your `CacheKey` from every property that varies the query result. For a single-entity query, use the entity ID. For a filtered list query, include all filter parameters. A common pattern is `$"{nameof(GetProductByIdQuery)}_{ProductId}"`. If two different query shapes share a key they will return each other's results.
+</Tip>
+
+### Example — cacheable query
+
+```csharp
+public record GetProductByIdQuery(Guid ProductId)
+    : IQuery<ProductOutputDto>, ICacheRequest
+{
+    public string CacheKey =>
+        $"{nameof(GetProductByIdQuery)}_{ProductId}";
+
+    public TimeSpan? AbsoluteExpirationInSeconds =>
+        TimeSpan.FromSeconds(300); // cache for 5 minutes
+}
+```
+
+The handler itself requires no caching code:
+
+```csharp
+public sealed class GetProductByIdQueryHandler
+    : IQueryHandler<GetProductByIdQuery, ProductOutputDto>
+{
+    private readonly IProductReadRepository _repository;
+
+    public GetProductByIdQueryHandler(IProductReadRepository repository)
+        => _repository = repository;
+
+    public async Task<Result<ProductOutputDto>> Handle(
+        GetProductByIdQuery request,
+        CancellationToken cancellationToken)
+    {
+        var product = await _repository.GetByIdAsync(
+            request.ProductId, cancellationToken);
+
+        return product is null
+            ? Result<ProductOutputDto>.NotFound()
+            : Result<ProductOutputDto>.Success(
+                new ProductOutputDto(product.Id, product.Name, product.Price));
+    }
+}
+```
+
+---
+
+## ICacheValue
+
+`ICacheService.GetAsync<T>` returns `ICacheValue<T>` rather than a nullable `T`. This wrapper distinguishes between "key not found" and "key found with a stored `null` value":
+
+```csharp
+public interface ICacheValue<out T>
+{
+    bool HasValue { get; } // true when the key exists in the cache
+    bool IsNull   { get; } // true when the stored value is null
+    T    Value    { get; } // the cached value (only valid when HasValue && !IsNull)
+}
+```
+
+You rarely interact with `ICacheValue<T>` directly — the `CachingBehavior` and `BaseCachedSpecificationRepository<T>` handle the `HasValue`/`IsNull` checks internally.
+
+---
+
+## ICacheService
+
+`ICacheService` is the low-level cache abstraction. Inject it when you need to cache data outside a MediatR pipeline (e.g. in an infrastructure service):
+
+```csharp
+public interface ICacheService
+{
+    Task SetAsync<T>(
+        string cacheKey,
+        T cacheValue,
+        TimeSpan? expiration = null,
+        CancellationToken cancellationToken = default);
+
+    Task<ICacheValue<T>> GetAsync<T>(
+        string cacheKey,
+        CancellationToken cancellationToken = default);
+
+    Task RemoveByPrefixAsync(
+        string prefix,
+        CancellationToken cancellationToken = default);
+}
+```
+
+The default implementation (`CacheService`) is backed by .NET's `HybridCache`, which layers an in-process `MemoryCache` (L1) over a distributed cache (L2). Register it by calling `AddSharedKernelInfrastructure()`:
+
+```csharp
+builder.Services.AddSharedKernelInfrastructure();
+// Internally calls services.AddHybridCache() and registers CacheService
+```
+
+---
+
+## Cache invalidation
+
+Commands implement `IInvalidateCacheRequest` to evict stale entries after a successful write:
+
+```csharp
+public interface IInvalidateCacheRequest
+{
+    string PrefixCacheKey { get; }
+}
+```
+
+`PrefixCacheKey` is passed to `ICacheService.RemoveByPrefixAsync(...)`, which removes **all** cache entries whose keys begin with that prefix. This makes it easy to invalidate an entire entity type at once.
+
+The `InvalidateCachingBehavior` pipeline behavior handles the eviction after your handler returns successfully — no code is needed inside the handler.
+
+### Example — command that invalidates cache
+
+```csharp
+[Authorize(Permissions = "products:write")]
+public record CreateProductCommand(string Name, decimal Price)
+    : ICommand<Guid>, IInvalidateCacheRequest
+{
+    // Invalidate all cached queries whose keys start with "GetProductByIdQuery"
+    public string PrefixCacheKey => nameof(GetProductByIdQuery);
+}
+```
+
+<Tip>
+  Use the query type name (e.g. `nameof(GetProductByIdQuery)`) as the prefix so that every cached variant of that query — regardless of which product ID was queried — is evicted together. If you have both a single-item query and a list query for the same aggregate, add a shared prefix to both and use that prefix in your command.
+</Tip>
+
+### Invalidating multiple query families
+
+Stack multiple invalidation concerns by composing a prefix that covers all affected query keys, or dispatch a second command:
+
+```csharp
+public record CreateProductCommand(string Name, decimal Price)
+    : ICommand<Guid>, IInvalidateCacheRequest
+{
+    // "Product" is a shared prefix used by both GetProductByIdQuery
+    // and GetProductsQuery cache keys
+    public string PrefixCacheKey => "Product";
+}
+
+// Query keys that will be evicted:
+//   "Product_GetProductByIdQuery_{id}"  ← matches
+//   "Product_GetProductsQuery_..."      ← matches
+```
+
+---
+
+## Repository-level caching
+
+`BaseCachedSpecificationRepository<TReadModel>` provides the same caching behavior at the repository layer — without any pipeline involvement. It intercepts every `GetByIdAsync`, `ListAsync`, `FirstOrDefaultAsync`, and `CountAsync` call, checks the cache using a key derived from the read-model type name and the Ardalis `Specification` parameters, and invalidates on every write (`AddAsync`, `UpdateAsync`, `DeleteAsync`).
+
+Extend it instead of the plain `BaseReadRepository<T>` when you want automatic result caching for all specification-based queries against a read model:
+
+```csharp
+public class ProductReadRepository
+    : BaseCachedSpecificationRepository<ProductReadModel>
+{
+    public ProductReadRepository(
+        ReadModelDbContext dbContext,
+        ILogger<ProductReadRepository> logger,
+        ICacheService cacheService)
+        : base(dbContext, logger, cacheService) { }
+}
+```
+
+See the [Entity Framework](/infrastructure/entity-framework) page for full details on repository-level caching.
