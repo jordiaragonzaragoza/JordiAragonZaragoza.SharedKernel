@@ -48,6 +48,7 @@
             "pages": [
               "application/commands-queries",
               "application/pipelines",
+              "application/execution-context",
               "application/caching",
               "application/integration-events"
             ]
@@ -58,6 +59,8 @@
               "infrastructure/setup",
               "infrastructure/entity-framework",
               "infrastructure/event-store",
+              "infrastructure/all-stream-catch-up-subscription",
+              "infrastructure/all-stream-persistent-subscription",
               "infrastructure/messaging"
             ]
           },
