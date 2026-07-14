@@ -48,6 +48,7 @@
             "pages": [
               "application/commands-queries",
               "application/pipelines",
+              "application/execution-context",
               "application/caching",
               "application/integration-events"
             ]
