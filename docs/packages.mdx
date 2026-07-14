@@ -12,24 +12,22 @@ SharedKernel is intentionally split into small, focused NuGet packages so you ca
 
 These two packages form the foundation that every other SharedKernel package depends on. Install them whenever you reference any other package in the suite (they are pulled in transitively, but you can also reference them directly).
 
-<CardGroup cols={2}>
+<CardGroup cols={1}>
+  <Card title="JordiAragonZaragoza.SharedKernel.Contracts" icon="file-contract">
+    Pure contracts with no implementation: `IRepository<T>`, `IReadRepository<T>`, `ICachedSpecificationRepository<T>`, `IEvent`, `IEventsContainer`, `IDateTime`, and model interfaces. References `Ardalis.Specification`, `Ardalis.SmartEnum`, and `MediatR.Contracts`.
 
-<Card title="JordiAragonZaragoza.SharedKernel.Contracts" icon="file-contract">
-  Pure contracts with no implementation: `IRepository<T>`, `IReadRepository<T>`, `ICachedSpecificationRepository<T>`, `IEvent`, `IEventsContainer`, `IDateTime`, and model interfaces. References `Ardalis.Specification`, `Ardalis.SmartEnum`, and `MediatR.Contracts`.
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Contracts
+    ```
+  </Card>
 
-  ```bash
-  dotnet add package JordiAragonZaragoza.SharedKernel.Contracts
-  ```
-</Card>
+  <Card title="JordiAragonZaragoza.SharedKernel" icon="layer-group">
+    Builds on `.Contracts`. Adds the DI auto-registration helpers (`ServiceCollectionHelper`), configuration extensions, `GuidHelper`, and other shared utilities. Brings in `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration`.
 
-<Card title="JordiAragonZaragoza.SharedKernel" icon="layer-group">
-  Builds on `.Contracts`. Adds the DI auto-registration helpers (`ServiceCollectionHelper`), configuration extensions, `GuidHelper`, and other shared utilities. Brings in `Microsoft.Extensions.DependencyInjection` and `Microsoft.Extensions.Configuration`.
-
-  ```bash
-  dotnet add package JordiAragonZaragoza.SharedKernel
-  ```
-</Card>
-
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel
+    ```
+  </Card>
 </CardGroup>
 
 ---
@@ -38,33 +36,31 @@ These two packages form the foundation that every other SharedKernel package dep
 
 Use these packages in your **Domain** project. They contain every DDD building block you need to model aggregates, entities, value objects, domain events, and business rule validation — with no dependency on persistence or application frameworks.
 
-<CardGroup cols={2}>
+<CardGroup cols={1}>
+  <Card title="JordiAragonZaragoza.SharedKernel.Domain.Contracts" icon="file-contract">
+    Interfaces only: `IAggregateRoot<TId>`, `IEntity<TId>`, `IEntityId`, `IDomainEvent`, `IBusinessRule`, `IEventSourcedAggregateRoot<TId>`, `IAggregateStore`, `IDomainService`, and `IEventsDispatcherService`.
 
-<Card title="JordiAragonZaragoza.SharedKernel.Domain.Contracts" icon="file-contract">
-  Interfaces only: `IAggregateRoot<TId>`, `IEntity<TId>`, `IEntityId`, `IDomainEvent`, `IBusinessRule`, `IEventSourcedAggregateRoot<TId>`, `IAggregateStore`, `IDomainService`, and `IEventsDispatcherService`.
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Domain.Contracts
+    ```
+  </Card>
 
-  ```bash
-  dotnet add package JordiAragonZaragoza.SharedKernel.Domain.Contracts
-  ```
-</Card>
+  <Card title="JordiAragonZaragoza.SharedKernel.Domain" icon="cube">
+    Concrete base classes that implement the contracts above:
 
-<Card title="JordiAragonZaragoza.SharedKernel.Domain" icon="cube">
-  Concrete base classes that implement the contracts above:
+    - `BaseAggregateRoot<TId>` / `BaseAggregateRoot<TId, TIdType>` — aggregate root with `Apply` / `When` / `EnsureValidState` lifecycle
+    - `BaseEventSourcedAggregateRoot<TId>` — adds a `Load(history)` method for event-sourced replays
+    - `BaseEntity<TId>` — identity-based entity equality
+    - `BaseValueObject` — structural equality via `GetEqualityComponents`
+    - `BaseEntityId<TIdType>` / `BaseAggregateRootId<TIdType>` — strongly-typed IDs
+    - `BaseDomainEvent` / `BaseInMemoryDomainEvent` — immutable event records
+    - `BusinessRuleValidationException` — thrown when an `IBusinessRule` is broken
+    - `DomainDependencyInjection.AddSharedKernelDomain` — service registration hook
 
-  - `BaseAggregateRoot<TId>` / `BaseAggregateRoot<TId, TIdType>` — aggregate root with `Apply` / `When` / `EnsureValidState` lifecycle
-  - `BaseEventSourcedAggregateRoot<TId>` — adds a `Load(history)` method for event-sourced replays
-  - `BaseEntity<TId>` — identity-based entity equality
-  - `BaseValueObject` — structural equality via `GetEqualityComponents`
-  - `BaseEntityId<TIdType>` / `BaseAggregateRootId<TIdType>` — strongly-typed IDs
-  - `BaseDomainEvent` / `BaseInMemoryDomainEvent` — immutable event records
-  - `BusinessRuleValidationException` — thrown when an `IBusinessRule` is broken
-  - `DomainDependencyInjection.AddSharedKernelDomain` — service registration hook
-
-  ```bash
-  dotnet add package JordiAragonZaragoza.SharedKernel.Domain
-  ```
-</Card>
-
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Domain
+    ```
+  </Card>
 </CardGroup>
 
 ---
@@ -73,47 +69,45 @@ Use these packages in your **Domain** project. They contain every DDD building b
 
 Use these packages in your **Application** project. They provide CQRS contracts, MediatR pipeline behaviours (logging, validation, unit-of-work, authorization, performance tracking, activity tracing), integration-event contracts, and the `ICommandBus` / `IQueryBus` abstractions.
 
-<CardGroup cols={2}>
+<CardGroup cols={1}>
+  <Card title="JordiAragonZaragoza.SharedKernel.Application.Contracts" icon="file-contract">
+    All application-layer interfaces with no implementation:
 
-<Card title="JordiAragonZaragoza.SharedKernel.Application.Contracts" icon="file-contract">
-  All application-layer interfaces with no implementation:
+    - `ICommand` / `ICommand<TResponse>` — transactional command markers
+    - `ICommandHandler<TCommand>` / `ICommandHandler<TCommand, TResponse>` — MediatR `IRequestHandler` wrappers returning `Ardalis.Result`
+    - `IQuery<TResponse>` / `IQueryHandler<TQuery, TResponse>` — read-side equivalents
+    - `ICommandBus` / `IQueryBus` — dispatcher abstractions
+    - `IUnitOfWork`, `ICacheService`, `IIdGenerator`, `IExecutionContextService`
+    - Pipeline-service interfaces consumed by the behaviour implementations
 
-  - `ICommand` / `ICommand<TResponse>` — transactional command markers
-  - `ICommandHandler<TCommand>` / `ICommandHandler<TCommand, TResponse>` — MediatR `IRequestHandler` wrappers returning `Ardalis.Result`
-  - `IQuery<TResponse>` / `IQueryHandler<TQuery, TResponse>` — read-side equivalents
-  - `ICommandBus` / `IQueryBus` — dispatcher abstractions
-  - `IUnitOfWork`, `ICacheService`, `IIdGenerator`, `IExecutionContextService`
-  - Pipeline-service interfaces consumed by the behaviour implementations
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Application.Contracts
+    ```
+  </Card>
 
-  ```bash
-  dotnet add package JordiAragonZaragoza.SharedKernel.Application.Contracts
-  ```
-</Card>
+  <Card title="JordiAragonZaragoza.SharedKernel.Application" icon="gears">
+    Implements the pipeline behaviours registered by `AddSharedKernelApplicationCommandBus` and `AddSharedKernelApplicationQueryBus`:
 
-<Card title="JordiAragonZaragoza.SharedKernel.Application" icon="gears">
-  Implements the pipeline behaviours registered by `AddSharedKernelApplicationCommandBus` and `AddSharedKernelApplicationQueryBus`:
+    - `RequestLoggerService` — structured request/response logging
+    - `RequestValidationService<T>` — FluentValidation pipeline
+    - `RequestUnitOfWorkService` — wraps command handling in a unit-of-work transaction
+    - `RequestAuthorizationService<T>` — policy-based authorization
+    - `RequestPerformanceTrackingService` — slow-request warnings
+    - `RequestCommandActivityService<T>` / `RequestQueryActivityService<T>` — OpenTelemetry activity spans
+    - `RequestExceptionHandlerService` — centralised exception-to-result mapping
 
-  - `RequestLoggerService` — structured request/response logging
-  - `RequestValidationService<T>` — FluentValidation pipeline
-  - `RequestUnitOfWorkService` — wraps command handling in a unit-of-work transaction
-  - `RequestAuthorizationService<T>` — policy-based authorization
-  - `RequestPerformanceTrackingService` — slow-request warnings
-  - `RequestCommandActivityService<T>` / `RequestQueryActivityService<T>` — OpenTelemetry activity spans
-  - `RequestExceptionHandlerService` — centralised exception-to-result mapping
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Application
+    ```
+  </Card>
 
-  ```bash
-  dotnet add package JordiAragonZaragoza.SharedKernel.Application
-  ```
-</Card>
+  <Card title="JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration" icon="file-contract">
+    Contracts for cross-service messaging: `IIntegrationEvent`, `IIntegrationCommand`, `IIntegrationQuery`, `IIntegrationEventBus`, `IIntegrationCommandBus`, `IIntegrationQueryBus`, and `IIntegrationMessage`. Reference this package in any project that needs to declare or consume integration messages without a hard dependency on the transport implementation.
 
-<Card title="JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration" icon="file-contract">
-  Contracts for cross-service messaging: `IIntegrationEvent`, `IIntegrationCommand`, `IIntegrationQuery`, `IIntegrationEventBus`, `IIntegrationCommandBus`, `IIntegrationQueryBus`, and `IIntegrationMessage`. Reference this package in any project that needs to declare or consume integration messages without a hard dependency on the transport implementation.
-
-  ```bash
-  dotnet add package JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration
-  ```
-</Card>
-
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration
+    ```
+  </Card>
 </CardGroup>
 
 ---
@@ -122,48 +116,46 @@ Use these packages in your **Application** project. They provide CQRS contracts,
 
 Use these packages in your **Infrastructure** project. They wire up concrete implementations for the application contracts using MediatR, MassTransit, Entity Framework Core, and KurrentDB.
 
-<CardGroup cols={2}>
+<CardGroup cols={1}>
+  <Card title="JordiAragonZaragoza.SharedKernel.Infrastructure" icon="server">
+    The main infrastructure package. Registers via `AddSharedKernelInfrastructure`, `AddSharedKernelInfrastructureCommandBus`, and `AddSharedKernelInfrastructureQueryBus`:
 
-<Card title="JordiAragonZaragoza.SharedKernel.Infrastructure" icon="server">
-  The main infrastructure package. Registers via `AddSharedKernelInfrastructure`, `AddSharedKernelInfrastructureCommandBus`, and `AddSharedKernelInfrastructureQueryBus`:
+    - `CommandBus` / `QueryBus` — MediatR-backed dispatcher implementations
+    - `InMemoryEventBus` — in-process domain event dispatcher
+    - `IDateTime`, `IIdGenerator`, `IExecutionContextService` — concrete implementations
+    - `ICacheService` — wraps .NET `IHybridCache`
+    - `IPolicyEnforcer` — enforces `IAuthorizationPolicy` rules
+    - MediatR pipeline behaviour registrations for command and query buses
 
-  - `CommandBus` / `QueryBus` — MediatR-backed dispatcher implementations
-  - `InMemoryEventBus` — in-process domain event dispatcher
-  - `IDateTime`, `IIdGenerator`, `IExecutionContextService` — concrete implementations
-  - `ICacheService` — wraps .NET `IHybridCache`
-  - `IPolicyEnforcer` — enforces `IAuthorizationPolicy` rules
-  - MediatR pipeline behaviour registrations for command and query buses
+    Brings in `MassTransit`, `MassTransit.RabbitMQ`, `Ardalis.Result`, `FluentValidation`, and `Microsoft.Extensions.Caching.Hybrid`.
 
-  Brings in `MassTransit`, `MassTransit.RabbitMQ`, `Ardalis.Result`, `FluentValidation`, and `Microsoft.Extensions.Caching.Hybrid`.
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Infrastructure
+    ```
+  </Card>
 
-  ```bash
-  dotnet add package JordiAragonZaragoza.SharedKernel.Infrastructure
-  ```
-</Card>
+  <Card title="JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework" icon="database">
+    Entity Framework Core integration. Provides:
 
-<Card title="JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework" icon="database">
-  Entity Framework Core integration. Provides:
+    - `BaseBusinessModelContext` / `BaseReadModelContext` / `BaseContext` — `DbContext` base classes with auditing and outbox support
+    - `BaseRepository<TAggregateRoot, TId>` / `BaseReadRepository<T>` — Ardalis `Specification`-based repository implementations
+    - `BaseCachedSpecificationRepository<T>` — caching layer over the read repository
+    - `BaseAggregateRootTypeConfiguration` / `BaseModelTypeConfiguration` — EF type-configuration helpers
+    - `SoftDeleteEntitySaveChangesInterceptor` and `TenantReadModelSaveChangesInterceptor` — SaveChanges interceptors
+    - Smart enum and specification support via `Ardalis.SmartEnum.EFCore` and `Ardalis.Specification.EntityFrameworkCore`
 
-  - `BaseBusinessModelContext` / `BaseReadModelContext` / `BaseContext` — `DbContext` base classes with auditing and outbox support
-  - `BaseRepository<TAggregateRoot, TId>` / `BaseReadRepository<T>` — Ardalis `Specification`-based repository implementations
-  - `BaseCachedSpecificationRepository<T>` — caching layer over the read repository
-  - `BaseAggregateRootTypeConfiguration` / `BaseModelTypeConfiguration` — EF type-configuration helpers
-  - `SoftDeleteEntitySaveChangesInterceptor` and `TenantReadModelSaveChangesInterceptor` — SaveChanges interceptors
-  - Smart enum and specification support via `Ardalis.SmartEnum.EFCore` and `Ardalis.Specification.EntityFrameworkCore`
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework
+    ```
+  </Card>
 
-  ```bash
-  dotnet add package JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework
-  ```
-</Card>
+  <Card title="JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore" icon="timeline">
+    Event store integration backed by **KurrentDB** (formerly EventStoreDB). Implements `IAggregateStore` for loading and saving event-sourced aggregate streams. References `KurrentDB.Client` and `Newtonsoft.Json`.
 
-<Card title="JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore" icon="timeline">
-  Event store integration backed by **KurrentDB** (formerly EventStoreDB). Implements `IAggregateStore` for loading and saving event-sourced aggregate streams. References `KurrentDB.Client` and `Newtonsoft.Json`.
-
-  ```bash
-  dotnet add package JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore
-  ```
-</Card>
-
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore
+    ```
+  </Card>
 </CardGroup>
 
 ---
@@ -172,52 +164,50 @@ Use these packages in your **Infrastructure** project. They wire up concrete imp
 
 Use these packages in your **Presentation** (API / host) project. They provide HTTP REST building blocks built on FastEndpoints and MassTransit-backed integration bus consumers and producers.
 
-<CardGroup cols={2}>
+<CardGroup cols={1}>
+  <Card title="JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts" icon="file-contract">
+    Presentation-layer contracts: marker interfaces and shared DTOs used by HTTP endpoints.
 
-<Card title="JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts" icon="file-contract">
-  Presentation-layer contracts: marker interfaces and shared DTOs used by HTTP endpoints.
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts
+    ```
+  </Card>
 
-  ```bash
-  dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts
-  ```
-</Card>
+  <Card title="JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi" icon="globe">
+    HTTP REST building blocks built on FastEndpoints and ASP.NET Core:
 
-<Card title="JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi" icon="globe">
-  HTTP REST building blocks built on FastEndpoints and ASP.NET Core:
+    - `BaseApiCommandController` — `[ApiController]` base with a lazily-resolved `CommandBus` property
+    - `BaseApiQueryController` — equivalent base with a lazily-resolved `QueryBus` property
+    - `ExceptionMiddleware` — converts domain exceptions to RFC 9457 `ProblemDetails` responses
+    - `ExecutionContextMiddleware` — populates `IExecutionContextService` from the HTTP context
+    - `ResponseBuilderHelper` — maps `Ardalis.Result` values to HTTP status codes
+    - `AddSharedKernelPresentationHttpRestfulApi` — service registration extension
 
-  - `BaseApiCommandController` — `[ApiController]` base with a lazily-resolved `CommandBus` property
-  - `BaseApiQueryController` — equivalent base with a lazily-resolved `QueryBus` property
-  - `ExceptionMiddleware` — converts domain exceptions to RFC 9457 `ProblemDetails` responses
-  - `ExecutionContextMiddleware` — populates `IExecutionContextService` from the HTTP context
-  - `ResponseBuilderHelper` — maps `Ardalis.Result` values to HTTP status codes
-  - `AddSharedKernelPresentationHttpRestfulApi` — service registration extension
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi
+    ```
+  </Card>
 
-  ```bash
-  dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi
-  ```
-</Card>
+  <Card title="JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts" icon="file-contract">
+    Contracts for integration bus consumers: `IIntegrationEventHandler<T>`, `IIntegrationCommandHandler<T>`, and `IBaseIntegrationMessageHandler`.
 
-<Card title="JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts" icon="file-contract">
-  Contracts for integration bus consumers: `IIntegrationEventHandler<T>`, `IIntegrationCommandHandler<T>`, and `IBaseIntegrationMessageHandler`.
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts
+    ```
+  </Card>
 
-  ```bash
-  dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts
-  ```
-</Card>
+  <Card title="JordiAragonZaragoza.SharedKernel.Presentation.Integration" icon="arrows-left-right">
+    MassTransit over RabbitMQ integration bus implementation:
 
-<Card title="JordiAragonZaragoza.SharedKernel.Presentation.Integration" icon="arrows-left-right">
-  MassTransit over RabbitMQ integration bus implementation:
+    - `BaseIntegrationEventHandler<T>` — base class for consuming integration events
+    - `MassTransitIntegrationEventBus` / `MassTransitIntegrationCommandBus` / `MassTransitIntegrationQueryBus` — producer implementations
+    - `MassTransitIntegrationBusConsumersRegistrationConfigurator` — dynamic consumer registration
+    - `AddSharedKernelPresentationIntegrationBusRegistrations` — MassTransit \+ RabbitMQ DI registration
 
-  - `BaseIntegrationEventHandler<T>` — base class for consuming integration events
-  - `MassTransitIntegrationEventBus` / `MassTransitIntegrationCommandBus` / `MassTransitIntegrationQueryBus` — producer implementations
-  - `MassTransitIntegrationBusConsumersRegistrationConfigurator` — dynamic consumer registration
-  - `AddSharedKernelPresentationIntegrationBusRegistrations` — MassTransit + RabbitMQ DI registration
-
-  ```bash
-  dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.Integration
-  ```
-</Card>
-
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.Integration
+    ```
+  </Card>
 </CardGroup>
 
 ---
@@ -227,12 +217,12 @@ Use these packages in your **Presentation** (API / host) project. They provide H
 The table below shows common project configurations and the packages you need for each layer.
 
 | Scenario | Packages |
-|---|---|
+| --- | --- |
 | Domain model only (class library) | `Domain.Contracts`, `Domain` |
-| Application layer (CQRS, no transport) | + `Application.Contracts`, `Application` |
-| HTTP REST API (EF Core persistence) | + `Infrastructure`, `Infrastructure.EntityFramework`, `Presentation.HttpRestfulApi` |
-| Event-sourced aggregate (KurrentDB) | + `Infrastructure`, `Infrastructure.EventStore` |
-| Microservice with integration events | + `Application.Contracts.Integration`, `Presentation.Integration.Contracts`, `Presentation.Integration` |
+| Application layer (CQRS, no transport) | \+ `Application.Contracts`, `Application` |
+| HTTP REST API (EF Core persistence) | \+ `Infrastructure`, `Infrastructure.EntityFramework`, `Presentation.HttpRestfulApi` |
+| Event-sourced aggregate (KurrentDB) | \+ `Infrastructure`, `Infrastructure.EventStore` |
+| Microservice with integration events | \+ `Application.Contracts.Integration`, `Presentation.Integration.Contracts`, `Presentation.Integration` |
 
 For a **typical DDD monolith** with an HTTP REST API and Entity Framework Core persistence, install:
 
@@ -253,7 +243,7 @@ dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi
 The `main` branch publishes packages targeting **.NET 10**. If you need an earlier runtime, check out the corresponding branch:
 
 | .NET version | Branch |
-|---|---|
+| --- | --- |
 | .NET 10 (current) | `main` |
 | .NET 9 | [`net9.0`](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.SharedKernel/tree/net9.0) |
 | .NET 8 | [`net8.0`](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.SharedKernel/tree/net8.0) |
