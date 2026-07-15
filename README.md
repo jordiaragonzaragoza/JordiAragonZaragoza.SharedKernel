@@ -1,13 +1,39 @@
-What is the Shared Kernel Project?
-================================
-The purpose of the Shared Kernel project is to define a common set of abstractions and building blocks that promote Domain-Driven Design (DDD) and Clean Architecture in .NET.
+# SharedKernel — DDD & Clean Architecture building blocks for .NET
+
+SharedKernel gives .NET developers a production-ready foundation for Domain-Driven Design and Clean Architecture. Rather than reinventing aggregate roots, value objects, CQRS buses, and MediatR pipeline behaviors in every project, you install the packages that match your architecture and focus on your domain logic.
 
 It intentionally remains persistence-agnostic, allowing aggregates to be implemented with or without event sourcing.
 
+## Why SharedKernel?
+
+Every .NET project that follows DDD and Clean Architecture needs the same foundational pieces: strongly-typed entity IDs, aggregate roots that record domain events, a CQRS command/query bus, pipeline behaviors for validation and logging, and persistence abstractions. SharedKernel provides all of these as tested, composable NuGet packages.
 
 # Give it a star ⭐
 
 Loving it? Please show your support by giving this project a star!
+
+## Example of Use 🚨
+
+- [JordiAragonZaragoza.Cinema](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.Cinema/) A showcase project demonstrating a fictional cinema management system built with .NET.
+
+  The solution follows Domain-Driven Design (DDD) and Event Sourcing principles, and adopts a Microservices Architecture with an Event-Driven approach and Vertical Slice Architecture.
+
+## Read the documentation 📝
+
+- Explore the [documentation](https://sharedkernel-jordiaragonzaragoza.mintlify.site/) to get a successful quickstart.
+
+## Package overview 📦
+
+SharedKernel is split into focused packages so you only add what you need:
+
+| Package group | What it provides |
+| --- | --- |
+| **SharedKernel and Contracts** | Dependency injection, auto-registering services through markup interfaces |
+| **Domain and Contracts** | Common contracts and base implementations for DDD principles: DomainEvents, ApplicationEvents, ValueObjects, Entities, Repository, BusinessRulesValidations, and other DDD building blocks |
+| **Application and Contracts** | Application common contracts and base implementations for EventBus, UnitOfWork, and CQRS; common MediatR pipeline implementations; integration contracts and base implementation for the EventBus; common EventBus implementation using MassTransit |
+| **Infrastructure and Contracts** | KurrentDB event store and EF Core base implementation; `BaseCachedRepository` built on the `ICacheService` abstraction; base implementation of the MassTransit event bus |
+| **Presentation and Contracts** | HTTP RESTful API building blocks such as `BaseApiController`, `ExceptionMiddleware`, `CurrentUserService`, and a `ResponseBuilder` for ProblemDetails |
+| **Presentation Integration and Contracts** | Integration bus building blocks, such as `IntegrationEventHandler` |
 
 ## NuGets ready to use: ⚙️
 
@@ -31,13 +57,6 @@ Loving it? Please show your support by giving this project a star!
 - You will need the latest Visual Studio 2022 and the latest .NET Core SDK (at least .NET 10 SDK)
 - All the projects library are contained in JordiAragonZaragoza.SharedKernel.sln solution file.
 
-## Example of Use 🚨
-
-- [JordiAragonZaragoza.Cinema](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.Cinema/) A showcase project demonstrating a fictional cinema management system built with .NET.
-
-  The solution follows Domain-Driven Design (DDD) and Event Sourcing principles, and adopts a Microservices Architecture with an Event-Driven approach and Vertical Slice Architecture.
-
-
 ## Used libraries: ⚒️
 
 - Entity Framework
@@ -52,31 +71,6 @@ Loving it? Please show your support by giving this project a star!
 - FluentValidator
 - Serilog
 - StyleCop & SonarAnalyzer
-
-## Brief explanation per project (Pending to complete) 🤓
-
-**SharedKernel and Contracts**
-- Dependency Injection. Allow auto register services using markup interfaces.
-
-**Domain and Contracts**
-- Common contracts and base implementations to flow DDD principles like: DomainEvents, ApplicationEvents, ValueObjects, Entities, Repository, BusinessRulesValidations and other DDD building blocks.
-
-**Application and Contracts**
-- Application common contracts and base implementation for EventBus, UnitOfWork and CQRS...
-- Common MediatR pipelines implementation 
-- Integration contacts and base implementation to be used in EventBus
-- Common EventBus implementation using MassTransit
-
-**Infrastructure and Contracts**
-- EntityFramework base implementation to allow auditing and outbox to dispatch domain events notifications. 
-- BaseCachedRepository is done using ICacheService abstraction.
-- MassTransitEventBus base implementation.
-
-**Presentation and Contracts**
-- HttpRestfulApi building blocks. Like BaseApiController, ExceptionMiddleware, CurrentUserService and ResponseBuilder for ProblemDetails.
-
-**Presentation Integration and Contracts**
-- Integration Bus building blocks. Like IntegrationEventHandler
 
 ## Testing 🧪
 
@@ -112,7 +106,7 @@ Special thanks to all these authors for sharing their knowledge and expertise:
 
 ## Versions
 
-The main branch is now on .NET 10 The following previous versions are available:
+The main branch is now on .NET 10. The following previous versions are available:
 * [.NET 9](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.SharedKernel/tree/net9.0)
 * [.NET 8](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.SharedKernel/tree/net8.0)
 * [.NET 7](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.SharedKernel/tree/net7.0)

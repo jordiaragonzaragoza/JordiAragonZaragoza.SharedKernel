@@ -1,0 +1,359 @@
+---
+title: "Integration event consumers and producers in SharedKernel"
+sidebarTitle: "Integration Bus"
+description: "Connect bounded contexts over MassTransit using SharedKernel's BaseIntegrationEventHandler, integration bus producers, and consumer registration helpers."
+---
+
+SharedKernel's integration bus packages bridge your bounded context to the outside world through message-based communication. Two packages cover the two sides of this channel: `JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts` defines the consumer interfaces and contracts shared across bounded contexts, while `JordiAragonZaragoza.SharedKernel.Presentation.Integration` provides the MassTransit-backed implementations for publishing events, sending commands, and registering consumers. Together they let you react to integration events from other services and broadcast your own — without coupling bounded contexts at the domain level.
+
+<Note>
+  The RabbitMQ transport and the MassTransit bus itself are configured in the infrastructure layer. See [Infrastructure / Messaging](/infrastructure/messaging) for transport setup, retry policies, and outbox configuration. This page focuses on the consumer and producer abstractions you use inside a bounded context.
+</Note>
+
+---
+
+## Consumer contracts
+
+All consumer interfaces live in `JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts` and depend only on MassTransit's `IConsumer<T>` abstraction — no infrastructure package required on the consumer side.
+
+### IBaseIntegrationMessageHandler\<TIntegrationMessage\>
+
+The root contract for any message handler. It declares a single method that your handler must implement:
+
+```csharp
+public interface IBaseIntegrationMessageHandler<in TIntegrationMessage>
+    where TIntegrationMessage : IIntegrationMessage
+{
+    Task HandleAsync(TIntegrationMessage integrationMessage, CancellationToken cancellationToken);
+}
+```
+
+You rarely implement this interface directly — use one of the derived interfaces below.
+
+### IIntegrationEventHandler\<TEvent\>
+
+Use this interface when your bounded context reacts to an event published by another bounded context. It extends both `IBaseIntegrationMessageHandler<TEvent>` and MassTransit's `IConsumer<TEvent>`, so MassTransit can discover and invoke it automatically.
+
+```csharp
+public interface IIntegrationEventHandler<in TEvent>
+    : IBaseIntegrationMessageHandler<TEvent>, IConsumer<TEvent>
+    where TEvent : class, IIntegrationEvent
+{
+}
+```
+
+### IIntegrationCommandHandler\<TCommand\>
+
+Use this interface when your bounded context receives a command from another bounded context and must reply with a result.
+
+```csharp
+public interface IIntegrationCommandHandler<in TCommand>
+    : IBaseIntegrationMessageHandler<TCommand>, IConsumer<TCommand>
+    where TCommand : class, IIntegrationCommand
+{
+}
+```
+
+<Warning>
+  A bounded context should not consume commands from another bounded context to enforce state changes. Doing so introduces strong coupling and violates the autonomy principle in distributed architectures. Prefer integration events for reacting to state changes without enforcing direct modifications across service boundaries.
+</Warning>
+
+---
+
+## BaseIntegrationEventHandler\<TEvent\>
+
+`BaseIntegrationEventHandler<TEvent>` is the concrete base class you inherit to create a MassTransit consumer for an integration event. It implements `IIntegrationEventHandler<TEvent>` and bridges MassTransit's `Consume(ConsumeContext<TEvent>)` call to the simpler `HandleAsync(TEvent, CancellationToken)` method you override.
+
+```csharp
+public abstract class BaseIntegrationEventHandler<TEvent> : IIntegrationEventHandler<TEvent>
+    where TEvent : class, IIntegrationEvent
+{
+    public async Task Consume(ConsumeContext<TEvent> context)
+    {
+        ArgumentNullException.ThrowIfNull(context);
+        await this.HandleAsync(context.Message, CancellationToken.None);
+    }
+
+    public abstract Task HandleAsync(TEvent integrationMessage, CancellationToken cancellationToken);
+}
+```
+
+Override `HandleAsync` and dispatch an application command or query via the appropriate bus. You never touch `ConsumeContext` or MassTransit internals directly.
+
+### Example: consuming an OrderCreatedIntegrationEvent
+
+```csharp
+// 1. Define the integration event (shared contract, usually in a separate Contracts package)
+public record OrderCreatedIntegrationEvent(
+    Guid Id,
+    Guid OrderId,
+    Guid CustomerId,
+    DateTimeOffset OccurredOnUtc) : IIntegrationEvent;
+
+// 2. Implement the consumer in your bounded context
+public sealed class OrderCreatedIntegrationEventHandler
+    : BaseIntegrationEventHandler<OrderCreatedIntegrationEvent>
+{
+    private readonly ICommandBus commandBus;
+
+    public OrderCreatedIntegrationEventHandler(ICommandBus commandBus)
+        => this.commandBus = commandBus;
+
+    public override async Task HandleAsync(
+        OrderCreatedIntegrationEvent integrationEvent,
+        CancellationToken cancellationToken)
+    {
+        // Translate the integration event into a local application command
+        var command = new CreateInvoiceForOrderCommand(
+            integrationEvent.OrderId,
+            integrationEvent.CustomerId);
+
+        await this.commandBus.SendAsync(command, cancellationToken);
+    }
+}
+```
+
+<Tip>
+  MassTransit derives the message endpoint name from the event type name using kebab-case by default (e.g., `OrderCreatedIntegrationEvent` becomes `order-created-integration-event`). Make sure both the publisher and the consumer reference the **same CLR type** (or at least the same full type name) so messages are routed to the correct queue.
+</Tip>
+
+---
+
+## MassTransitIntegrationBusConsumersRegistrationConfigurator
+
+`MassTransitIntegrationBusConsumersRegistrationConfigurator` lets each bounded context declare its own consumers without forcing every host to register every consumer. You construct it with an `Action<IBusRegistrationConfigurator>` delegate and pass it to your infrastructure setup, which calls `Configure` at the right point in the MassTransit registration pipeline.
+
+```csharp
+public class MassTransitIntegrationBusConsumersRegistrationConfigurator
+{
+    private readonly Action<IBusRegistrationConfigurator> configure;
+
+    public MassTransitIntegrationBusConsumersRegistrationConfigurator(
+        Action<IBusRegistrationConfigurator> configure)
+        => this.configure = configure;
+
+    // Called by the infrastructure setup — you do not call this directly.
+    public void Configure(IBusRegistrationConfigurator configurator)
+        => this.configure(configurator);
+}
+```
+
+### Registering your consumers
+
+Create one instance per bounded context and register it in the DI container. The infrastructure layer picks it up and applies it when configuring MassTransit.
+
+```csharp
+// In your bounded context's DI registration (e.g., AddInvoicingModule)
+services.AddSingleton(
+    new MassTransitIntegrationBusConsumersRegistrationConfigurator(cfg =>
+    {
+        cfg.AddConsumer<OrderCreatedIntegrationEventHandler>();
+        cfg.AddConsumer<PaymentReceivedIntegrationEventHandler>();
+    }));
+```
+
+If you have multiple bounded contexts in the same host, register one configurator per context — they are all collected and applied sequentially:
+
+```csharp
+// Context A
+services.AddSingleton(
+    new MassTransitIntegrationBusConsumersRegistrationConfigurator(cfg =>
+        cfg.AddConsumer<OrderCreatedIntegrationEventHandler>()));
+
+// Context B
+services.AddSingleton(
+    new MassTransitIntegrationBusConsumersRegistrationConfigurator(cfg =>
+        cfg.AddConsumer<UserRegisteredIntegrationEventHandler>()));
+```
+
+---
+
+## Producers
+
+Producers live in `JordiAragonZaragoza.SharedKernel.Presentation.Integration` and implement the producer interfaces from `JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration`. Inject the interface, not the concrete class.
+
+### MassTransitIntegrationEventBus
+
+`MassTransitIntegrationEventBus` implements `IIntegrationEventBus`. Call `PublishAsync<T>` to broadcast an integration event to all subscribers. The bus stamps `DateDispatchedOnUtc` on the event before publishing and logs debug/error telemetry automatically.
+
+```csharp
+public class MassTransitIntegrationEventBus : IIntegrationEventBus
+{
+    public async Task PublishAsync<T>(T @event, CancellationToken cancellationToken = default)
+        where T : class, IIntegrationEvent;
+}
+```
+
+Example — publishing from an application event handler:
+
+```csharp
+public sealed class OrderPlacedDomainEventHandler
+    : INotificationHandler<OrderPlacedDomainEvent>
+{
+    private readonly IIntegrationEventBus integrationEventBus;
+
+    public OrderPlacedDomainEventHandler(IIntegrationEventBus integrationEventBus)
+        => this.integrationEventBus = integrationEventBus;
+
+    public async Task Handle(
+        OrderPlacedDomainEvent notification,
+        CancellationToken cancellationToken)
+    {
+        var integrationEvent = new OrderCreatedIntegrationEvent(
+            Id:            Guid.CreateVersion7(),
+            OrderId:       notification.OrderId,
+            CustomerId:    notification.CustomerId,
+            OccurredOnUtc: notification.OccurredOnUtc);
+
+        await this.integrationEventBus.PublishAsync(integrationEvent, cancellationToken);
+    }
+}
+```
+
+### MassTransitIntegrationCommandBus
+
+`MassTransitIntegrationCommandBus` implements `IIntegrationCommandBus`. Use `SendAsync` to dispatch a command to a single consumer and await the `Result` or `Result<TResponse>` reply. The bus uses MassTransit's request/client pattern under the hood.
+
+```csharp
+public class MassTransitIntegrationCommandBus : IIntegrationCommandBus
+{
+    // Fire and forget with result
+    public async Task<Result> SendAsync<TCommand>(
+        TCommand command,
+        CancellationToken cancellationToken = default)
+        where TCommand : class, IIntegrationCommand;
+
+    // Request/response with typed return value
+    public async Task<Result<TResponse>> SendAsync<TCommand, TResponse>(
+        TCommand command,
+        CancellationToken cancellationToken = default)
+        where TCommand : class, IIntegrationCommand
+        where TResponse : notnull;
+}
+```
+
+Example — requesting a read-model projection from another bounded context:
+
+```csharp
+var command       = new ReserveInventoryCommand(productId, quantity);
+Result reservation = await this.integrationCommandBus.SendAsync(command, cancellationToken);
+
+if (!reservation.IsSuccess)
+{
+    // Handle failure — the remote bounded context rejected the command
+}
+```
+
+### MassTransitIntegrationQueryBus
+
+`MassTransitIntegrationQueryBus` implements `IIntegrationQueryBus`. Use `SendAsync<TQuery, TResponse>` to query another bounded context and receive a typed `Result<TResponse>`. Like the command bus, it relies on MassTransit's request/client pattern.
+
+```csharp
+public class MassTransitIntegrationQueryBus : IIntegrationQueryBus
+{
+    public async Task<Result<TResponse>> SendAsync<TQuery, TResponse>(
+        TQuery query,
+        CancellationToken cancellationToken = default)
+        where TQuery : class, IIntegrationQuery
+        where TResponse : notnull;
+}
+```
+
+Example — querying customer details from the Customers bounded context:
+
+```csharp
+var query = new GetCustomerSummaryQuery(customerId);
+Result<CustomerSummaryResponse> result =
+    await this.integrationQueryBus.SendAsync<GetCustomerSummaryQuery, CustomerSummaryResponse>(
+        query, cancellationToken);
+
+if (result.IsSuccess)
+{
+    var customerName = result.Value.FullName;
+}
+```
+
+<Note>
+  All three producer classes stamp `DateDispatchedOnUtc` on the message before sending and write structured log entries (debug on success, error with full message content on failure). No additional logging setup is required.
+</Note>
+
+---
+
+## Complete end-to-end example
+
+The following example shows a bounded context that both consumes an event from the Orders context and publishes its own event in response.
+
+<CodeGroup>
+```csharp Consumer — InvoicingModule registration
+// InvoicingModule.cs — DI registration
+public static IServiceCollection AddInvoicingModule(this IServiceCollection services)
+{
+    // Register the MassTransit consumer configurator for this module
+    services.AddSingleton(
+        new MassTransitIntegrationBusConsumersRegistrationConfigurator(cfg =>
+        {
+            cfg.AddConsumer<OrderCreatedIntegrationEventHandler>();
+        }));
+
+    return services;
+}
+```
+
+```csharp Consumer — OrderCreatedIntegrationEventHandler
+public sealed class OrderCreatedIntegrationEventHandler
+    : BaseIntegrationEventHandler<OrderCreatedIntegrationEvent>
+{
+    private readonly ICommandBus commandBus;
+    private readonly IIntegrationEventBus integrationEventBus;
+
+    public OrderCreatedIntegrationEventHandler(
+        ICommandBus commandBus,
+        IIntegrationEventBus integrationEventBus)
+    {
+        this.commandBus          = commandBus;
+        this.integrationEventBus = integrationEventBus;
+    }
+
+    public override async Task HandleAsync(
+        OrderCreatedIntegrationEvent integrationEvent,
+        CancellationToken cancellationToken)
+    {
+        // 1. Dispatch a local application command
+        var command = new CreateInvoiceCommand(
+            integrationEvent.OrderId,
+            integrationEvent.CustomerId);
+
+        var result = await this.commandBus.SendAsync(command, cancellationToken);
+
+        if (!result.IsSuccess)
+        {
+            return;
+        }
+
+        // 2. Publish an outbound integration event
+        var invoiceCreated = new InvoiceCreatedIntegrationEvent(
+            Id:            Guid.CreateVersion7(),
+            InvoiceId:     result.Value,
+            OrderId:       integrationEvent.OrderId,
+            OccurredOnUtc: DateTimeOffset.UtcNow);
+
+        await this.integrationEventBus.PublishAsync(invoiceCreated, cancellationToken);
+    }
+}
+```
+
+```csharp Integration event contracts
+// Shared contracts package — referenced by both producer and consumer
+public record OrderCreatedIntegrationEvent(
+    Guid Id,
+    Guid OrderId,
+    Guid CustomerId,
+    DateTimeOffset OccurredOnUtc) : IIntegrationEvent;
+
+public record InvoiceCreatedIntegrationEvent(
+    Guid Id,
+    Guid InvoiceId,
+    Guid OrderId,
+    DateTimeOffset OccurredOnUtc) : IIntegrationEvent;
+```
+</CodeGroup>
