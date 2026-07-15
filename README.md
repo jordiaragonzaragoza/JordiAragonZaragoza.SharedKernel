@@ -31,7 +31,7 @@ SharedKernel is split into focused packages so you only add what you need:
 | **SharedKernel and Contracts** | Dependency injection, auto-registering services through markup interfaces |
 | **Domain and Contracts** | Common contracts and base implementations for DDD principles: DomainEvents, ApplicationEvents, ValueObjects, Entities, Repository, BusinessRulesValidations, and other DDD building blocks |
 | **Application and Contracts** | Application common contracts and base implementations for EventBus, UnitOfWork, and CQRS; common MediatR pipeline implementations; integration contracts and base implementation for the EventBus; common EventBus implementation using MassTransit |
-| **Infrastructure and Contracts** | EF Core base implementation for auditing and outbox dispatch of domain event notifications; `BaseCachedRepository` built on the `ICacheService` abstraction; base implementation of the MassTransit event bus |
+| **Infrastructure and Contracts** | KurrentDB event store and EF Core base implementation; `BaseCachedRepository` built on the `ICacheService` abstraction; base implementation of the MassTransit event bus |
 | **Presentation and Contracts** | HTTP RESTful API building blocks such as `BaseApiController`, `ExceptionMiddleware`, `CurrentUserService`, and a `ResponseBuilder` for ProblemDetails |
 | **Presentation Integration and Contracts** | Integration bus building blocks, such as `IntegrationEventHandler` |
 
