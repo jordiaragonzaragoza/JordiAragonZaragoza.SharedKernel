@@ -64,14 +64,6 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore
 
         public string? TraceState { get; }
 
-        public bool IsValid()
-            => !string.IsNullOrWhiteSpace(this.ActorId)
-            && !string.IsNullOrWhiteSpace(this.ActorType)
-            && !string.IsNullOrWhiteSpace(this.Executor)
-            && !string.IsNullOrWhiteSpace(this.ExecutorType)
-            && this.CorrelationId != Guid.Empty
-            && this.TenantId != Guid.Empty;
-
         public static EventStoreMetadata From(
             ExecutionContext executionContext,
             DateTimeOffset dateOccurredOnUtc)
@@ -104,6 +96,14 @@ namespace JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore
                 traceParent: traceParent,
                 traceState: traceState);
         }
+
+        public bool IsValid()
+            => !string.IsNullOrWhiteSpace(this.ActorId)
+            && !string.IsNullOrWhiteSpace(this.ActorType)
+            && !string.IsNullOrWhiteSpace(this.Executor)
+            && !string.IsNullOrWhiteSpace(this.ExecutorType)
+            && this.CorrelationId != Guid.Empty
+            && this.TenantId != Guid.Empty;
 
         public ExecutionContext? ToProcessingExecutionContext(Guid causationId)
         {
