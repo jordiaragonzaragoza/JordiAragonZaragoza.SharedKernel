@@ -1,0 +1,325 @@
+---
+title: "Entities and aggregate roots in SharedKernel DDD library"
+sidebarTitle: "Entities & Aggregates"
+description: "Build DDD entities and aggregate roots using SharedKernel's BaseEntity and BaseAggregateRoot, with typed IDs and built-in domain event support."
+---
+
+Entities and aggregate roots are the beating heart of a domain model. SharedKernel gives you two ready-to-inherit base classes — `BaseEntity<TId>` and `BaseAggregateRoot<TId>` — that wire up identity-based equality, domain event collection, optimistic concurrency, and invariant enforcement so you can focus on your business logic instead of plumbing.
+
+## `BaseEntity<TId>` — identity and equality
+
+Every object that has a distinct lifecycle and is tracked by identity should inherit from `BaseEntity<TId>`.
+
+```csharp
+public abstract class BaseEntity<TId> : IEqualityComparer<BaseEntity<TId>>, IEntity<TId>
+    where TId : class, IEntityId
+{
+    protected BaseEntity(TId id) { ... }
+
+    // Required by EF Core
+    protected BaseEntity() { }
+
+    public TId Id { get; protected set; }
+
+    // Equality is determined entirely by Id — two entity instances
+    // with the same Id are considered the same entity.
+    public bool Equals(BaseEntity<TId>? x, BaseEntity<TId>? y) { ... }
+    public int GetHashCode(BaseEntity<TId> obj) { ... }
+
+    // Shared guard used by entities and value objects alike
+    protected static void CheckRule(IBusinessRule rule) { ... }
+}
+```
+
+Two key points:
+
+- **Identity equality** — `Equals` and `GetHashCode` both delegate to `Id`, so you never accidentally compare entities by reference.
+- **`CheckRule`** — a static helper that throws `BusinessRuleValidationException` if the supplied rule `IsBroken()`. You call it from any public method that needs to enforce a pre-condition.
+
+## Typed entity IDs: `BaseEntityId<TIdType>` and `BaseAggregateRootId<TId>`
+
+Strongly-typed IDs prevent you from accidentally passing a `CustomerId` where an `OrderId` is expected. Both ID base classes live in the `ValueObjects` namespace and inherit `BaseValueObject`, giving them structural equality for free.
+
+```csharp
+// For child-entity IDs
+public abstract class BaseEntityId<TIdType> : BaseValueObject, IEntityId<TIdType>
+    where TIdType : notnull
+{
+    protected BaseEntityId(TIdType value) { ... }
+    public TIdType Value { get; init; }
+
+    // Allows implicit cast: Guid g = myEntityId;
+    public static implicit operator TIdType(BaseEntityId<TIdType> self) => self.Value;
+}
+
+// For aggregate root IDs — a thin specialisation of BaseEntityId<TId>
+public abstract class BaseAggregateRootId<TId> : BaseEntityId<TId>
+    where TId : notnull
+{
+    protected BaseAggregateRootId(TId value) : base(value) { }
+}
+```
+
+Define your own ID type by inheriting from the appropriate base:
+
+```csharp
+public sealed class ProductId : BaseAggregateRootId<Guid>
+{
+    public ProductId(Guid value) : base(value) { }
+
+    // Convenience factory
+    public static ProductId Create(Guid value) => new(value);
+}
+```
+
+The constructor rejects `default` values (e.g. `Guid.Empty`), so invalid IDs cannot be created.
+
+## `BaseAggregateRoot<TId>` vs `BaseAggregateRoot<TId, TIdType>` — choosing a variant
+
+SharedKernel ships two aggregate root base classes. Pick the one that matches how you define your ID type.
+
+<Tabs>
+  <Tab title="BaseAggregateRoot&lt;TId&gt;">
+
+    Use this variant when `TId` already constrains to `IEntityId` but you don't need the generic `TIdType` threading. The `IAggregateRoot<TId>` contract pulls in `IEventsContainer<IDomainEvent>` and `IOptimisticLockable`.
+
+    ```csharp
+    public abstract class BaseAggregateRoot<TId> : BaseEntity<TId>, IAggregateRoot<TId>
+        where TId : class, IEntityId
+    {
+        public uint? Version { get; protected set; }
+        public IEnumerable<IDomainEvent> Events { get; }
+        public void ClearEvents() { ... }
+
+        protected void Apply(IDomainEvent domainEvent) { ... }
+        protected abstract void When(IDomainEvent domainEvent);
+        protected abstract void EnsureValidState();
+    }
+    ```
+
+  </Tab>
+  <Tab title="BaseAggregateRoot&lt;TId, TIdType&gt;">
+
+    Use this variant when you want the compiler to verify that `TId` is a `BaseAggregateRootId<TIdType>`. It adds a null-guard on the ID in the constructor and is the preferred form for new aggregates.
+
+    ```csharp
+    public abstract class BaseAggregateRoot<TId, TIdType> : BaseAggregateRoot<TId>
+        where TId : BaseAggregateRootId<TIdType>
+        where TIdType : notnull
+    {
+        protected BaseAggregateRoot(TId id) : base(id)
+        {
+            this.Id = id ?? throw new ArgumentNullException(nameof(id));
+        }
+
+        // Required by EF Core
+        protected BaseAggregateRoot() { }
+    }
+    ```
+
+  </Tab>
+</Tabs>
+
+## `Apply(IDomainEvent)` — recording domain events
+
+Never mutate aggregate state directly in a public method. Instead, call `Apply` with a domain event that *describes* the change. `Apply` orchestrates three things in order:
+
+1. **`When(domainEvent)`** — project the event onto the aggregate's fields.
+2. **`EnsureValidState()`** — assert that the resulting state is still valid.
+3. Append the event to the internal `domainEvents` list so the infrastructure can dispatch it.
+
+```csharp
+protected void Apply(IDomainEvent domainEvent)
+{
+    this.When(domainEvent);
+    this.EnsureValidState();
+    this.domainEvents.Add(domainEvent);
+}
+```
+
+## Abstract `When(IDomainEvent)` — projecting events into state
+
+`When` is the only place state should change. Implement it as a `switch` (or pattern match) over event types:
+
+```csharp
+protected override void When(IDomainEvent domainEvent)
+{
+    switch (domainEvent)
+    {
+        case ProductCreated e:
+            this.Name = e.Name;
+            this.Price = e.Price;
+            break;
+        case ProductRenamed e:
+            this.Name = e.NewName;
+            break;
+    }
+}
+```
+
+## Abstract `EnsureValidState()` — invariant enforcement
+
+`EnsureValidState` is called after every `When` to guarantee the aggregate is never left in an invalid intermediate state. If your aggregate logic is fully deterministic (i.e. the same set of events always produces the same state) you can implement it as a no-op. For non-deterministic or context-sensitive validation, throw a domain exception here.
+
+```csharp
+protected override void EnsureValidState()
+{
+    if (this.Price is not null && this.Price.Amount < 0)
+        throw new InvalidOperationException("Price cannot be negative.");
+}
+```
+
+## `Version` property — optimistic concurrency
+
+`IAggregateRoot<TId>` extends `IOptimisticLockable`, which exposes a `uint? Version` property. The infrastructure layer reads and writes this value to implement optimistic concurrency control — a `DbUpdateConcurrencyException` (or equivalent) is raised when two concurrent writes collide. You do not set `Version` yourself; the repository and ORM manage it.
+
+## Complete example
+
+The following self-contained example defines a `ProductId` value object, a `ProductCreated` domain event, and a `Product` aggregate root.
+
+```csharp
+// 1. Strongly-typed aggregate ID
+public sealed class ProductId : BaseAggregateRootId<Guid>
+{
+    public ProductId(Guid value) : base(value) { }
+    public static ProductId Create(Guid value) => new(value);
+}
+
+// 2. Domain event — use BaseInMemoryDomainEvent for EF Core aggregates
+public sealed record ProductCreated(Guid AggregateId, string Name, decimal Price)
+    : BaseInMemoryDomainEvent(AggregateId);
+
+// 3. Aggregate root
+public sealed class Product : BaseAggregateRoot<ProductId, Guid>
+{
+    // Private constructor — creation goes through the factory method
+    private Product() { }
+
+    public string Name { get; private set; } = string.Empty;
+    public decimal Price { get; private set; }
+
+    // Factory method — the only public entry point for creation
+    public static Product Create(ProductId id, string name, decimal price)
+    {
+        ArgumentNullException.ThrowIfNull(id);
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+
+        var product = new Product();
+
+        // Raise the event; When() + EnsureValidState() run inside Apply()
+        product.Apply(new ProductCreated(id.Value, name, price));
+        product.Id = id;
+
+        return product;
+    }
+
+    public void Rename(string newName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(newName);
+        CheckRule(new ProductNameMustNotBeEmpty(newName));
+
+        this.Apply(new ProductRenamed(this.Id.Value, newName));
+    }
+
+    // Project events onto state
+    protected override void When(IDomainEvent domainEvent)
+    {
+        switch (domainEvent)
+        {
+            case ProductCreated e:
+                this.Name  = e.Name;
+                this.Price = e.Price;
+                break;
+            case ProductRenamed e:
+                this.Name = e.NewName;
+                break;
+        }
+    }
+
+    // Validate aggregate invariants after every event
+    protected override void EnsureValidState()
+    {
+        if (string.IsNullOrWhiteSpace(this.Name))
+            throw new InvalidOperationException("Product name cannot be empty.");
+
+        if (this.Price < 0)
+            throw new InvalidOperationException("Price cannot be negative.");
+    }
+}
+```
+
+## `BaseEventSourcedAggregateRoot<TId>` — event-sourcing variant
+
+<Tabs>
+  <Tab title="Standard Aggregate">
+
+    `BaseAggregateRoot<TId>` / `BaseAggregateRoot<TId, TIdType>` persist state snapshots (e.g. via EF Core). Domain events are collected, dispatched after the unit of work commits, and then discarded. Use this for the vast majority of aggregates.
+
+    ```csharp
+    public sealed class Product : BaseAggregateRoot<ProductId, Guid>
+    {
+        // State is stored as columns/rows in a relational database.
+        // Events are transient — raised, dispatched, then cleared.
+    }
+    ```
+
+  </Tab>
+  <Tab title="Event-Sourced Aggregate">
+
+    `BaseEventSourcedAggregateRoot<TId>` adds a `Load(IEnumerable<IDomainEvent> history)` method. The infrastructure replays the full event history to rehydrate state — no snapshot table is needed. Events are dispatched via an event-store subscription (e.g. KurrentDB), not the in-memory bus.
+
+    ```csharp
+    public abstract class BaseEventSourcedAggregateRoot<TId> : BaseAggregateRoot<TId>,
+        IEventSourcedAggregateRoot<TId>
+        where TId : class, IEntityId
+    {
+        // Replay history to reconstruct current state
+        public void Load(IEnumerable<IDomainEvent> history)
+        {
+            this.Version = 0;
+            foreach (var @event in history)
+            {
+                this.When(@event);
+                this.Version++;
+            }
+            if (this.Version > 0) this.Version--;
+        }
+    }
+
+    // Your aggregate
+    public sealed class Invoice : BaseEventSourcedAggregateRoot<InvoiceId>
+    {
+        // When() is the single source of truth for state changes.
+        // State is derived entirely from the event stream stored in KurrentDB.
+        protected override void When(IDomainEvent domainEvent) { ... }
+        protected override void EnsureValidState() { ... }
+    }
+    ```
+
+    Use event-sourced aggregates when you need a full, immutable audit trail or temporal queries over aggregate history.
+
+  </Tab>
+</Tabs>
+
+## `EntityByIdSpec` — querying by aggregate ID
+
+SharedKernel provides a ready-made [Ardalis.Specification](https://specification.ardalis.com/) specification for single-result queries by ID. Pass it to any read repository that accepts a specification.
+
+```csharp
+public sealed class EntityByIdSpec<TEntity, TId> : SingleResultSpecification<TEntity>
+    where TEntity : class, IEntity<TId>
+    where TId : class, IEntityId
+{
+    public EntityByIdSpec(TId entityId) { ... }
+}
+```
+
+Usage:
+
+```csharp
+var spec    = new EntityByIdSpec<Product, ProductId>(productId);
+var product = await repository.FirstOrDefaultAsync(spec, cancellationToken);
+
+if (product is null)
+    throw new NotFoundException(nameof(Product), productId);
+```

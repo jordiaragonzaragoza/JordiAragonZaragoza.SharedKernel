@@ -1,0 +1,144 @@
+---
+title: "Setting up SharedKernel infrastructure services in .NET"
+sidebarTitle: "Setup"
+description: "Register SharedKernel infrastructure services in .NET: command bus, query bus, caching, identity, and core services via DI extension methods."
+---
+
+SharedKernel's infrastructure layer wires together all the cross-cutting building blocks your application needs — date/time abstraction, ID generation, execution context, hybrid caching, policy enforcement, and in-process message buses — through a set of focused extension methods on `IServiceCollection`. Call these methods in your `Program.cs` and configure the corresponding `appsettings.json` sections to get every service registered correctly.
+
+## Complete registration example
+
+The following block shows a typical `Program.cs` that registers all infrastructure services for an application that handles commands, queries, and in-memory projections.
+
+```csharp
+// Program.cs
+var builder = WebApplication.CreateBuilder(args);
+
+// Core infrastructure services
+builder.Services.AddSharedKernelInfrastructure();
+
+// Application-layer command handlers (call alongside infrastructure registration)
+builder.Services.AddSharedKernelApplicationCommandBus();
+
+// In-process buses
+builder.Services.AddSharedKernelInfrastructureCommandBus();
+builder.Services.AddSharedKernelInfrastructureQueryBus();
+builder.Services.AddSharedKernelInfrastructureProjections();
+
+var app = builder.Build();
+app.Run();
+```
+
+## `AddSharedKernelInfrastructure()`
+
+Call `AddSharedKernelInfrastructure()` first. It registers every foundational singleton and scoped service the rest of the infrastructure depends on.
+
+| Registration | Lifetime | Description |
+|---|---|---|
+| `IDateTime` → `DateTimeService` | Singleton | Abstraction over `DateTime.UtcNow` for testability |
+| `IIdGenerator` → `IdGeneratorService` | Singleton | Deterministic, sortable identifier generation |
+| `IExecutionContextService` → `ExecutionContextService` | Singleton | Carries the current user, tenant, and scope context across the request |
+| `ICacheService` → `CacheService` | Transient | Multi-layer caching façade built on `HybridCache` |
+| `HybridCache` | (framework default) | Microsoft's combined in-memory + distributed cache layer |
+| `IServiceIdentityProvider` → `ServiceIdentityProvider` | Transient | Resolves the current service name from `ServiceIdentityOptions` |
+| `IPolicyEnforcer` → `PolicyEnforcer` | Scoped | Enforces authorization policies on commands and queries |
+
+`ServiceIdentityOptions` is bound from configuration and validated eagerly on startup (see [Service identity configuration](#service-identity-configuration) below).
+
+## `AddSharedKernelInfrastructureCommandBus()`
+
+Registers an in-process command bus powered by MediatR.
+
+```csharp
+builder.Services.AddSharedKernelInfrastructureCommandBus();
+```
+
+**What it registers:**
+
+- `ICommandBus` → `CommandBus` (Transient)
+- MediatR with the full **command pipeline**:
+  - `LoggerBehaviour<>` (pre-processor) — structured request logging
+  - `CommandActivityBehavior<,>` — OpenTelemetry activity tracing
+  - `ExceptionHandlerPipelineBehaviour<,>` — consistent exception handling
+  - `UnitOfWorkBehaviour<,>` — wraps the handler in a unit-of-work transaction
+  - `AuthorizationBehaviour<,>` — policy-based authorization
+  - `ValidationBehaviour<,>` — FluentValidation integration
+  - `PerformancePipelineBehaviour<,>` — logs slow commands
+
+<Note>
+You must also call `AddSharedKernelApplicationCommandBus()` (from the Application layer package) alongside this registration. That method registers your application-layer command handlers, decorators, and validators so MediatR can resolve them.
+</Note>
+
+## `AddSharedKernelInfrastructureQueryBus()`
+
+Registers an in-process query bus powered by MediatR.
+
+```csharp
+builder.Services.AddSharedKernelInfrastructureQueryBus();
+```
+
+**What it registers:**
+
+- `IQueryBus` → `QueryBus` (Transient)
+- MediatR with the **query pipeline**:
+  - `LoggerBehaviour<>` (pre-processor)
+  - `QueryActivityBehavior<,>` — OpenTelemetry tracing for queries
+  - `ExceptionHandlerPipelineBehaviour<,>`
+  - `AuthorizationBehaviour<,>`
+  - `ValidationBehaviour<,>`
+  - `PerformancePipelineBehaviour<,>`
+
+The query pipeline deliberately omits `UnitOfWorkBehaviour` because queries are read-only.
+
+## `AddSharedKernelInfrastructureProjections()`
+
+Registers a lightweight in-memory event bus used to fan out domain events to projection handlers.
+
+```csharp
+builder.Services.AddSharedKernelInfrastructureProjections();
+```
+
+**What it registers:**
+
+- `IEventBus` → `InMemoryEventBus` (Transient)
+- Minimal MediatR registration (no pipeline behaviours) so projection handlers are invoked directly without authorization or validation overhead.
+
+Use this bus when your read-model projectors run in the same process and you do not need durable, out-of-process event delivery.
+
+## `AddSharedKernelInfrastructureReactorBus()`
+
+Registers a combined command-and-event bus intended for reactor services (also called process managers or sagas) that react to domain events by dispatching new commands.
+
+```csharp
+builder.Services.AddSharedKernelInfrastructureReactorBus();
+```
+
+**What it registers:**
+
+- `ICommandBus` → `CommandBus` (Transient)
+- `IEventBus` → `InMemoryEventBus` (Transient)
+- MediatR with the full **command pipeline** (same as `AddSharedKernelInfrastructureCommandBus`)
+
+Use this instead of calling `AddSharedKernelInfrastructureCommandBus` + `AddSharedKernelInfrastructureProjections` separately when both buses share the same MediatR configuration.
+
+## Service identity configuration
+
+`AddSharedKernelInfrastructure()` binds `ServiceIdentityOptions` from the `ServiceIdentity` configuration section and validates that `Name` is present at startup.
+
+Add the following to your `appsettings.json`:
+
+```json
+{
+  "ServiceIdentity": {
+    "Name": "MyService"
+  }
+}
+```
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `Name` | `string` | ✅ | Human-readable name for this service instance, used in logs and distributed tracing |
+
+<Tip>
+Override the `Name` per environment using `appsettings.Production.json` or environment variables (`ServiceIdentity__Name=MyService`). This makes logs and traces easier to filter in multi-service deployments.
+</Tip>

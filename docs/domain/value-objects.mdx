@@ -1,0 +1,233 @@
+---
+title: "Value objects and strongly-typed IDs in SharedKernel"
+sidebarTitle: "Value Objects"
+description: "Define immutable, equality-by-value domain concepts using SharedKernel's BaseValueObject. Create strongly-typed entity IDs with BaseEntityId."
+---
+
+Value objects capture domain concepts that are defined entirely by their attributes, not by a unique identity. A `Money` value of `100 USD` is interchangeable with any other `Money` value of `100 USD` — there is no meaningful notion of "which one". SharedKernel's `BaseValueObject` class enforces immutability conventions and wires up structural equality, comparison, and hash-code computation, so you only need to declare which fields participate in equality.
+
+## `BaseValueObject` — structural equality out of the box
+
+Inherit from `BaseValueObject` and implement a single abstract method to get a fully correct value object:
+
+```csharp
+[Serializable]
+public abstract class BaseValueObject : IComparable, IComparable<BaseValueObject>
+{
+    // Structural equality operators — delegate to GetEqualityComponents()
+    public static bool operator ==(BaseValueObject a, BaseValueObject b) { ... }
+    public static bool operator !=(BaseValueObject a, BaseValueObject b) { ... }
+
+    public override bool Equals(object? obj) { ... }
+    public override int GetHashCode() { ... }   // result is lazily cached
+
+    public int CompareTo(object? obj) { ... }
+    public int CompareTo(BaseValueObject? other) { ... }
+
+    // You MUST implement this — return every field that defines equality.
+    protected abstract IEnumerable<object> GetEqualityComponents();
+
+    // Shared guard — throws BusinessRuleValidationException when rule.IsBroken()
+    protected static void CheckRule(IBusinessRule rule) { ... }
+}
+```
+
+Key behaviours provided for you:
+
+| Feature | How it works |
+|---|---|
+| `==` / `!=` | Delegates to `Equals`, which compares `GetEqualityComponents()` sequences |
+| `GetHashCode` | Aggregates components with a prime-number fold; result is cached after first call |
+| `IComparable` | Compares component-by-component in declaration order |
+| ORM proxy safety | `GetUnproxiedType` strips EF Core / NHibernate proxy wrappers before type comparison |
+
+### Implementing `GetEqualityComponents()`
+
+`GetEqualityComponents()` must `yield return` every field that participates in equality, in a stable order:
+
+```csharp
+protected override IEnumerable<object> GetEqualityComponents()
+{
+    yield return Field1;
+    yield return Field2;
+    // ... all fields that define "sameness"
+}
+```
+
+## Complete `Money` value object example
+
+```csharp
+public sealed class Money : BaseValueObject
+{
+    // Validate and assign in the constructor — never expose a setter
+    public Money(decimal amount, string currency)
+    {
+        if (amount < 0)
+            throw new ArgumentException("Amount cannot be negative.", nameof(amount));
+
+        ArgumentException.ThrowIfNullOrWhiteSpace(currency);
+
+        this.Amount   = amount;
+        this.Currency = currency.ToUpperInvariant();
+    }
+
+    // Properties are init-only — immutable after construction
+    public decimal Amount   { get; }
+    public string  Currency { get; }
+
+    // Convenience factory
+    public static Money Of(decimal amount, string currency) => new(amount, currency);
+
+    // Arithmetic — always returns a new instance
+    public Money Add(Money other)
+    {
+        if (other.Currency != this.Currency)
+            throw new InvalidOperationException("Cannot add amounts in different currencies.");
+
+        return new Money(this.Amount + other.Amount, this.Currency);
+    }
+
+    // Every field that defines "sameness" must appear here
+    protected override IEnumerable<object> GetEqualityComponents()
+    {
+        yield return this.Amount;
+        yield return this.Currency;
+    }
+}
+```
+
+Usage:
+
+```csharp
+var price    = Money.Of(9.99m, "USD");
+var discount = Money.Of(1.00m, "USD");
+var total    = price.Add(discount);   // Money.Of(10.99m, "USD")
+
+Console.WriteLine(price == Money.Of(9.99m, "USD"));   // True
+Console.WriteLine(price == Money.Of(9.99m, "EUR"));   // False
+```
+
+## `BaseEntityId<TIdType>` — typed IDs as value objects
+
+Primitive-obsession on entity IDs (`Guid`, `int`, `string`) is a common source of bugs — you can silently pass a `UserId` where an `OrderId` is expected and the compiler says nothing. `BaseEntityId<TIdType>` wraps the primitive in a named type and extends `BaseValueObject`, so ID equality is structural and the type system enforces correct usage.
+
+```csharp
+public abstract class BaseEntityId<TIdType> : BaseValueObject, IEntityId<TIdType>
+    where TIdType : notnull
+{
+    protected BaseEntityId(TIdType value)
+    {
+        // Rejects null AND default values (e.g. Guid.Empty, 0)
+        ArgumentNullException.ThrowIfNull(value);
+
+        if (EqualityComparer<TIdType>.Default.Equals(value, default!))
+            throw new ArgumentException(
+                $"The value of type {typeof(TIdType).Name} must not be the default value.",
+                nameof(value));
+
+        this.Value = value;
+    }
+
+    // Required by EF Core
+    protected BaseEntityId() { }
+
+    public TIdType Value { get; init; }
+
+    // Implicit cast to the underlying primitive — use in LINQ queries
+    public static implicit operator TIdType(BaseEntityId<TIdType> self) => self.Value;
+
+    public override string? ToString() => this.Value.ToString();
+
+    protected override IEnumerable<object> GetEqualityComponents()
+    {
+        yield return this.Value;
+    }
+}
+```
+
+### Defining a child-entity ID
+
+```csharp
+public sealed class OrderLineId : BaseEntityId<Guid>
+{
+    public OrderLineId(Guid value) : base(value) { }
+
+    public static OrderLineId Create(Guid value) => new(value);
+    public static OrderLineId New()              => new(Guid.CreateVersion7());
+}
+```
+
+## `BaseAggregateRootId<TId>` — IDs for aggregate roots
+
+Aggregate root IDs should inherit `BaseAggregateRootId<TId>` instead of `BaseEntityId<TId>` directly. This distinction lets the type system and the repository infrastructure distinguish aggregate roots from child entities at compile time.
+
+```csharp
+public abstract class BaseAggregateRootId<TId> : BaseEntityId<TId>
+    where TId : notnull
+{
+    protected BaseAggregateRootId(TId value) : base(value) { }
+}
+```
+
+### `CustomerId` example
+
+```csharp
+public sealed class CustomerId : BaseAggregateRootId<Guid>
+{
+    public CustomerId(Guid value) : base(value) { }
+
+    public static CustomerId Create(Guid value) => new(value);
+    public static CustomerId New()              => new(Guid.CreateVersion7());
+}
+```
+
+You can now use `CustomerId` wherever the compiler expects an aggregate ID, and pass it as a plain `Guid` via the implicit cast when working with queries or infrastructure code:
+
+```csharp
+CustomerId id   = CustomerId.New();
+Guid       raw  = id;                    // implicit cast — no .Value needed
+bool       same = id == CustomerId.Create(raw);   // True
+```
+
+## Common mistakes
+
+<Warning>
+**Do not introduce mutable state into a value object.** Value objects must be immutable — assign all fields in the constructor and expose only `get`-only (or `init`-only) properties. If you expose a setter, two "equal" instances can silently diverge over time, breaking the structural-equality contract.
+
+```csharp
+// ❌ Wrong — mutable state breaks equality semantics
+public class Money : BaseValueObject
+{
+    public decimal Amount { get; set; }   // setter breaks immutability
+    ...
+}
+
+// ✅ Correct — read-only property, assigned in constructor
+public class Money : BaseValueObject
+{
+    public decimal Amount { get; }
+    public Money(decimal amount) { this.Amount = amount; }
+    ...
+}
+```
+</Warning>
+
+<Warning>
+**Never skip `GetEqualityComponents()`** — forgetting to yield a field means two instances with different values for that field will compare as equal. Always include every field that contributes to the concept's identity.
+
+```csharp
+// ❌ Wrong — Currency is omitted; 100 USD == 100 EUR
+protected override IEnumerable<object> GetEqualityComponents()
+{
+    yield return this.Amount;
+    // Currency forgotten!
+}
+
+// ✅ Correct
+protected override IEnumerable<object> GetEqualityComponents()
+{
+    yield return this.Amount;
+    yield return this.Currency;
+}
+```
+</Warning>

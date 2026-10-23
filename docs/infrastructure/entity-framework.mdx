@@ -1,0 +1,267 @@
+---
+title: "Entity Framework Core repositories in SharedKernel"
+sidebarTitle: "Entity Framework"
+description: "Use SharedKernel EF Core repositories for aggregate, data, and read-model persistence with auditing, soft-delete, and Ardalis.Specification."
+---
+
+SharedKernel provides a set of abstract EF Core repository base classes that map cleanly onto the three persistence tiers in a CQRS/DDD architecture: the write-side **business model** (aggregate roots), an optional **data model** for auxiliary data entities stored in the read-side context, and the read-side **read model** (query-optimised projections). Every tier integrates with `Ardalis.Specification` so you can express queries as reusable specification objects rather than raw LINQ scattered across repositories.
+
+## Repository tiers
+
+<Tabs>
+  <Tab title="Business Model">
+    The business-model repositories target `BaseBusinessModelContext` and work with aggregate roots that implement `IEntity<TId>`.
+
+    ### `BaseReadRepository<TAggregate, TId>`
+
+    Inherit from this class to create a read-only aggregate repository. It implements `ISpecificationReadRepository<TAggregate, TId>` and extends `RepositoryBase<TAggregate>` from `Ardalis.Specification.EntityFrameworkCore`.
+
+    ```csharp
+    public abstract class BaseReadRepository<TEntity, TId>
+        : RepositoryBase<TEntity>, ISpecificationReadRepository<TEntity, TId>
+        where TEntity : class, IEntity<TId>
+        where TId : class, IEntityId
+    {
+        protected BaseReadRepository(BaseBusinessModelContext readContext)
+            : base(readContext) { }
+
+        public virtual Task<TEntity?> GetByIdAsync(TId id, CancellationToken cancellationToken = default)
+            => this.FirstOrDefaultAsync(new EntityByIdSpec<TEntity, TId>(id), cancellationToken);
+    }
+    ```
+
+    `GetByIdAsync(TId id)` uses a strongly-typed specification (`EntityByIdSpec`) instead of the generic `GetByIdAsync<TIdx>` from the base class — the untyped overload is marked `[Obsolete]` and throws `NotSupportedException` to prevent accidental misuse.
+
+    ### `BaseRepository<TAggregate, TId>`
+
+    Extends `BaseReadRepository` and additionally implements `IRangeableRepository<TAggregate, TId>`, providing bulk add/update/delete operations for aggregate roots.
+
+    ```csharp
+    public abstract class BaseRepository<TAggregate, TId>
+        : BaseReadRepository<TAggregate, TId>, IRangeableRepository<TAggregate, TId>
+        where TAggregate : BaseAggregateRoot<TId>
+        where TId : class, IEntityId
+    {
+        protected BaseRepository(BaseBusinessModelContext dbContext)
+            : base(dbContext) { }
+    }
+    ```
+
+    ### Concrete example
+
+    ```csharp
+    // Domain aggregate root
+    public class Product : BaseAggregateRoot<ProductId> { /* ... */ }
+
+    // Repository implementation
+    public class ProductRepository : BaseRepository<Product, ProductId>
+    {
+        public ProductRepository(YourBusinessModelContext dbContext)
+            : base(dbContext) { }
+
+        // Custom query using a specification
+        public Task<IReadOnlyList<Product>> GetActiveProductsAsync(CancellationToken ct)
+            => this.ListAsync(new ActiveProductsSpec(), ct);
+    }
+
+    // Specification
+    public class ActiveProductsSpec : Specification<Product>
+    {
+        public ActiveProductsSpec()
+        {
+            Query.Where(p => !p.IsDiscontinued)
+                 .OrderBy(p => p.Name);
+        }
+    }
+    ```
+  </Tab>
+  <Tab title="Data Model">
+    Data-model repositories live in the read-side context (`BaseReadModelContext`) and operate on `IDataEntity` types — auxiliary entities that are not aggregate roots but still need CRUD and specification support.
+
+    ### `BaseReadRepository<TDataEntity>`
+
+    ```csharp
+    public abstract class BaseReadRepository<TDataEntity>
+        : RepositoryBase<TDataEntity>, ISpecificationReadRepository<TDataEntity, Guid>
+        where TDataEntity : class, IDataEntity
+    {
+        protected BaseReadRepository(BaseReadModelContext readContext)
+            : base(readContext) { }
+
+        public virtual Task<TDataEntity?> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => this.GetByIdAsync<Guid>(id, ct);
+    }
+    ```
+
+    ### `BaseRepository<TDataEntity>`
+
+    Adds `IRangeableRepository<TDataEntity, Guid>` on top of `BaseReadRepository`:
+
+    ```csharp
+    public abstract class BaseRepository<TDataEntity>
+        : BaseReadRepository<TDataEntity>, IRangeableRepository<TDataEntity, Guid>
+        where TDataEntity : class, IDataEntity
+    {
+        protected BaseRepository(BaseReadModelContext dbContext)
+            : base(dbContext) { }
+    }
+    ```
+
+    Use the data-model tier for entities such as projection checkpoints, lookup tables, or cross-aggregate join tables that belong in the read-side schema but require write access.
+  </Tab>
+  <Tab title="Read Model">
+    Read-model repositories also target `BaseReadModelContext` and work with `IReadModel` types — flat, denormalised projections optimised for queries.
+
+    ### `BaseReadRepository<TReadModel>`
+
+    In addition to `ISpecificationReadRepository`, the read-model base repository implements `IPaginatedSpecificationReadRepository<TReadModel>`, giving you first-class pagination support:
+
+    ```csharp
+    public abstract class BaseReadRepository<TReadModel>
+        : RepositoryBase<TReadModel>, IPaginatedSpecificationReadRepository<TReadModel>
+        where TReadModel : class, IReadModel
+    {
+        protected BaseReadRepository(BaseReadModelContext readContext)
+            : base(readContext) { }
+
+        public Task<TReadModel?> GetByIdAsync(Guid id, CancellationToken ct = default)
+            => this.GetByIdAsync<Guid>(id, ct);
+
+        public async Task<PaginatedCollectionOutputDto<TReadModel>> PaginatedListAsync(
+            IPaginatedSpecification<TReadModel> paginatedSpecification,
+            CancellationToken cancellationToken)
+        {
+            // Applies the spec, computes total pages, and slices the result set
+        }
+    }
+    ```
+
+    ### `BaseRepository<TReadModel>`
+
+    Extends `BaseReadRepository` with `IRangeableRepository<TReadModel, Guid>` for projectors that need to write read models:
+
+    ```csharp
+    public abstract class BaseRepository<TReadModel>
+        : BaseReadRepository<TReadModel>, IRangeableRepository<TReadModel, Guid>
+        where TReadModel : class, IReadModel
+    {
+        protected BaseRepository(BaseReadModelContext dbContext)
+            : base(dbContext) { }
+    }
+    ```
+
+    ### Pagination example
+
+    ```csharp
+    // Specification that supports pagination
+    public class ProductListSpec : Specification<ProductReadModel>,
+        IPaginatedSpecification<ProductReadModel>
+    {
+        public ProductListSpec(PaginatedRequest request)
+        {
+            Request = request;
+            Query.OrderBy(p => p.Name);
+        }
+
+        public PaginatedRequest Request { get; }
+    }
+
+    // In your query handler
+    var spec = new ProductListSpec(new PaginatedRequest(pageNumber: 1, pageSize: 20));
+    var result = await _productReadRepository.PaginatedListAsync(spec, ct);
+    // result.Items, result.TotalCount, result.TotalPages, result.CurrentPage
+    ```
+  </Tab>
+</Tabs>
+
+## Ardalis.Specification integration
+
+All three repository tiers extend `RepositoryBase<T>` from `Ardalis.Specification.EntityFrameworkCore`, so the full specification API is available out of the box. Define a specification by inheriting from `Specification<T>` and composing the query inside the constructor:
+
+```csharp
+public class ProductsByCategorySpec : Specification<Product>
+{
+    public ProductsByCategorySpec(CategoryId categoryId)
+    {
+        Query
+            .Where(p => p.CategoryId == categoryId)
+            .Include(p => p.Tags)
+            .OrderBy(p => p.Name)
+            .AsNoTracking();
+    }
+}
+```
+
+Pass the specification to any of the inherited `ListAsync`, `FirstOrDefaultAsync`, `CountAsync`, or `AnyAsync` methods:
+
+```csharp
+var products = await _productRepository.ListAsync(new ProductsByCategorySpec(categoryId), ct);
+```
+
+## EF Core interceptors
+
+SharedKernel wires up save-changes interceptors automatically via the base `DbContext` classes. You do not need to register them in your repository code.
+
+### Soft-delete interceptor
+
+`BaseBusinessModelContext` automatically registers `SoftDeleteEntitySaveChangesInterceptor`. When EF Core tracks an entity in the `Deleted` state, the interceptor checks whether the entity's EF Core model has an `IsDeleted` shadow property. If it does, the interceptor switches the state to `Modified` and sets `IsDeleted = true` instead of issuing a `DELETE` statement.
+
+To opt an entity in to soft-delete behaviour, add the `IsDeleted` shadow property in your entity configuration:
+
+```csharp
+public class ProductConfiguration : IEntityTypeConfiguration<Product>
+{
+    public void Configure(EntityTypeBuilder<Product> builder)
+    {
+        builder.Property<bool>("IsDeleted").HasDefaultValue(false);
+        builder.HasQueryFilter(p => EF.Property<bool>(p, "IsDeleted") == false);
+    }
+}
+```
+
+<Note>
+The interceptor detects the shadow property by name (`"IsDeleted"`) at runtime using `context.Model.FindEntityType(...).FindProperty("IsDeleted")`. Entities without this shadow property are deleted normally.
+</Note>
+
+### Auditing
+
+`BaseContext` (the root base class) enables structured EF Core logging and sensitive-data logging in Development environments. Extend your `DbContext` from `BaseBusinessModelContext` or `BaseReadModelContext` and pass an `ILoggerFactory` to gain automatic query logging without any additional configuration.
+
+### Tenant read-model interceptor
+
+`BaseReadModelContext` registers `TenantReadModelSaveChangesInterceptor`. On every `SaveChanges` call, it reads the current `TenantId` from `IExecutionContextService` and:
+
+1. Sets `BaseReadModelContext.CurrentTenantId` so EF Core query filters stay consistent with the active tenant scope.
+2. Stamps newly added `IScopedReadModel` entities with a `ScopeInfo` derived from the execution context, unless the projector has already set the scope explicitly from event metadata.
+
+This ensures that read-model rows are always associated with the correct tenant without requiring projector authors to set the tenant manually on every entity.
+
+## DbContext base classes
+
+| Class | Interceptors included | Use for |
+|---|---|---|
+| `BaseContext` | Logging, SmartEnum conventions | Do not use directly; base for the others |
+| `BaseBusinessModelContext` | `SoftDeleteEntitySaveChangesInterceptor` | Write-side aggregate root persistence |
+| `BaseReadModelContext` | `TenantReadModelSaveChangesInterceptor` | Read-side projections, data entities, checkpoints |
+
+Derive your application `DbContext` from the appropriate base:
+
+```csharp
+public class CatalogContext : BaseBusinessModelContext
+{
+    public CatalogContext(
+        DbContextOptions<CatalogContext> options,
+        ILoggerFactory loggerFactory,
+        IHostEnvironment hostEnvironment,
+        SoftDeleteEntitySaveChangesInterceptor softDeleteInterceptor)
+        : base(options, loggerFactory, hostEnvironment, softDeleteInterceptor) { }
+
+    public DbSet<Product> Products => Set<Product>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.ApplyConfigurationsFromAssembly(typeof(CatalogContext).Assembly);
+        base.OnModelCreating(modelBuilder);
+    }
+}
+```

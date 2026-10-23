@@ -1,0 +1,56 @@
+---
+title: "SharedKernel: .NET DDD & Clean Architecture packages"
+sidebarTitle: "Introduction"
+description: "SharedKernel: .NET NuGet packages for DDD and Clean Architecture. Provides aggregate roots, CQRS buses, pipeline behaviours, and event sourcing support."
+---
+
+SharedKernel gives .NET developers a production-ready foundation for Domain-Driven Design and Clean Architecture. Rather than reinventing aggregate roots, value objects, CQRS buses, and MediatR pipeline behaviors in every project, you install the packages that match your architecture and focus on your domain logic.
+
+## Why SharedKernel?
+
+Every .NET project that follows DDD and Clean Architecture needs the same foundational pieces: strongly-typed entity IDs, aggregate roots that record domain events, a CQRS command/query bus, pipeline behaviors for validation and logging, and persistence abstractions. SharedKernel provides all of these as tested, composable NuGet packages.
+
+<CardGroup cols={2}>
+  <Card title="Quickstart" icon="rocket" href="/quickstart">
+    Install your first package and build a DDD aggregate in minutes.
+  </Card>
+  <Card title="All Packages" icon="box" href="/packages">
+    Browse every NuGet package and choose the right combination.
+  </Card>
+  <Card title="Domain Layer" icon="layer-group" href="/domain/entities-aggregates">
+    Aggregates, entities, value objects, domain events, and business rules.
+  </Card>
+  <Card title="Application Layer" icon="arrows-split-up-and-left" href="/application/commands-queries">
+    CQRS commands, queries, and pre-built MediatR pipeline behaviors.
+  </Card>
+  <Card title="Infrastructure" icon="server" href="/infrastructure/setup">
+    EF Core, KurrentDB event store, and MassTransit messaging.
+  </Card>
+  <Card title="Presentation" icon="globe" href="/presentation/http-rest-api">
+    HTTP REST API helpers, exception middleware, and integration bus consumers.
+  </Card>
+</CardGroup>
+
+## Package overview
+
+SharedKernel is split into focused packages so you only add what you need:
+
+| Package group | What it provides |
+|---|---|
+| **Core** | Shared contracts, repository abstractions, event interfaces, DI helpers |
+| **Domain** | `BaseAggregateRoot`, `BaseEntity`, `BaseValueObject`, domain events, business rules |
+| **Application** | CQRS bus contracts, MediatR pipeline behaviors, caching, integration event contracts |
+| **Infrastructure** | EF Core repositories, KurrentDB event store, MassTransit integration bus |
+| **Presentation** | ASP.NET Core base controllers, exception middleware, integration event consumers |
+
+## Supported .NET versions
+
+The `main` branch targets **.NET 10**. Previous releases are available on dedicated branches:
+
+- [.NET 9](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.SharedKernel/tree/net9.0)
+- [.NET 8](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.SharedKernel/tree/net8.0)
+- [.NET 7](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.SharedKernel/tree/net7.0)
+
+<Tip>
+  Looking for a real-world example? The [Cinema showcase project](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.Cinema) demonstrates SharedKernel in a full microservices application with event sourcing, vertical slice architecture, and DDD.
+</Tip>

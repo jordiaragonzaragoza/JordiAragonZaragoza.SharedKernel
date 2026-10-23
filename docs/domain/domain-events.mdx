@@ -1,0 +1,206 @@
+---
+title: "Domain events in SharedKernel: raising and handling changes"
+sidebarTitle: "Domain Events"
+description: "Use SharedKernel's BaseDomainEvent and BaseInMemoryDomainEvent to capture and communicate significant state changes within your domain model."
+---
+
+Domain events let different parts of your system react to meaningful things that happened inside a bounded context — an order was placed, a customer was registered, an invoice was issued. Rather than calling side-effect code directly from an aggregate method, you record a named event that describes *what* happened. Handlers then respond in a decoupled way, after the originating transaction commits. SharedKernel ships two event base types and a clean dispatch pipeline so you can focus on modelling the events themselves.
+
+## `IDomainEvent` — the contract
+
+Every domain event implements `IDomainEvent`, which extends the base `IEvent` interface:
+
+```csharp
+// IEvent (base)
+public interface IEvent : INotification   // MediatR INotification
+{
+    Guid Id { get; }
+    DateTimeOffset DateOccurredOnUtc { get; }
+}
+
+// IDomainEvent
+public interface IDomainEvent : IEvent
+{
+    // The Id of the aggregate root that raised the event
+    Guid AggregateId { get; }
+}
+```
+
+The `AggregateId` property ties every event back to its source aggregate, which is essential for event-store projections and cross-aggregate reactions.
+
+## `BaseDomainEvent` — persisted / event-store events
+
+Use `BaseDomainEvent` as the base for events that are stored in an event store (e.g. KurrentDB) and dispatched via a store subscription. Event-sourced aggregates use this type directly.
+
+```csharp
+public abstract record class BaseDomainEvent(Guid AggregateId) : IDomainEvent
+{
+    // Unique event ID generated automatically (UUID v7 — time-ordered)
+    public Guid Id { get; init; } = Guid.CreateVersion7();
+
+    // Excluded from JSON serialisation to avoid round-trip drift
+    [JsonIgnore]
+    public DateTimeOffset DateOccurredOnUtc { get; init; } = DateTimeOffset.UtcNow;
+}
+```
+
+Because `BaseDomainEvent` is a `record class`, you get structural equality and non-destructive mutation (`with` expressions) for free.
+
+## `BaseInMemoryDomainEvent` — in-process events for EF Core aggregates
+
+For standard (non-event-sourced) EF Core aggregates, inherit from `BaseInMemoryDomainEvent` instead. These events travel through the in-memory MediatR bus dispatched by `EventsDispatcherService` *after* the EF Core unit of work saves changes. The `IsPublished` flag lets the dispatcher track which events have already been sent.
+
+```csharp
+/// <summary>
+/// Use this base for domain events that must travel through the in-memory
+/// bus dispatched by EventsDispatcherService (EF Core aggregates).
+/// EventSourced aggregates use BaseDomainEvent directly — their events
+/// are dispatched via KurrentDB subscription, not in-memory.
+/// </summary>
+public abstract record class BaseInMemoryDomainEvent(Guid AggregateId)
+    : BaseDomainEvent(AggregateId), IInMemoryEvent
+{
+    public bool IsPublished { get; set; }
+}
+```
+
+| Scenario | Base class to use |
+|---|---|
+| EF Core aggregate (standard state persistence) | `BaseInMemoryDomainEvent` |
+| Event-sourced aggregate (KurrentDB / event store) | `BaseDomainEvent` |
+
+## How aggregates raise events via `Apply()` and `When()`
+
+You never mutate aggregate state and then fire an event as an afterthought. Instead, you describe the change as an event and let the aggregate's `Apply` method coordinate everything:
+
+```csharp
+// Inside BaseAggregateRoot<TId>
+protected void Apply(IDomainEvent domainEvent)
+{
+    this.When(domainEvent);       // 1. Mutate state
+    this.EnsureValidState();      // 2. Assert invariants
+    this.domainEvents.Add(domainEvent);  // 3. Record the event
+}
+```
+
+Your aggregate implements `When` to project each event type onto its fields:
+
+```csharp
+protected override void When(IDomainEvent domainEvent)
+{
+    switch (domainEvent)
+    {
+        case OrderPlaced e:
+            this.Status = OrderStatus.Pending;
+            this.PlacedAt = e.DateOccurredOnUtc;
+            break;
+        case OrderShipped e:
+            this.Status = OrderStatus.Shipped;
+            this.TrackingNumber = e.TrackingNumber;
+            break;
+    }
+}
+```
+
+## `IEventsContainer` — the events collection and `ClearEvents()`
+
+`IAggregateRoot<TId>` extends `IEventsContainer<IDomainEvent>`, which exposes two members:
+
+```csharp
+public interface IEventsContainer<out TEvent> where TEvent : IEvent
+{
+    IEnumerable<TEvent> Events { get; }
+    void ClearEvents();
+}
+```
+
+The `Events` property returns a read-only snapshot of all domain events accumulated since the last `ClearEvents()` call. The infrastructure's dispatch pipeline calls `ClearEvents()` after publishing the events, so the aggregate starts the next operation with a clean slate.
+
+## Dispatch flow
+
+The following sequence describes what happens from the moment you call a command through to handler execution:
+
+```
+Command handler
+    │
+    ├── Load aggregate from repository
+    ├── Call aggregate method  ──► Apply(event) ──► When() + EnsureValidState() + events.Add()
+    ├── Save via Unit of Work  ──► EF Core SaveChanges / event store append
+    │
+Post-save pipeline (EventsDispatcherService)
+    ├── Read aggregate.Events
+    ├── Publish each event via MediatR (in-memory bus)
+    └── aggregate.ClearEvents()
+```
+
+Events are published *outside* the originating transaction, which means handlers run in a separate transaction or as a fire-and-forget side effect. If you need strict transactional consistency, handle the consequence inside the same aggregate method before raising the event.
+
+## Complete example
+
+The following example defines an event, raises it from an aggregate, and handles it in an in-memory event handler.
+
+```csharp
+// 1. Define the event
+public sealed record OrderShipped(Guid AggregateId, string TrackingNumber)
+    : BaseInMemoryDomainEvent(AggregateId);
+
+// 2. Raise the event inside the aggregate
+public sealed class Order : BaseAggregateRoot<OrderId, Guid>
+{
+    private Order() { }
+
+    public OrderStatus    Status         { get; private set; }
+    public string?        TrackingNumber { get; private set; }
+
+    public void Ship(string trackingNumber)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(trackingNumber);
+        CheckRule(new OrderMustBePendingToShip(this.Status));
+
+        this.Apply(new OrderShipped(this.Id.Value, trackingNumber));
+    }
+
+    protected override void When(IDomainEvent domainEvent)
+    {
+        switch (domainEvent)
+        {
+            case OrderShipped e:
+                this.Status         = OrderStatus.Shipped;
+                this.TrackingNumber = e.TrackingNumber;
+                break;
+        }
+    }
+
+    protected override void EnsureValidState()
+    {
+        if (this.Status == OrderStatus.Shipped && string.IsNullOrWhiteSpace(this.TrackingNumber))
+            throw new InvalidOperationException("Shipped order must have a tracking number.");
+    }
+}
+
+// 3. Handle the event (application layer)
+public sealed class OrderShippedHandler : IInMemoryEventHandler<OrderShipped>
+{
+    private readonly IEmailService emailService;
+
+    public OrderShippedHandler(IEmailService emailService)
+        => this.emailService = emailService;
+
+    public async Task Handle(OrderShipped notification, CancellationToken cancellationToken)
+    {
+        // React to the event — runs after the UoW commits
+        await this.emailService.SendShippingConfirmationAsync(
+            notification.AggregateId,
+            notification.TrackingNumber,
+            cancellationToken);
+    }
+}
+```
+
+`IInMemoryEventHandler<TEvent>` extends both `IBaseEventHandler<TEvent>` and MediatR's `INotificationHandler<TEvent>`, so the handler is registered and dispatched automatically by the MediatR pipeline.
+
+## Integration with the application event bus
+
+`BaseInMemoryDomainEvent` covers reactions that stay within the same bounded context. When you need to notify other bounded contexts or external systems, promote the domain event to an integration event at the application layer.
+
+For more information, see [Integration Events](/application/integration-events).

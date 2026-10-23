@@ -1,0 +1,209 @@
+---
+title: "Event sourcing aggregates and KurrentDB in SharedKernel"
+sidebarTitle: "Event Sourcing"
+description: "Learn how SharedKernel implements event sourcing using BaseEventSourcedAggregateRoot and KurrentDB, storing aggregate state as a sequence of domain events."
+---
+
+Event sourcing replaces the traditional "save current state" approach with a different model: instead of overwriting a row, you append an immutable event that describes what happened. The current state of any aggregate is always derived by replaying its event history from the beginning. SharedKernel provides `BaseEventSourcedAggregateRoot<TId>` to implement this pattern, and `KurrentDbEventStore` (backed by KurrentDB, formerly EventStoreDB) as the persistence engine.
+
+## How event sourcing differs from standard persistence
+
+| | Standard (EF Core) | Event Sourcing (KurrentDB) |
+|---|---|---|
+| What is stored | Current column values | Ordered sequence of domain events |
+| How state is read | `SELECT` the latest row | Replay all events from stream start |
+| History | Usually lost on update | Full audit trail preserved forever |
+| Aggregate base class | `BaseAggregateRoot<TId>` | `BaseEventSourcedAggregateRoot<TId>` |
+| Repository base class | EF Core `DbContext` | `BaseRepository<TAggregate, TId>` |
+| Event dispatch | In-process via MediatR outbox | KurrentDB subscription pipeline |
+
+<Note>
+  SharedKernel is persistence-agnostic. You choose per aggregate whether to use EF Core or event sourcing. Both share the same `When(IDomainEvent)` and `Apply(IDomainEvent)` pattern, so switching is a matter of changing the base class and the repository implementation.
+</Note>
+
+## Choosing the right base class
+
+Use `BaseAggregateRoot<TId>` when:
+- Your read model and write model share the same database.
+- You don't need a full audit trail of every change.
+- You are integrating with an existing relational schema.
+
+Use `BaseEventSourcedAggregateRoot<TId>` when:
+- You need a complete, immutable history of every state change.
+- You want to rebuild read models (projections) from scratch by replaying events.
+- You need temporal queries ("what did this aggregate look like at time T?").
+- You are building an event-driven microservice that publishes domain events to other bounded contexts.
+
+## The `When(IDomainEvent)` pattern
+
+Both base classes use the same `When` pattern. The `Apply` method you call inside your aggregate's public methods:
+
+1. Calls `When(event)` — mutates the aggregate's in-memory state.
+2. Calls `EnsureValidState()` — asserts that the new state satisfies all invariants.
+3. Appends the event to the pending events list (`aggregate.Events`).
+
+```csharp
+protected override void When(IDomainEvent domainEvent)
+{
+    switch (domainEvent)
+    {
+        case SomethingHappened e:
+            // mutate state from the event's data
+            this.SomeProperty = e.NewValue;
+            break;
+    }
+}
+```
+
+<Warning>
+  Never mutate aggregate state directly in a public method. Always go through `Apply()`. If you bypass `Apply`, the event is never appended to the pending list and KurrentDB will not persist the change.
+</Warning>
+
+## The `Load` method — replaying history
+
+`BaseEventSourcedAggregateRoot<TId>` adds one method not present on the standard base class:
+
+```csharp
+public void Load(IEnumerable<IDomainEvent> history)
+{
+    this.Version = 0;
+
+    foreach (var @event in history)
+    {
+        this.When(@event);   // apply each event to rebuild state
+        this.Version++;
+    }
+
+    // Adjust so Version matches the zero-based stream position
+    if (this.Version > 0)
+        this.Version--;
+}
+```
+
+`KurrentDbEventStore` calls `Load` automatically when you retrieve an aggregate via `GetByIdAsync`. You never call `Load` from application code.
+
+The `Version` property is used for **optimistic concurrency**: when appending new events, the store checks that `Version` matches the current stream revision in KurrentDB and rejects the write if another process has already appended events since you last read the aggregate.
+
+## A complete event-sourced aggregate
+
+```csharp
+// Strongly-typed ID
+public sealed class ReservationId : BaseAggregateRootId<Guid>
+{
+    public ReservationId(Guid value) : base(value) { }
+    private ReservationId() { }
+}
+
+// Domain events (use BaseDomainEvent — not BaseInMemoryDomainEvent —
+// for event-sourced aggregates; dispatch happens via KurrentDB subscription)
+public sealed record ReservationCreated(
+    Guid AggregateId,
+    Guid CustomerId,
+    DateTimeOffset StartsOnUtc,
+    DateTimeOffset EndsOnUtc) : BaseDomainEvent(AggregateId);
+
+public sealed record ReservationCancelled(
+    Guid AggregateId) : BaseDomainEvent(AggregateId);
+
+// Event-sourced aggregate
+public sealed class Reservation : BaseEventSourcedAggregateRoot<ReservationId, Guid>
+{
+    public Guid CustomerId { get; private set; }
+    public DateTimeOffset StartsOnUtc { get; private set; }
+    public DateTimeOffset EndsOnUtc { get; private set; }
+    public bool IsCancelled { get; private set; }
+
+    // Factory method — all creation goes through Apply
+    public static Reservation Create(
+        ReservationId id,
+        Guid customerId,
+        DateTimeOffset startsOnUtc,
+        DateTimeOffset endsOnUtc)
+    {
+        var reservation = new Reservation(id);
+
+        reservation.Apply(new ReservationCreated(
+            id.Value, customerId, startsOnUtc, endsOnUtc));
+
+        return reservation;
+    }
+
+    public void Cancel()
+    {
+        CheckRule(new ReservationMustNotBeAlreadyCancelled(IsCancelled));
+
+        Apply(new ReservationCancelled(Id.Value));
+    }
+
+    private Reservation(ReservationId id) : base(id) { }
+    private Reservation() { } // Required for Load() via Activator.CreateInstance
+
+    // Project each event onto the aggregate's state
+    protected override void When(IDomainEvent domainEvent)
+    {
+        switch (domainEvent)
+        {
+            case ReservationCreated e:
+                CustomerId   = e.CustomerId;
+                StartsOnUtc  = e.StartsOnUtc;
+                EndsOnUtc    = e.EndsOnUtc;
+                IsCancelled  = false;
+                break;
+
+            case ReservationCancelled:
+                IsCancelled = true;
+                break;
+        }
+    }
+
+    protected override void EnsureValidState()
+    {
+        if (StartsOnUtc >= EndsOnUtc)
+            throw new InvalidAggregateStateException(
+                this, "Reservation start must be before end.");
+    }
+}
+```
+
+## KurrentDB as the backing store
+
+`KurrentDbEventStore` (in `JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore`) implements both `IEventStore` and `IUnitOfWork`. It:
+
+1. **Reads** — calls `ReadStreamAsync` forward from stream position zero and deserialises each `ResolvedEvent` back to a typed `IDomainEvent`.
+2. **Writes** — collects pending aggregates via `AppendChanges`, then serialises and appends every `IDomainEvent` in a single `AppendToStreamAsync` call per aggregate stream during `SaveChangesAsync`.
+3. **Streams** — names each aggregate's stream using `StreamNameMapper`, which encodes the aggregate type and optional tenant ID to support multi-tenancy.
+
+The repository base class in the EventStore package wires everything together:
+
+```csharp
+// Your concrete repository — minimal boilerplate required
+public sealed class ReservationRepository
+    : BaseRepository<Reservation, ReservationId>
+{
+    public ReservationRepository(IEventStore eventStore)
+        : base(eventStore) { }
+}
+```
+
+`BaseRepository<TAggregate, TId>` automatically calls `eventStore.LoadAggregateAsync` on `GetByIdAsync` and `eventStore.AppendChanges` on `AddAsync` / `UpdateAsync` / `DeleteAsync`.
+
+## Benefits of event sourcing
+
+<CardGroup cols={2}>
+  <Card title="Full audit trail" icon="clock-rotate-left">
+    Every state transition is stored as an immutable fact. You can answer "what happened, and when?" for any aggregate at any point in time.
+  </Card>
+  <Card title="Event replay" icon="rotate">
+    Drop and rebuild any read model (projection) by replaying the event stream. Catch-up and persistent subscriptions in KurrentDB make this straightforward.
+  </Card>
+  <Card title="Temporal queries" icon="calendar">
+    Reconstruct the state of an aggregate at any historical point by loading only events up to a given position or timestamp.
+  </Card>
+  <Card title="Event-driven integration" icon="share-nodes">
+    Domain events stored in KurrentDB become a natural integration bus. Other bounded contexts subscribe to the stream and react without tight coupling.
+  </Card>
+</CardGroup>
+
+## Next steps
+
+To set up KurrentDB, configure the event store connection, and register subscriptions for projections, see [Event Store Infrastructure](/infrastructure/event-store).

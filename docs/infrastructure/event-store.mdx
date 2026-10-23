@@ -1,0 +1,286 @@
+---
+title: "KurrentDB event store integration for SharedKernel .NET"
+sidebarTitle: "Event Store"
+description: "Persist and replay event-sourced aggregates with SharedKernel's KurrentDB integration: save events, load aggregate history, and subscribe to event streams."
+---
+
+SharedKernel's event store package wires your event-sourced aggregate roots directly to KurrentDB (formerly EventStoreDB), providing a `IEventStore` abstraction for appending and replaying events, a high-level `IAggregateStore` view for loading and saving whole aggregates, and hosted-service subscriptions for consuming the live event stream. You get deterministic stream naming, built-in serialization, and optimistic concurrency out of the box.
+
+<Note>
+KurrentDB is the new name for EventStoreDB. The package targets the `KurrentDB.Client` NuGet package. If you are migrating from a codebase that referenced `EventStoreDB.Client`, replace the client registration and update your connection strings — the API surface exposed by SharedKernel remains the same.
+</Note>
+
+## Core abstractions
+
+### `IEventStore`
+
+`IEventStore` is the low-level interface for working with event streams. It extends `IAggregateStore` and adds three operations:
+
+```csharp
+public interface IEventStore : IAggregateStore
+{
+    // Stage an aggregate's uncommitted events for the next SaveChangesAsync call.
+    void AppendChanges<TAggregate, TId>(TAggregate aggregate)
+        where TAggregate : class, IEventSourcedAggregateRoot<TId>
+        where TId : class, IEntityId;
+
+    // Replay all events for an aggregate from the beginning of its stream.
+    Task<TAggregate?> LoadAggregateAsync<TAggregate, TId>(
+        TId aggregateId,
+        CancellationToken cancellationToken = default)
+        where TAggregate : class, IEventSourcedAggregateRoot<TId>
+        where TId : class, IEntityId;
+
+    // Flush all staged aggregates to KurrentDB.
+    Task SaveChangesAsync(CancellationToken cancellationToken = default);
+}
+```
+
+`AppendChanges` is synchronous and only stages the aggregate in memory. The actual write to KurrentDB happens when `SaveChangesAsync` is called — typically by the `UnitOfWorkBehaviour` in the MediatR command pipeline.
+
+### `IAggregateStore`
+
+`IAggregateStore` is the minimal read interface consumed by infrastructure components that only need to enumerate pending event-bearing entities:
+
+```csharp
+public interface IAggregateStore
+{
+    IEnumerable<IEventsContainer<IEvent>> EventableEntities { get; }
+}
+```
+
+## `KurrentDbEventStore`
+
+`KurrentDbEventStore` is the concrete implementation of `IEventStore` and `IUnitOfWork`. It:
+
+1. Accepts a `KurrentDBClient` (registered by .NET Aspire or your own `AddKurrentDbClient()` call).
+2. Maintains an in-memory list of pending aggregates; each call to `AppendChanges` adds an aggregate to that list.
+3. On `SaveChangesAsync`, serializes each aggregate's uncommitted domain events using `SerializerHelper`, resolves the stream name via `StreamNameMapper` (which incorporates the current `TenantId` from `IExecutionContextService`), and writes to KurrentDB with optimistic concurrency (`StreamState.NoStream` for new aggregates, `StreamState.StreamRevision(version)` for existing ones).
+4. Clears the aggregate's event queue after a successful write.
+
+`LoadAggregateAsync` reads the stream forwards from `StreamPosition.Start`, deserializes each event with `SerializerHelper`, and calls `aggregate.Load(domainEvents)` to replay them.
+
+## Registration
+
+### `AddSharedKernelInfrastructureKurrentDbBusiness()`
+
+Call this method to register the event store and all related services:
+
+```csharp
+builder.Services.AddSharedKernelInfrastructureKurrentDbBusiness();
+```
+
+**What it registers:**
+
+| Service | Lifetime | Notes |
+|---|---|---|
+| `KurrentDbEventStore` | Scoped | Concrete event store |
+| `IEventStore` | Scoped | Resolved from `KurrentDbEventStore` |
+| `IAggregateStore` | Scoped | Resolved from `KurrentDbEventStore` |
+| `IUnitOfWork` | Scoped | Resolved from `KurrentDbEventStore` |
+| `EventTypeMapper.Instance` | Singleton | Shared event-type registry |
+| `KurrentDBPersistentSubscriptionsClient` | Singleton | Derived from the registered `KurrentDBClient` settings |
+
+`KurrentDBClient` itself must be registered separately — add it via .NET Aspire's `AddKurrentDbClient()` extension or directly using the `KurrentDB.Client` package.
+
+### `appsettings.json` configuration
+
+```json
+{
+  "ConnectionStrings": {
+    "kurrentdb": "esdb://localhost:2113?tls=false"
+  }
+}
+```
+
+When using .NET Aspire, the connection string is injected automatically from the Aspire app host. For manual configuration, set the `ConnectionStrings:kurrentdb` key (the connection name you pass to `AddKurrentDbClient`).
+
+## `EventTypeMapper`
+
+`EventTypeMapper` is a singleton registry that maps between .NET `Type` objects and the string event-type names stored in KurrentDB streams. By default it uses `Type.FullName` as the event-type name.
+
+Register custom mappings early in your application startup (before any events are written) to control the stored type names — for example, to decouple the stream from your namespace.
+
+Because `EventTypeMapper.Instance` is the static singleton that is also registered with DI, you can add mappings using the static field directly — no need to build the service provider first:
+
+```csharp
+// In Program.cs, before builder.Build():
+EventTypeMapper.Instance.AddCustomMap<ProductCreated>("product-created");
+EventTypeMapper.Instance.AddCustomMap<ProductRenamed>("product-renamed");
+EventTypeMapper.Instance.AddCustomMap<ProductDiscontinued>("product-discontinued");
+```
+
+Alternatively, resolve it from the DI container after the app is built:
+
+```csharp
+// After var app = builder.Build():
+var eventTypeMapper = app.Services.GetRequiredService<EventTypeMapper>();
+eventTypeMapper.AddCustomMap<ProductCreated>("product-created");
+```
+
+If no custom mapping is registered, events are stored and looked up by their fully-qualified type name.
+
+## Event-store repository
+
+Aggregate repositories in an event-sourced application inherit from `BaseRepository<TAggregate, TId>` in the event store package. This base class delegates to `IEventStore` and implements the standard `IRepository<TAggregate, TId>` contract:
+
+```csharp
+public abstract class BaseRepository<TAggregate, TId> : IRepository<TAggregate, TId>
+    where TAggregate : BaseEventSourcedAggregateRoot<TId>
+    where TId : class, IEntityId
+{
+    private readonly IEventStore eventStore;
+
+    protected BaseRepository(IEventStore eventStore)
+        => this.eventStore = eventStore;
+
+    // Loads the aggregate by replaying its event stream.
+    public Task<TAggregate?> GetByIdAsync(TId id, CancellationToken ct = default)
+        => this.eventStore.LoadAggregateAsync<TAggregate, TId>(id, ct);
+
+    // Stages the aggregate; the actual write happens in SaveChangesAsync.
+    public Task<TAggregate> AddAsync(TAggregate model, CancellationToken ct = default)
+        => Task.FromResult(this.Store(model));
+
+    public Task<int> UpdateAsync(TAggregate model, CancellationToken ct = default)
+    {
+        this.Store(model);
+        return Task.FromResult(1);
+    }
+
+    // Deleting an event-sourced aggregate is modelled as an event — stage it the same way.
+    public Task<int> DeleteAsync(TAggregate model, CancellationToken ct = default)
+    {
+        this.Store(model);
+        return Task.FromResult(1);
+    }
+
+    private TAggregate Store(TAggregate aggregate)
+    {
+        this.eventStore.AppendChanges<TAggregate, TId>(aggregate);
+        return aggregate;
+    }
+}
+```
+
+### Concrete repository example
+
+```csharp
+// Your event-sourced aggregate
+public class Order : BaseEventSourcedAggregateRoot<OrderId>
+{
+    private Order() { } // Private constructor for rehydration via Load()
+
+    public static Order Place(OrderId id, CustomerId customerId)
+    {
+        var order = new Order();
+        order.Apply(new OrderPlaced(id, customerId, DateTime.UtcNow));
+        return order;
+    }
+
+    protected override void When(IDomainEvent @event)
+    {
+        switch (@event)
+        {
+            case OrderPlaced e:
+                Id = e.OrderId;
+                CustomerId = e.CustomerId;
+                break;
+        }
+    }
+}
+
+// Repository
+public class OrderRepository : BaseRepository<Order, OrderId>
+{
+    public OrderRepository(IEventStore eventStore)
+        : base(eventStore) { }
+}
+
+// Command handler usage
+public class PlaceOrderCommandHandler : ICommandHandler<PlaceOrderCommand>
+{
+    private readonly OrderRepository _orders;
+
+    public PlaceOrderCommandHandler(OrderRepository orders)
+        => _orders = orders;
+
+    public async Task<Result> Handle(PlaceOrderCommand command, CancellationToken ct)
+    {
+        var order = Order.Place(OrderId.Create(command.OrderId), command.CustomerId);
+        await _orders.AddAsync(order, ct);
+        // SaveChangesAsync is called automatically by UnitOfWorkBehaviour
+        return Result.Success();
+    }
+}
+```
+
+## Subscriptions
+
+### CatchUp subscription
+
+A catch-up subscription reads all events from the `$all` stream from the beginning (or a stored checkpoint) and processes them in order. It is ideal for rebuilding projections and for single-consumer scenarios.
+
+```csharp
+builder.Services.AddSharedKernelInfrastructureKurrentDbAllStreamCatchUpSubscription();
+```
+
+Configure it in `appsettings.json` under the `KurrentDb:AllStreamCatchUpSubscription` section:
+
+```json
+{
+  "KurrentDb": {
+    "AllStreamCatchUpSubscription": {
+      "SubscriptionId": "cbbaeb7e-a087-44cc-75a0-08dc80991837",
+      "ResolveLinkTos": false,
+      "IgnoreDeserializationErrors": false
+    }
+  }
+}
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `SubscriptionId` | `Guid` | `cbbaeb7e-...` | Unique identifier for this subscription; used for checkpoint tracking |
+| `ResolveLinkTos` | `bool` | `false` | Resolve link events to their original event data |
+| `IgnoreDeserializationErrors` | `bool` | `false` | Skip events that fail deserialization instead of stopping the subscription |
+
+The subscription runs as an `IHostedService` (`AllStreamCatchUpSubscriptionBackgroundWorker`) and starts automatically with the application.
+
+### Persistent subscription
+
+A persistent subscription stores its checkpoint server-side in KurrentDB and supports competing consumers — multiple application instances sharing the same group name will coordinate event delivery automatically.
+
+```csharp
+builder.Services.AddSharedKernelInfrastructureKurrentDbAllStreamPersistentSubscription();
+```
+
+Configure it in `appsettings.json` under the `KurrentDb:AllStreamPersistentSubscription` section:
+
+```json
+{
+  "KurrentDb": {
+    "AllStreamPersistentSubscription": {
+      "GroupName": "all-stream-group",
+      "ResolveLinkTos": false,
+      "BufferSize": 10,
+      "IgnoreDeserializationErrors": false,
+      "MaxRetryCount": 5
+    }
+  }
+}
+```
+
+| Property | Type | Default | Description |
+|---|---|---|---|
+| `GroupName` | `string` | `"all-stream-group"` | Consumer group name; instances with the same name share the subscription |
+| `ResolveLinkTos` | `bool` | `false` | Resolve link events to their target event data |
+| `BufferSize` | `int` | `10` | Number of messages buffered before delivery to the subscriber |
+| `IgnoreDeserializationErrors` | `bool` | `false` | Continue processing after deserialization failures |
+| `MaxRetryCount` | `int` | `5` | Maximum server-side retries before parking a failed event to the dead-letter stream |
+
+Failed events that exceed `MaxRetryCount` are parked to `$persistentsubscription-{groupName}-parked` by KurrentDB natively; no client-side counting is required.
+
+<Tip>
+Use the **CatchUp** subscription when you have a single consumer or need to rebuild projections from scratch. Use the **Persistent** subscription when you need competing consumers across multiple service instances or require server-side checkpoint management.
+</Tip>

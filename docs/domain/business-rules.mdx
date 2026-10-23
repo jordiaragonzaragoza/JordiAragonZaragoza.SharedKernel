@@ -1,0 +1,216 @@
+---
+title: "Business rule validation in SharedKernel domain models"
+sidebarTitle: "Business Rules"
+description: "Enforce domain invariants with SharedKernel's IBusinessRule interface and BusinessRuleValidationException to keep aggregates in a consistent state."
+---
+
+Business rules are the non-negotiable conditions that keep your domain model honest. They encode the invariants your business experts talk about — "an order must contain at least one line item", "a product's stock cannot go below zero", "a payment cannot exceed the invoice total". Rather than scattering `if`/`throw` guards throughout your code, SharedKernel gives you a first-class `IBusinessRule` interface so each invariant becomes a named, testable, self-describing object.
+
+## `IBusinessRule` — the interface
+
+Every business rule implements `IBusinessRule`:
+
+```csharp
+public interface IBusinessRule
+{
+    string Message { get; }
+
+    bool IsBroken();
+}
+```
+
+- **`IsBroken()`** — return `true` when the rule is violated. The `CheckRule` helper calls this method and throws if it returns `true`.
+- **`Message`** — a human-readable description of the violation, surfaced in the `BusinessRuleValidationException` and its `ToString()` output.
+
+## `BusinessRuleValidationException` — how it's thrown
+
+`BaseEntity<TId>` and `BaseValueObject` both expose a protected static `CheckRule` helper. Calling `CheckRule(rule)` evaluates the rule and — if it is broken — throws a `BusinessRuleValidationException` carrying the rule instance:
+
+```csharp
+public class BusinessRuleValidationException : Exception
+{
+    public BusinessRuleValidationException(IBusinessRule brokenRule)
+        : base(brokenRule?.Message)
+    {
+        this.BrokenRule = brokenRule ?? throw new ArgumentNullException(nameof(brokenRule));
+    }
+
+    public IBusinessRule BrokenRule { get; }
+
+    // Formats as: "MyNamespace.OrderMustNotBeEmpty: An order must contain at least one line item."
+    public override string ToString()
+        => $"{this.BrokenRule.GetType().FullName}: {this.BrokenRule.Message}";
+}
+```
+
+The exception message is the rule's `Message` property, and `BrokenRule` lets handlers inspect exactly which invariant was violated — useful for structured logging or mapping to validation error responses.
+
+## `NotFoundException` — when an aggregate cannot be found
+
+Use `NotFoundException` in repository-loading or query scenarios where the aggregate simply does not exist:
+
+```csharp
+public class NotFoundException : Exception
+{
+    public NotFoundException() { }
+    public NotFoundException(string message) { }
+
+    // Convenience overload — formats as "Order: 42 not found."
+    public NotFoundException(string name, object key)
+        : base($"{name}: {key} not found.") { }
+
+    public NotFoundException(string message, Exception innerException) { }
+}
+```
+
+Throw it from your command handler after a failed repository lookup:
+
+```csharp
+var order = await repository.GetByIdAsync(orderId, cancellationToken);
+if (order is null)
+    throw new NotFoundException(nameof(Order), orderId);
+```
+
+## Implementing a business rule
+
+Create a sealed class (or record) that implements `IBusinessRule`. Capture any state the rule needs in the constructor, evaluate it in `IsBroken()`, and describe the violation in `Message`:
+
+```csharp
+public sealed class OrderMustNotBeEmpty : IBusinessRule
+{
+    private readonly IReadOnlyCollection<OrderLine> lines;
+
+    public OrderMustNotBeEmpty(IReadOnlyCollection<OrderLine> lines)
+        => this.lines = lines;
+
+    public string Message
+        => "An order must contain at least one line item.";
+
+    public bool IsBroken() => this.lines.Count == 0;
+}
+```
+
+## Complete example
+
+The following example wires up the `OrderMustNotBeEmpty` business rule inside an `Order` aggregate method.
+
+```csharp
+// Business rules
+public sealed class OrderMustNotBeEmpty : IBusinessRule
+{
+    private readonly IReadOnlyCollection<OrderLine> lines;
+
+    public OrderMustNotBeEmpty(IReadOnlyCollection<OrderLine> lines)
+        => this.lines = lines;
+
+    public string Message => "An order must contain at least one line item.";
+
+    public bool IsBroken() => this.lines.Count == 0;
+}
+
+public sealed class OrderLinePriceMustBePositive : IBusinessRule
+{
+    private readonly decimal price;
+
+    public OrderLinePriceMustBePositive(decimal price) => this.price = price;
+
+    public string Message => "Order line price must be greater than zero.";
+
+    public bool IsBroken() => this.price <= 0;
+}
+
+// Aggregate
+public sealed class Order : BaseAggregateRoot<OrderId, Guid>
+{
+    private readonly List<OrderLine> lines = [];
+
+    private Order() { }
+
+    public IReadOnlyCollection<OrderLine> Lines => this.lines.AsReadOnly();
+
+    public static Order Create(OrderId id)
+    {
+        var order = new Order();
+        order.Apply(new OrderCreated(id.Value));
+        order.Id = id;
+        return order;
+    }
+
+    public void AddLine(ProductId productId, int quantity, decimal unitPrice)
+    {
+        // Pre-condition check — runs BEFORE Apply so the event is never raised
+        // for an invalid input.
+        CheckRule(new OrderLinePriceMustBePositive(unitPrice));
+
+        this.Apply(new OrderLineAdded(this.Id.Value, productId.Value, quantity, unitPrice));
+    }
+
+    public void Submit()
+    {
+        // A submitted order must have at least one line
+        CheckRule(new OrderMustNotBeEmpty(this.Lines));
+
+        this.Apply(new OrderSubmitted(this.Id.Value));
+    }
+
+    protected override void When(IDomainEvent domainEvent)
+    {
+        switch (domainEvent)
+        {
+            case OrderCreated:
+                // nothing to set beyond Id
+                break;
+            case OrderLineAdded e:
+                this.lines.Add(new OrderLine(e.ProductId, e.Quantity, e.UnitPrice));
+                break;
+            case OrderSubmitted:
+                this.Status = OrderStatus.Submitted;
+                break;
+        }
+    }
+
+    protected override void EnsureValidState()
+    {
+        // EnsureValidState validates post-event state deterministically.
+        // It does NOT replace explicit CheckRule calls in public methods.
+    }
+}
+```
+
+In a command handler you catch `BusinessRuleValidationException` (or let the global exception handler map it to a `400 Bad Request`):
+
+```csharp
+public sealed class SubmitOrderCommandHandler : ICommandHandler<SubmitOrderCommand>
+{
+    private readonly IRepository<Order, OrderId> repository;
+
+    public SubmitOrderCommandHandler(IRepository<Order, OrderId> repository)
+        => this.repository = repository;
+
+    public async Task<Result> Handle(SubmitOrderCommand command, CancellationToken cancellationToken)
+    {
+        var orderId = OrderId.Create(command.OrderId);
+        var order   = await this.repository.GetByIdAsync(orderId, cancellationToken)
+                      ?? throw new NotFoundException(nameof(Order), orderId);
+
+        // BusinessRuleValidationException is thrown here if rules are broken
+        order.Submit();
+
+        await this.repository.UpdateAsync(order, cancellationToken);
+
+        return Result.Success();
+    }
+}
+```
+
+## Best practice: enforce rules at the aggregate boundary
+
+Always call `CheckRule` inside the aggregate's public methods — the same methods your command handlers call. This keeps invariant enforcement inside the domain layer, where it belongs, and ensures that no combination of application-layer code can leave an aggregate in an invalid state.
+
+<Note>
+**`EnsureValidState` vs `CheckRule` — what goes where?**
+
+Use `CheckRule` for **pre-condition checks** in public aggregate methods: validate the inputs *before* deciding to raise an event. If the rule is broken, the event is never created and the aggregate state stays unchanged.
+
+Use `EnsureValidState` for **post-event invariant assertions**: after `When()` has applied an event to the aggregate's fields, `EnsureValidState` confirms the resulting state is self-consistent. If your aggregate logic is fully deterministic — the same events always produce the same valid state — you can implement `EnsureValidState` as a no-op. Reserve it for cross-field or context-sensitive conditions that are only meaningful once the state has been updated.
+</Note>

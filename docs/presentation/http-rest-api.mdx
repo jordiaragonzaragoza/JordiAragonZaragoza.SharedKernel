@@ -1,0 +1,547 @@
+---
+title: "HTTP REST API presentation layer with SharedKernel"
+sidebarTitle: "HTTP REST API"
+description: "Build ASP.NET Core REST APIs with SharedKernel's BaseApiCommandController, BaseApiQueryController, ExceptionMiddleware, and ProblemDetails helpers."
+---
+
+SharedKernel's `JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi` package gives you a thin, opinionated presentation layer for ASP.NET Core. It connects your CQRS buses to HTTP endpoints, translates `Ardalis.Result` outcomes into RFC-compliant ProblemDetails responses, and handles cross-cutting concerns—authentication context, exception handling, and infrastructure endpoint bypass—through dedicated middleware. A companion `JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts` package exposes the shared contract types (pagination, file download, HTTP client helpers) so other services can reference them without pulling in ASP.NET Core itself.
+
+## Setup
+
+<Steps>
+  <Step title="Install the NuGet packages">
+    Add the main package to your API host project and the contracts package wherever you need shared types (e.g., a typed HTTP client in another service):
+
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi
+    dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts
+    ```
+  </Step>
+
+  <Step title="Register services">
+    Call the extension method inside your `Program.cs` (or `Startup.cs`) service registration block:
+
+    ```csharp
+    builder.Services.AddSharedKernelPresentationHttpRestfulApi();
+    ```
+
+    <Note>
+      The call is intentionally lightweight — the package resolves `ICommandBus` and `IQueryBus` from the request service container at runtime rather than constructor-injecting them, so you only need your application-layer buses registered (e.g., via MediatR through `AddSharedKernelApplication`).
+    </Note>
+  </Step>
+
+  <Step title="Add the middleware pipeline">
+    Order matters. Register `ExceptionMiddleware` first so it wraps every downstream error, then `ExecutionContextMiddleware` to populate the actor identity before any controller runs:
+
+    ```csharp
+    app.UseMiddleware<ExceptionMiddleware>();
+    app.UseAuthentication();
+    app.UseAuthorization();
+    app.UseMiddleware<ExecutionContextMiddleware>();
+
+    app.MapControllers();
+    ```
+  </Step>
+
+  <Step title="Derive your controllers">
+    Inherit `BaseApiCommandController` for write endpoints and `BaseApiQueryController` for read endpoints. Both are decorated with `[ApiController]` and `[Authorize]` — you only need to add routing attributes and your action methods.
+  </Step>
+</Steps>
+
+---
+
+## BaseApiCommandController
+
+`BaseApiCommandController` is an abstract `ControllerBase` subclass for controllers that issue commands. It lazily resolves `ICommandBus` from the request's service container and exposes it through the protected `CommandBus` property.
+
+```csharp
+[ApiController]
+[Authorize]
+public abstract class BaseApiCommandController : ControllerBase
+{
+    private ICommandBus commandBus = null!;
+
+    protected ICommandBus CommandBus
+        => this.commandBus ??= this.HttpContext.RequestServices
+               .GetRequiredService<ICommandBus>();
+}
+```
+
+Dispatch a command and convert the result to an HTTP response using the `ToActionResult` extension:
+
+```csharp
+[Route("api/v1/orders")]
+public class OrdersCommandController : BaseApiCommandController
+{
+    [HttpPost]
+    [ProducesResponseType(typeof(Guid), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<Guid>> CreateOrder(
+        [FromBody] CreateOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new CreateOrderCommand(request.CustomerId, request.Items);
+        Result<Guid> result = await this.CommandBus.SendAsync(command, cancellationToken);
+
+        return result.ToActionResult(this);
+    }
+}
+```
+
+---
+
+## BaseApiQueryController
+
+`BaseApiQueryController` follows the same pattern for read-only operations, lazily resolving `IQueryBus` instead.
+
+```csharp
+[ApiController]
+[Authorize]
+public abstract class BaseApiQueryController : ControllerBase
+{
+    private IQueryBus queryBus = null!;
+
+    protected IQueryBus QueryBus
+        => this.queryBus ??= this.HttpContext.RequestServices
+               .GetRequiredService<IQueryBus>();
+}
+```
+
+Dispatch a query and return the typed result:
+
+```csharp
+[Route("api/v1/orders")]
+public class OrdersQueryController : BaseApiQueryController
+{
+    [HttpGet("{orderId:guid}")]
+    [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<OrderResponse>> GetOrder(
+        Guid orderId,
+        CancellationToken cancellationToken)
+    {
+        var query = new GetOrderQuery(orderId);
+        Result<OrderResponse> result = await this.QueryBus.SendAsync(query, cancellationToken);
+
+        return result.ToActionResult(this);
+    }
+}
+```
+
+---
+
+## ResultExtensions — converting Ardalis.Result to HTTP
+
+`ResultExtensions` maps every `Ardalis.Result` status to the corresponding HTTP status code and wraps error information in a `ProblemDetails` body. You call it from any controller action via the extension method on the controller or on the result itself.
+
+| Result status | HTTP status | Response body |
+|---|---|---|
+| `Ok` (value result) | `200 OK` | serialised value |
+| `Ok` (void result) | `204 No Content` | — |
+| `Created` | `201 Created` | serialised value + `Location` header |
+| `NoContent` | `204 No Content` | — |
+| `NotFound` | `404 Not Found` | `ProblemDetails` |
+| `Invalid` | `400 Bad Request` | `ValidationProblemDetails` |
+| `Unauthorized` | `401 Unauthorized` | `ProblemDetails` |
+| `Forbidden` | `403 Forbidden` | — |
+| `Error` | `422 Unprocessable Entity` | `ProblemDetails` |
+| `Conflict` | `409 Conflict` | `ProblemDetails` |
+| `CriticalError` | `500 Internal Server Error` | `ProblemDetails` |
+| `Unavailable` | `503 Service Unavailable` | `ProblemDetails` |
+
+All `ProblemDetails` objects include the request path in `instance` so clients can correlate the error to the specific request that failed.
+
+<Tabs>
+  <Tab title="Extension on result">
+    ```csharp
+    Result<OrderResponse> result = await this.QueryBus.SendAsync(query, cancellationToken);
+    return result.ToActionResult(this);
+    ```
+  </Tab>
+  <Tab title="Extension on controller">
+    ```csharp
+    Result<OrderResponse> result = await this.QueryBus.SendAsync(query, cancellationToken);
+    return this.ToActionResult(result);
+    ```
+  </Tab>
+  <Tab title="File download">
+    ```csharp
+    Result<FileResponse> result = await this.QueryBus.SendAsync(query, cancellationToken);
+    return result.ToFileResult(this);
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## ResponseBuilderHelper
+
+`ResponseBuilderHelper` is used by middleware (rather than controllers) to produce `ProblemDetails`-compliant JSON objects from `FluentValidation` failures. It selects the right problem type based on the HTTP status code and includes the current `TraceIdentifier` in an extension field so distributed traces are easy to correlate.
+
+```csharp
+// Typical usage inside a validation middleware or filter
+var response = ResponseBuilderHelper.BuildResponse(
+    validationResult.Errors,
+    httpContext,
+    StatusCodes.Status400BadRequest);
+```
+
+| Status code | Returned type | RFC link |
+|---|---|---|
+| `400 Bad Request` | `ValidationProblemDetails` (groups by property) | RFC 7231 §6.5.1 |
+| `404 Not Found` | `ProblemDetails` | RFC 7231 §6.5.4 |
+| `409 Conflict` | `ProblemDetails` | RFC 9110 §15.5.10 |
+| `422 Unprocessable Entity` | `ProblemDetails` | RFC 9110 §15.5.21 |
+
+---
+
+## ExceptionMiddleware
+
+`ExceptionMiddleware` is a catch-all that prevents unhandled exceptions from leaking raw stack traces to clients. When any downstream middleware or controller throws, it intercepts the exception and writes a JSON body with the HTTP status code and exception message, then returns `500 Internal Server Error`.
+
+```csharp
+public class ExceptionMiddleware
+{
+    public async Task InvokeAsync(HttpContext httpContext)
+    {
+        try
+        {
+            await this.next(httpContext);
+        }
+        catch (Exception ex)
+        {
+            // Sets Content-Type: application/json, status 500,
+            // and writes { StatusCode, Message }
+            await HandleExceptionAsync(httpContext, ex);
+        }
+    }
+}
+```
+
+Register it as the **outermost** middleware so it catches exceptions from every layer beneath it:
+
+```csharp
+app.UseMiddleware<ExceptionMiddleware>(); // must be first
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseMiddleware<ExecutionContextMiddleware>();
+```
+
+---
+
+## ExecutionContextMiddleware
+
+`ExecutionContextMiddleware` populates `IExecutionContextService` with actor identity, tenant, correlation, and causation information extracted from the current HTTP request. Every command and query handler downstream can read this context without touching the `HttpContext` directly.
+
+### Request headers consumed
+
+| Header | Purpose | Required |
+|---|---|---|
+| `x-tenant-id` | Tenant scope (GUID); missing for authenticated (non-anonymous) actors returns `400 Bad Request` | Yes, for authenticated users |
+| `x-correlation-id` | Distributed trace identifier (GUID); auto-generated if absent | No |
+| `x-causation-id` | ID of the event or command that triggered this request | No |
+| `x-partition-id` | Optional partition scope (GUID) | No |
+| `x-domain-id` | Optional domain scope (GUID) | No |
+
+### Actor resolution
+
+- **Authenticated requests** — the middleware reads the `oid` claim from the JWT. A missing or invalid `oid` returns `401 Unauthorized`. After the actor is resolved, the middleware validates the user's scope access via `IAuthorizationService.ValidateScopeAsync`; a failed scope check returns `403 Forbidden`.
+- **Anonymous endpoints** (`[AllowAnonymous]`) — the middleware creates an `External` actor keyed to the client IP address, enabling traceability for unauthenticated flows like registration or webhooks. External actors are not subject to tenant-header validation; a missing `x-tenant-id` falls back to the system tenant automatically.
+
+### Infrastructure endpoint bypass
+
+Paths that match known infrastructure prefixes (`/swagger`, `/health`, `/metrics`, `/ready`, `/alive`, `/favicon.ico`) and any endpoint decorated with `[InfrastructureEndpoint]` are **bypassed entirely** — no context is set and no correlation ID is propagated.
+
+### Response header written
+
+The middleware attaches `x-correlation-id` to every outgoing response so callers can link their request to server-side logs.
+
+```csharp
+// The middleware sets the context, your handler reads it:
+public class CreateOrderCommandHandler : ICommandHandler<CreateOrderCommand, Result<Guid>>
+{
+    private readonly IExecutionContextService executionContext;
+
+    public CreateOrderCommandHandler(IExecutionContextService executionContext)
+        => this.executionContext = executionContext;
+
+    public Task<Result<Guid>> Handle(CreateOrderCommand command, CancellationToken ct)
+    {
+        var actorId  = this.executionContext.ActorId;
+        var tenantId = this.executionContext.TenantId;
+        // ...
+    }
+}
+```
+
+---
+
+## [InfrastructureEndpoint] attribute
+
+Apply `[InfrastructureEndpoint]` to any controller class or action method that should be excluded from execution-context population. The `ExecutionContextMiddleware` checks for this attribute via `AnonymousRequestHelper.IsInfrastructureEndpoint` and skips all context logic — actor resolution, tenant validation, and scope checks — when it finds it.
+
+```csharp
+[ApiController]
+[Route("/health")]
+[InfrastructureEndpoint]
+public class HealthController : ControllerBase
+{
+    [HttpGet]
+    public IActionResult Get() => this.Ok("healthy");
+}
+```
+
+<Note>
+  Well-known infrastructure path prefixes (`/swagger`, `/health`, `/metrics`, `/ready`, `/alive`, `/favicon.ico`) are bypassed automatically by `AnonymousRequestHelper` even without the attribute. Use `[InfrastructureEndpoint]` for custom infrastructure paths that fall outside these prefixes.
+</Note>
+
+---
+
+## Pagination contracts
+
+### PaginatedRequest
+
+`PaginatedRequest` is a record that carries the client's page selection. Default values are `PageNumber = 1` and `PageSize = 10`.
+
+```csharp
+public record class PaginatedRequest
+{
+    [DefaultValue(1)]
+    public int PageNumber { get; init; }
+
+    [DefaultValue(10)]
+    public int PageSize { get; init; }
+}
+```
+
+Derive your query request from it or compose it as a property:
+
+```csharp
+[HttpGet]
+public async Task<ActionResult<PaginatedCollectionResponse<OrderSummaryResponse>>> GetOrders(
+    [FromQuery] PaginatedRequest pagination,
+    CancellationToken cancellationToken)
+{
+    var query = new GetOrdersQuery(pagination.PageNumber, pagination.PageSize);
+    Result<PaginatedCollectionResponse<OrderSummaryResponse>> result =
+        await this.QueryBus.SendAsync(query, cancellationToken);
+
+    return result.ToActionResult(this);
+}
+```
+
+### PaginatedCollectionResponse\<T\>
+
+`PaginatedCollectionResponse<T>` is the standard response envelope for paged collections. Return it from query handlers and it will be serialised automatically.
+
+```csharp
+public record class PaginatedCollectionResponse<T>(
+    int ActualPage,
+    int TotalPages,
+    int TotalItems,
+    IEnumerable<T> Items);
+```
+
+A typical JSON response looks like:
+
+```json
+{
+  "actualPage": 1,
+  "totalPages": 5,
+  "totalItems": 47,
+  "items": [
+    { "orderId": "...", "status": "Pending" }
+  ]
+}
+```
+
+---
+
+## FileResponse
+
+Use `FileResponse` to return binary file downloads from a query handler. Pass the byte array, MIME type, and suggested filename; then call `ToFileResult` on the controller.
+
+```csharp
+public record class FileResponse(
+    byte[] FileContents,
+    string ContentType,
+    string FileDownloadName);
+```
+
+Example query controller action:
+
+```csharp
+[HttpGet("{reportId:guid}/download")]
+[ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK)]
+[ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+public async Task<ActionResult> DownloadReport(
+    Guid reportId,
+    CancellationToken cancellationToken)
+{
+    var query = new GetReportFileQuery(reportId);
+    Result<FileResponse> result = await this.QueryBus.SendAsync(query, cancellationToken);
+
+    return result.ToFileResult(this);
+}
+```
+
+---
+
+## HttpClient helpers
+
+The `JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts` package includes three helper types for services that call other services over HTTP.
+
+### HttpClientGetExtensionMethods
+
+`GetAndDeserializeAsync<T>` performs a `GET` request and deserialises the JSON response body using camelCase naming policy. It throws `HttpRequestException` on non-success status codes and `InvalidOperationException` when the body cannot be deserialised to `T`.
+
+```csharp
+// Resolving a typed HttpClient from DI
+var order = await httpClient.GetAndDeserializeAsync<OrderResponse>(
+    $"/api/v1/orders/{orderId}",
+    cancellationToken);
+```
+
+### HttpClientPutExtensionMethods
+
+`PutAndDeserializeAsync<T>` performs a `PUT` request and deserialises the response. Useful for request/response patterns that return updated state.
+
+```csharp
+var updated = await httpClient.PutAndDeserializeAsync<OrderResponse>(
+    $"/api/v1/orders/{orderId}",
+    JsonContent.Create(updateRequest),
+    cancellationToken);
+```
+
+### EndpointRouteHelpers
+
+`BuildUriWithQueryParameters` constructs a `Uri` by substituting route template placeholders (e.g., `{id}` or `{id?}`) and appending any remaining key-value pairs as query-string parameters.
+
+```csharp
+// Template:  "/api/v1/orders/{orderId}/items"
+// Params:    (orderId, "abc-123"), (pageNumber, "2")
+// Result:    /api/v1/orders/abc-123/items?pageNumber=2
+Uri uri = EndpointRouteHelpers.BuildUriWithQueryParameters(
+    "/api/v1/orders/{orderId}/items",
+    ("orderId",    orderId.ToString()),
+    ("pageNumber", "2"),
+    ("pageSize",   "10"));
+```
+
+---
+
+## FastEndpoints alternative
+
+If you prefer [FastEndpoints](https://fast-endpoints.com/) over MVC controllers, `EndpointExtensions` provides `SendResponseAsync` — a single method that maps every `Ardalis.Result` status to the corresponding FastEndpoints response helper.
+
+```csharp
+public class CreateOrderEndpoint : Endpoint<CreateOrderRequest>
+{
+    public override void Configure()
+    {
+        Post("/api/v1/orders");
+        Roles("User");
+    }
+
+    public override async Task HandleAsync(
+        CreateOrderRequest req,
+        CancellationToken ct)
+    {
+        var command = new CreateOrderCommand(req.CustomerId, req.Items);
+        var result  = await CommandBus.SendAsync(command, ct);
+
+        await this.SendResponseAsync(result, ct);
+    }
+}
+```
+
+The method covers the same status-code matrix as `ResultExtensions` (200, 201, 204, 400, 401, 403, 404, 409, 422, 500, 503) and populates FastEndpoints' `ValidationFailures` collection for error cases.
+
+---
+
+## Complete example
+
+The following example wires together a command controller and a query controller for an `Orders` resource.
+
+<CodeGroup>
+```csharp OrdersCommandController.cs
+[Route("api/v1/orders")]
+public class OrdersCommandController : BaseApiCommandController
+{
+    // POST /api/v1/orders
+    [HttpPost]
+    [ProducesResponseType(typeof(Guid), StatusCodes.Status201Created)]
+    [ProducesResponseType(typeof(ValidationProblemDetails), StatusCodes.Status400BadRequest)]
+    public async Task<ActionResult<Guid>> CreateOrder(
+        [FromBody] CreateOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new CreateOrderCommand(request.CustomerId, request.Items);
+        var result  = await this.CommandBus.SendAsync(command, cancellationToken);
+        return result.ToActionResult(this);
+    }
+
+    // DELETE /api/v1/orders/{orderId}
+    [HttpDelete("{orderId:guid}")]
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> CancelOrder(
+        Guid orderId,
+        CancellationToken cancellationToken)
+    {
+        var command = new CancelOrderCommand(orderId);
+        var result  = await this.CommandBus.SendAsync(command, cancellationToken);
+        return result.ToActionResult(this);
+    }
+}
+```
+
+```csharp OrdersQueryController.cs
+[Route("api/v1/orders")]
+public class OrdersQueryController : BaseApiQueryController
+{
+    // GET /api/v1/orders/{orderId}
+    [HttpGet("{orderId:guid}")]
+    [ProducesResponseType(typeof(OrderResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(typeof(ProblemDetails), StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<OrderResponse>> GetOrder(
+        Guid orderId,
+        CancellationToken cancellationToken)
+    {
+        var query  = new GetOrderQuery(orderId);
+        var result = await this.QueryBus.SendAsync(query, cancellationToken);
+        return result.ToActionResult(this);
+    }
+
+    // GET /api/v1/orders?pageNumber=1&pageSize=10
+    [HttpGet]
+    [ProducesResponseType(typeof(PaginatedCollectionResponse<OrderSummaryResponse>), StatusCodes.Status200OK)]
+    public async Task<ActionResult<PaginatedCollectionResponse<OrderSummaryResponse>>> GetOrders(
+        [FromQuery] PaginatedRequest pagination,
+        CancellationToken cancellationToken)
+    {
+        var query  = new GetOrdersQuery(pagination.PageNumber, pagination.PageSize);
+        var result = await this.QueryBus.SendAsync(query, cancellationToken);
+        return result.ToActionResult(this);
+    }
+}
+```
+
+```csharp Program.cs
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllers();
+builder.Services.AddSharedKernelPresentationHttpRestfulApi();
+// Register your application layer, infrastructure, etc.
+
+var app = builder.Build();
+
+app.UseMiddleware<ExceptionMiddleware>();
+app.UseAuthentication();
+app.UseAuthorization();
+app.UseMiddleware<ExecutionContextMiddleware>();
+app.MapControllers();
+
+app.Run();
+```
+</CodeGroup>

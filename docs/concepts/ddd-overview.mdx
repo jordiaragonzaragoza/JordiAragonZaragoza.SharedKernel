@@ -1,0 +1,143 @@
+---
+title: "Domain-Driven Design building blocks in SharedKernel"
+sidebarTitle: "DDD Overview"
+description: "Learn how SharedKernel implements DDD building blocks: aggregates, entities, value objects, domain events, and bounded contexts in .NET."
+---
+
+Domain-Driven Design (DDD) is a software approach that places the business domain at the heart of every design decision. SharedKernel provides a ready-made set of DDD building blocks so you can focus on modelling your domain instead of writing boilerplate. Every class in the library is persistence-agnostic: you can use standard Entity Framework repositories or switch to event sourcing without touching a single line of domain code.
+
+## Why SharedKernel adopts DDD
+
+Modern business software is complex. Without a shared language between developers and domain experts, that complexity creeps into the codebase as tangled logic, hidden assumptions, and fragile tests. DDD counters this by:
+
+- **Unifying language** — code and conversations use the same terms (the *Ubiquitous Language*).
+- **Isolating complexity** — each *Bounded Context* owns its own model and enforces its own rules.
+- **Protecting invariants** — aggregates act as consistency boundaries, rejecting invalid state changes before they reach the database.
+
+SharedKernel packages these patterns as stable base classes and interfaces so every service you build starts from the same solid foundation.
+
+## Core building blocks
+
+<CardGroup cols={2}>
+  <Card title="Aggregate Root" icon="cubes">
+    The consistency boundary for a cluster of related objects. All changes flow through the aggregate, which raises domain events and validates invariants.
+  </Card>
+  <Card title="Entity" icon="cube">
+    An object with a distinct identity that persists over time. Two entities are equal when their IDs match, regardless of their other attributes.
+  </Card>
+  <Card title="Value Object" icon="tag">
+    An immutable object defined entirely by its attributes. Two value objects with the same data are interchangeable — no ID required.
+  </Card>
+  <Card title="Domain Event" icon="bolt">
+    A record of something meaningful that happened inside the domain. Handlers react to events without coupling producers to consumers.
+  </Card>
+  <Card title="Domain Service" icon="gear">
+    Stateless logic that doesn't belong to a single aggregate. Use it when an operation spans multiple aggregates or requires external information.
+  </Card>
+  <Card title="Business Rule" icon="shield-check">
+    An encapsulated invariant that an entity or value object enforces. Broken rules throw `BusinessRuleValidationException` immediately.
+  </Card>
+</CardGroup>
+
+## Class mapping
+
+| DDD concept | SharedKernel type | Package |
+|---|---|---|
+| Aggregate Root | `BaseAggregateRoot<TId>` | `SharedKernel.Domain` |
+| Aggregate Root (typed ID) | `BaseAggregateRoot<TId, TIdType>` | `SharedKernel.Domain` |
+| Entity | `BaseEntity<TId>` | `SharedKernel.Domain` |
+| Value Object | `BaseValueObject` | `SharedKernel.Domain` |
+| Entity / Aggregate ID | `BaseEntityId<TIdType>`, `BaseAggregateRootId<TIdType>` | `SharedKernel.Domain` |
+| Domain Event | `BaseDomainEvent` | `SharedKernel.Domain` |
+| In-Memory Domain Event | `BaseInMemoryDomainEvent` | `SharedKernel.Domain` |
+| Domain Service | `BaseDomainService` | `SharedKernel.Domain` |
+| Business Rule | `IBusinessRule` | `SharedKernel.Domain.Contracts` |
+
+<Note>
+  `BaseInMemoryDomainEvent` is for EF Core aggregates whose events travel through the in-process MediatR bus. Event-sourced aggregates use `BaseDomainEvent` directly — their events are dispatched via the KurrentDB subscription pipeline.
+</Note>
+
+## A complete aggregate example
+
+The snippet below shows a `BankAccount` aggregate that:
+
+1. Defines a strongly-typed ID.
+2. Enforces a business rule on deposits.
+3. Raises a domain event when money is deposited.
+
+```csharp
+// 1. Strongly-typed aggregate ID
+public sealed class BankAccountId : BaseAggregateRootId<Guid>
+{
+    public BankAccountId(Guid value) : base(value) { }
+    private BankAccountId() { } // Required by EF
+}
+
+// 2. Domain event (record so it is immutable by default)
+public sealed record BankAccountFundsDeposited(
+    Guid AggregateId,
+    decimal Amount) : BaseInMemoryDomainEvent(AggregateId);
+
+// 3. Business rule
+public sealed class DepositAmountMustBePositive : IBusinessRule
+{
+    private readonly decimal amount;
+
+    public DepositAmountMustBePositive(decimal amount) => this.amount = amount;
+
+    public string Message => "Deposit amount must be greater than zero.";
+
+    public bool IsBroken() => this.amount <= 0;
+}
+
+// 4. Aggregate root
+public sealed class BankAccount : BaseAggregateRoot<BankAccountId, Guid>
+{
+    public decimal Balance { get; private set; }
+
+    public BankAccount(BankAccountId id, decimal initialBalance) : base(id)
+    {
+        Balance = initialBalance;
+    }
+
+    private BankAccount() { } // Required by EF
+
+    public void Deposit(decimal amount)
+    {
+        // Guard: enforce the business rule before mutating state
+        CheckRule(new DepositAmountMustBePositive(amount));
+
+        // Apply raises the event, mutates state via When(), and validates invariants
+        Apply(new BankAccountFundsDeposited(Id.Value, amount));
+    }
+
+    protected override void When(IDomainEvent domainEvent)
+    {
+        switch (domainEvent)
+        {
+            case BankAccountFundsDeposited e:
+                Balance += e.Amount;
+                break;
+        }
+    }
+
+    protected override void EnsureValidState()
+    {
+        // Balance must never be negative
+        if (Balance < 0)
+            throw new InvalidAggregateStateException(this, "Balance cannot be negative.");
+    }
+}
+```
+
+<Tip>
+  Call `Apply()` — not `When()` directly — from every public method. `Apply` calls `When`, then `EnsureValidState`, then appends the event to the aggregate's pending event list, keeping the sequence correct.
+</Tip>
+
+## How events flow out of an aggregate
+
+When you save an aggregate through a repository, the infrastructure layer reads the pending events from `aggregate.Events`, persists them (either to EF Core outbox or KurrentDB), and then calls `aggregate.ClearEvents()`. Downstream handlers (such as MediatR notification handlers) react to those events asynchronously without the aggregate knowing anything about them.
+
+## Next steps
+
+For detailed usage of entities, aggregates, and repository patterns see [Entities and Aggregates](/domain/entities-aggregates).
