@@ -7,6 +7,7 @@
     using JordiAragonZaragoza.SharedKernel.Application.Contracts;
     using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
     using JordiAragonZaragoza.SharedKernel.Infrastructure.Contracts;
+    using JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts;
     using Microsoft.AspNetCore.Http;
     using Microsoft.Extensions.Logging;
 
@@ -27,12 +28,14 @@
             HttpContext context,
             IExecutionContextService executionContextService,
             IAuthorizationService authorizationService,
-            IServiceIdentityProvider serviceIdentityProvider)
+            IServiceIdentityProvider serviceIdentityProvider,
+            IUserIdentifierResolver userIdentifierResolver)
         {
             ArgumentNullException.ThrowIfNull(context);
             ArgumentNullException.ThrowIfNull(executionContextService);
             ArgumentNullException.ThrowIfNull(authorizationService);
             ArgumentNullException.ThrowIfNull(serviceIdentityProvider);
+            ArgumentNullException.ThrowIfNull(userIdentifierResolver);
 
             if (AnonymousRequestHelper.IsInfrastructureEndpoint(context))
             {
@@ -45,7 +48,7 @@
             var causationId = ResolveCausationId(context);
             string executor = serviceIdentityProvider.GetName();
 
-            var actor = ResolveActor(context);
+            var actor = ResolveActor(context, userIdentifierResolver);
             if (actor is null)
             {
                 context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -152,19 +155,16 @@
         /// For unauthenticated requests (register, webhooks), returns an External actor
         /// derived from the client IP — providing traceability without a JWT.
         /// </summary>
-        private static (string ActorId, ActorType ActorType)? ResolveActor(HttpContext context)
+        private static (string ActorId, ActorType ActorType)? ResolveActor(
+            HttpContext context,
+            IUserIdentifierResolver resolver)
         {
-            // If the user is authenticated, we expect an 'oid' claim to identify them.
+            // If the user is authenticated, we expect an claim to identify them.
             if (context.User?.Identity?.IsAuthenticated == true)
             {
-                var oid = context.User.FindFirst("oid")?.Value;
-                if (Guid.TryParse(oid, out var parsed))
-                {
-                    return (ExecutionContext.CreateUserActorId(parsed), ActorType.User);
-                }
-
-                // JWT present but without a valid 'oid' claim — reject.
-                return null;
+                return resolver.TryResolve(context.User, out var userId)
+                    ? (ExecutionContext.CreateUserActorId(userId), ActorType.User)
+                    : null;
             }
 
             // No JWT: only allow External if the endpoint explicitly declares it.
