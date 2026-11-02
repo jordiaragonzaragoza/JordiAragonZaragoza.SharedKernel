@@ -4,6 +4,91 @@
         <name>JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi</name>
     </assembly>
     <members>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.AddRequiredHeadersOperationFilter">
+            <summary>
+            Swagger operation filter to add the execution context headers read by ExecutionContextMiddleware.
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.AddRequiredHeadersOperationFilter.Apply(Microsoft.OpenApi.OpenApiOperation,Swashbuckle.AspNetCore.SwaggerGen.OperationFilterContext)">
+            <summary>
+            Apply the operation filter to add custom headers.
+            </summary>
+            <param name="operation">The operation to modify.</param>
+            <param name="context">The operation filter context.</param>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.ApiOptions">
+            <summary>
+            Settings that vary from one API host to another and are known at compile time.
+            Everything provider specific (authority, audience, Swagger login) comes from configuration.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.ApiOptions.Title">
+            <summary>
+            Gets the title shown in the Swagger documents.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.ApiOptions.DefaultApiVersion">
+            <summary>
+            Gets the API version assumed when the request does not specify one.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.ApiOptions.EnableCors">
+            <summary>
+            Gets a value indicating whether CORS is enabled. Off by default: APIs that sit behind
+            a gateway are called server to server and do not need it (browsers enforce CORS, not servers).
+            </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.ConfigureSwaggerOptions.Configure(Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenOptions)">
+            <summary>
+            Configure each API discovered for Swagger Documentation.
+            </summary>
+            <param name="options">The options instance to configure.</param>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.ConfigureSwaggerOptions.Configure(System.String,Swashbuckle.AspNetCore.SwaggerGen.SwaggerGenOptions)">
+            <summary>
+            Configure Swagger Options. Inherited from the Interface.
+            </summary>
+            <param name="name">The name of the options instance being configured.</param>
+            <param name="options">The options instance to configure.</param>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.ConfigureSwaggerOptions.CreateVersionInfo(Asp.Versioning.ApiExplorer.ApiVersionDescription)">
+            <summary>
+            Create information about the version of the API.
+            </summary>
+            <param name="description">The description of the API version.</param>
+            <returns>Information about the API.</returns>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.CorsExtensions">
+            <summary>
+            CORS conventions. Reusable by any web host (APIs or a gateway).
+            Origins come from the "Cors:AllowedOrigins" array in configuration, for example
+            "Cors:AllowedOrigins:0" = "https://app.example.com" (env var: Cors__AllowedOrigins__0).
+            </summary>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.JwtBearerAuthenticationExtensions">
+            <summary>
+            Provider agnostic JWT bearer authentication. Keycloak and Entra ID are both standard OIDC
+            providers, so what changes between environments is configuration, not code:
+            <list type="bullet">
+            <item><description>Authentication:Schemes:Bearer:Authority</description></item>
+            <item><description>Authentication:Schemes:Bearer:Audience</description></item>
+            <item><description>Authentication:Claims:UserIdClaimType ("sub" for Keycloak, "oid" for Entra ID)</description></item>
+            </list>
+            </summary>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.SwaggerOAuth2Options">
+            <summary>
+            Swagger UI login settings, bound from the "Swagger:OAuth2" configuration section.
+            They are provider specific (Keycloak, Entra ID...), so they are configuration, not code.
+            When the endpoints are missing, Swagger only offers the "paste the token" scheme.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.SwaggerOAuth2Options.Scopes">
+            <summary>
+            Gets the configured scopes. Empty by default on purpose: the configuration
+            binder appends to non empty collections instead of replacing them.
+            </summary>
+        </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Helpers.ResultExtensions">
             <summary>
             Extensions to support converting Result to an ActionResult.
@@ -59,6 +144,16 @@
             <param name="controller">The controller this is called from.</param>
             <param name="result">The Result{FileResponse} to convert to an ActionResult.</param>
             <returns>The <see cref="T:Microsoft.AspNetCore.Mvc.ActionResult"/> converted.</returns>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.HttpRestfulApiDependencyInjection.AddSharedKernelPresentationHttpRestfulApi(Microsoft.Extensions.DependencyInjection.IServiceCollection,Microsoft.Extensions.Configuration.IConfiguration,Microsoft.Extensions.Hosting.IHostEnvironment,JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.ApiOptions)">
+            <summary>
+            Registers versioning, controllers, Swagger and (optionally) CORS.
+            </summary>
+            <param name="services">The service collection.</param>
+            <param name="configuration">The configuration.</param>
+            <param name="environment">The host environment.</param>
+            <param name="apiOptions">The settings that vary per API host.</param>
+            <returns>The service collection with the registered services.</returns>
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.InfrastructureEndpointAttribute">
             <summary>
