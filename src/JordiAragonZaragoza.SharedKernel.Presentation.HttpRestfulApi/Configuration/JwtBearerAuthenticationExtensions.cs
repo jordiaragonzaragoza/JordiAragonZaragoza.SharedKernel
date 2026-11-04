@@ -1,6 +1,7 @@
 namespace JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration
 {
     using System;
+    using JordiAragonZaragoza.SharedKernel.Helpers;
     using Microsoft.AspNetCore.Authentication.JwtBearer;
     using Microsoft.Extensions.Configuration;
     using Microsoft.Extensions.DependencyInjection;
@@ -50,8 +51,7 @@ namespace JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configura
             {
                 services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
                         .Validate(
-                            options => !string.IsNullOrWhiteSpace(options.Authority)
-                                       && !string.IsNullOrWhiteSpace(options.Audience),
+                            options => OptionsHelper.IsConfigured(options.Authority) && OptionsHelper.IsConfigured(options.Audience),
                             $"'{SectionName}:Authority' and '{SectionName}:Audience' must be configured.")
                         .ValidateOnStart();
             }
