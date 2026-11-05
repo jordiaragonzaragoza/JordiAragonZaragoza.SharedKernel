@@ -3,6 +3,8 @@ namespace JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configura
     using System;
     using System.Linq;
     using Asp.Versioning.ApiExplorer;
+    using JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Identity;
+
     using Microsoft.Extensions.DependencyInjection;
     using Microsoft.Extensions.Options;
     using Microsoft.OpenApi;

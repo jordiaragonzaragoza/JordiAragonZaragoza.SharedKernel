@@ -65,30 +65,6 @@
             "Cors:AllowedOrigins:0" = "https://app.example.com" (env var: Cors__AllowedOrigins__0).
             </summary>
         </member>
-        <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.JwtBearerAuthenticationExtensions">
-            <summary>
-            Provider agnostic JWT bearer authentication. Keycloak and Entra ID are both standard OIDC
-            providers, so what changes between environments is configuration, not code:
-            <list type="bullet">
-            <item><description>Authentication:Schemes:Bearer:Authority</description></item>
-            <item><description>Authentication:Schemes:Bearer:Audience</description></item>
-            <item><description>Authentication:Claims:UserIdClaimType ("sub" for Keycloak, "oid" for Entra ID)</description></item>
-            </list>
-            </summary>
-        </member>
-        <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.SwaggerOAuth2Options">
-            <summary>
-            Swagger UI login settings, bound from the "Swagger:OAuth2" configuration section.
-            They are provider specific (Keycloak, Entra ID...), so they are configuration, not code.
-            When the endpoints are missing, Swagger only offers the "paste the token" scheme.
-            </summary>
-        </member>
-        <member name="P:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration.SwaggerOAuth2Options.Scopes">
-            <summary>
-            Gets the configured scopes. Empty by default on purpose: the configuration
-            binder appends to non empty collections instead of replacing them.
-            </summary>
-        </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Helpers.ResultExtensions">
             <summary>
             Extensions to support converting Result to an ActionResult.
@@ -154,6 +130,30 @@
             <param name="environment">The host environment.</param>
             <param name="apiOptions">The settings that vary per API host.</param>
             <returns>The service collection with the registered services.</returns>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Identity.JwtBearerAuthenticationExtensions">
+            <summary>
+            Provider agnostic JWT bearer authentication. Keycloak and Entra ID are both standard OIDC
+            providers, so what changes between environments is configuration, not code:
+            <list type="bullet">
+            <item><description>Authentication:Schemes:Bearer:Authority</description></item>
+            <item><description>Authentication:Schemes:Bearer:Audience</description></item>
+            <item><description>Authentication:Claims:UserIdClaimType ("sub" for Keycloak, "oid" for Entra ID)</description></item>
+            </list>
+            </summary>
+        </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Identity.SwaggerOAuth2Options">
+            <summary>
+            Swagger UI login settings, bound from the "Swagger:OAuth2" configuration section.
+            They are provider specific (Keycloak, Entra ID...), so they are configuration, not code.
+            When the endpoints are missing, Swagger only offers the "paste the token" scheme.
+            </summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Identity.SwaggerOAuth2Options.Scopes">
+            <summary>
+            Gets the configured scopes. Empty by default on purpose: the configuration
+            binder appends to non empty collections instead of replacing them.
+            </summary>
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.InfrastructureEndpointAttribute">
             <summary>

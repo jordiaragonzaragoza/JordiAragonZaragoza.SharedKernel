@@ -1,4 +1,4 @@
-namespace JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration
+namespace JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Identity
 {
     using System;
     using JordiAragonZaragoza.SharedKernel.Helpers;
