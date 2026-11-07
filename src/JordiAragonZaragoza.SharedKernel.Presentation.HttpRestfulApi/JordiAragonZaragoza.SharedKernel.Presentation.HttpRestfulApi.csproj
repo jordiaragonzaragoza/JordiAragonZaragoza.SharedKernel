@@ -11,11 +11,6 @@
 		<PackageReference Include="FastEndpoints" />
 		<PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" />
 		<PackageReference Include="Serilog.AspNetCore" />
-		<PackageReference Include="Serilog.Enrichers.Environment" />
-		<PackageReference Include="Serilog.Enrichers.Thread" />
-		<PackageReference Include="Serilog.Sinks.Async" />
-		<PackageReference Include="Serilog.Sinks.Console" />
-		<PackageReference Include="Serilog.Sinks.OpenTelemetry" />
 		<PackageReference Include="Swashbuckle.AspNetCore" />
 		<PackageReference Include="Swashbuckle.AspNetCore.Annotations" />
 	</ItemGroup>
