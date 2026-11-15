@@ -4,7 +4,7 @@ sidebarTitle: "Event Store"
 description: "Persist and replay event-sourced aggregates with SharedKernel's KurrentDB integration: save events, load aggregate history, and subscribe to event streams."
 ---
 
-SharedKernel's event store package wires your event-sourced aggregate roots directly to KurrentDB (formerly EventStoreDB), providing a `IEventStore` abstraction for appending and replaying events, a high-level `IAggregateStore` view for loading and saving whole aggregates, and hosted-service subscriptions for consuming the live event stream. You get deterministic stream naming, built-in serialization, and optimistic concurrency out of the box.
+SharedKernel's event store package wires your event-sourced aggregate roots directly to KurrentDB (formerly EventStoreDB), providing an `IEventStore` abstraction for appending and replaying events, a high-level `IAggregateStore` view for loading and saving whole aggregates, and hosted-service subscriptions for consuming the live event stream. You get deterministic stream naming, built-in serialization, and optimistic concurrency out of the box.
 
 <Note>
 KurrentDB is the new name for EventStoreDB. The package targets the `KurrentDB.Client` NuGet package. If you are migrating from a codebase that referenced `EventStoreDB.Client`, replace the client registration and update your connection strings — the API surface exposed by SharedKernel remains the same.
