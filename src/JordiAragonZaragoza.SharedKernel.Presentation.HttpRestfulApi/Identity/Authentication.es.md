@@ -12,7 +12,7 @@
 | Resolución de actor y contexto (`ExecutionContextMiddleware`) | Implementado |
 | Código de autenticación compartido en `SharedKernel.Presentation.HttpRestfulApi` | Implementado |
 | Tests funcionales (auth falsa) y System Tests (Keycloak real) | Implementado |
-| MCP Gateway con OAuth (resource server) | Implementado (código entregado, pendiente de validar de extremo a extremo con VS Code) |
+| MCP Gateway con OAuth (resource server) | Implementado y funcionando con VS Code (client pre-registrado `vscode-mcp`) |
 | Entra ID en DEV/PRE/PROD | Solo configuración con placeholders, **sin probar** |
 | Gateway ServiceComposer delante de las APIs | Planificado |
 
@@ -72,7 +72,7 @@ interno del gateway ServiceComposer.
 | **Contexto de ejecución** | Actor + `x-tenant-id` + `x-partition-id` + `x-domain-id` + correlación. Lo construye `ExecutionContextMiddleware`. |
 | **Token pass-through** | El gateway/MCP reenvía a las APIs el mismo token que recibió. |
 | **Protected Resource Metadata (RFC 9728)** | Documento del MCP Gateway que dice a los clientes MCP qué authorization server emite los tokens que acepta. |
-| **DCR (Dynamic Client Registration)** | Mecanismo por el que un cliente MCP (VS Code) se registra solo en Keycloak. |
+| **DCR (Dynamic Client Registration)** | Mecanismo por el que un cliente MCP se registra solo en el authorization server. **No se usa en local**: VS Code no lo consigue con Keycloak, así que se usa el client pre-registrado `vscode-mcp`. |
 
 ---
 
@@ -94,7 +94,7 @@ flowchart LR
     RM[(Read model Postgres<br/>permisos de usuario)]
 
     SW -- PKCE --> IDP
-    MC -- PKCE + DCR --> IDP
+    MC -- PKCE, client vscode-mcp --> IDP
     FE -. BFF o PKCE .-> IDP
 
     SW -- Bearer --> Q
@@ -213,7 +213,7 @@ Toda la diferencia entre proveedores es **configuración**, no código:
 
 | Clave | Local, tests y CI (Keycloak) | Cloud (Entra ID) |
 |---|---|---|
-| `Authentication:Schemes:Bearer:Authority` | Inyectada por el AppHost: `{keycloak}/realms/jordiaragonzaragoza.cinema` | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
+| `Authentication:Schemes:Bearer:Authority` | Inyectada por el AppHost: `http://localhost:8080/realms/jordiaragonzaragoza.cinema` (Keycloak por HTTP, ver 4.5) | `https://login.microsoftonline.com/<tenant-id>/v2.0` |
 | `Authentication:Schemes:Bearer:Audience` | `jordiaragonzaragoza.cinema.api` (AppHost) | Client id de la API (GUID) |
 | `Authentication:Claims:UserIdClaimType` | `sub` (AppHost) | `oid` (por defecto en `appsettings.json`) |
 | `Swagger:OAuth2:AuthorizationUrl` y `TokenUrl` | `.../protocol/openid-connect/auth` y `/token` (AppHost) | Endpoints `oauth2/v2.0` de Entra, o ausentes |
@@ -255,7 +255,8 @@ El realm `jordiaragonzaragoza.cinema` se importa con `WithRealmImport("../../con
 |---|---|
 | Client `swagger-ui` | Público, Standard flow, PKCE `S256`, redirect URIs `https://localhost:PUERTO/swagger/oauth2-redirect.html` por API, *Web origins*, mapper de audience |
 | Client `cinema-system-tests` | Público, **Direct access grants** (password grant), sin Standard flow, mapper de audience. Solo desarrollo |
-| Client scope `cinema-api-audience` | Mapper `oidc-audience-mapper` (`included.custom.audience` = audience compartida, solo access token). Añadido a `defaultDefaultClientScopes` para que lo hereden los clients registrados dinámicamente (clientes MCP) |
+| Client `vscode-mcp` | Público, Standard flow, PKCE `S256`, redirect URIs `http://127.0.0.1:33418` (con y sin `/` final) y `https://vscode.dev/redirect`, *Web origins* `https://vscode.dev`. Es el client que VS Code pide una vez al conectar con el MCP |
+| Client scope `cinema-api-audience` | Mapper `oidc-audience-mapper` (`included.custom.audience` = audience compartida, solo access token). Añadido a `defaultDefaultClientScopes` para que lo hereden los clients que no definen sus propios scopes |
 | Usuario `jordiaragonzaragoza` | `id` = `6bb46b99-e3d1-459b-9e1e-f8d8d7619864` (igual que `SeedData.ExampleUserWithAdminRole`, así el `sub` coincide con el usuario sembrado), `firstName`, `lastName` y `email` informados, `emailVerified`, sin `requiredActions`, contraseña no temporal |
 
 Puntos que conviene recordar:
@@ -269,7 +270,26 @@ Puntos que conviene recordar:
   ejecución.
 - El password grant es deprecado en OAuth 2.1: aceptable únicamente para usuarios de prueba en un realm de desarrollo.
 
-### 4.6 Azure Entra ID
+**Keycloak se sirve por HTTP en local.** Por defecto Aspire expone Keycloak también por HTTPS con el certificado de
+desarrollo. Entonces el `iss` de los tokens y de los metadatos pasaba a ser `https://localhost:8080/...`, distinto del
+Authority `http://` que inyecta el AppHost: el gateway no podía validar el issuer ni descargar los metadatos y rechazaba
+**todos** los tokens con `401`, aunque el login fuera correcto. Solución: servir solo HTTP.
+
+```csharp
+#pragma warning disable ASPIRECERTIFICATES001 // API experimental de Aspire
+var keycloak = builder.AddKeycloak(Constants.Keycloak, 8080)
+                      .WithoutHttpsCertificate()
+                      .WithOtlpExporter()
+                      .WithImageTag(Constants.KeycloakImageTag)
+                      .WithRealmImport("../../containers/keycloak");
+#pragma warning restore ASPIRECERTIFICATES001
+```
+
+Regla: el esquema del Authority, el `iss` del token y el endpoint que usan los System Tests (`http`) deben coincidir.
+Tras cambiarlo hay que descartar los tokens y proveedores guardados en los clientes (en VS Code, *Authentication: Remove
+Dynamic Authentication Providers*).
+
+### 4.6 Entra ID (configurado, sin probar)
 
 Configuración esperada en cada entorno (no son secretos; pueden ir en `appsettings`, variables de entorno o
 configuración del servicio):
@@ -328,8 +348,8 @@ sequenceDiagram
     G-->>C: 401 con WWW-Authenticate y resource_metadata
     C->>G: GET /.well-known/oauth-protected-resource
     G-->>C: Metadatos con resource, authorization_servers y scopes
-    C->>K: Descubrimiento y registro dinámico de client
-    C->>K: Authorization Code con PKCE en el navegador
+    C->>K: Descubrimiento de metadatos del authorization server
+    C->>K: Authorization Code con PKCE en el navegador, client_id vscode-mcp (pre-registrado)
     K-->>C: access_token con aud compartida
     C->>G: tools/call con Bearer y cabeceras x-tenant-id etc
     G->>G: Valida el JWT
@@ -353,15 +373,34 @@ sequenceDiagram
   se reenvía.
 - `ExceptionHandlingFilters`: un `401` o `403` de la API se convierte en un `McpException` con un mensaje comprensible para
   el modelo (permisos, cabeceras de scope), en lugar del genérico de `EnsureSuccessStatusCode`.
-- Configuración de Keycloak necesaria: scope de audience *default* en el realm (los clients dinámicos no tienen el mapper
-  propio) y política de DCR que permita `localhost` y `127.0.0.1` (*Trusted Hosts*).
-- `mcp.json` envía las cabeceras de contexto:
+- **Client pre-registrado, sin DCR.** VS Code no consigue registrarse dinámicamente en Keycloak. Al conectar muestra un
+  cuadro pidiendo un client id: se escribe `vscode-mcp` (client público del realm, ver 4.5), una sola vez. Con otro id
+  (por ejemplo el de la audience) Keycloak responde `Invalid parameter: redirect_uri`.
+- El token debe llevar `aud`: el scope `cinema-api-audience` (default del realm) o un mapper propio en el client.
+- La página "Sign-in successful! Returning to Visual Studio Code..." la sirve el propio VS Code (loopback
+  `127.0.0.1:33418`): indica que el login y el redirect funcionaron, **no** que el gateway haya aceptado el token.
+- **Fallback engañoso de VS Code.** Si tras el login el gateway responde `401`, VS Code reintenta sin usar los
+  metadatos y trata al propio gateway como authorization server: abre `http://localhost:5003/authorize` (404) y dice que
+  el servidor "no admite el registro dinámico de clientes". El síntoma apunta al sitio equivocado: la causa real fue que
+  el gateway no podía validar el token (issuer `https`, ver 4.5).
+- Diagnóstico sin VS Code (curl): metadatos `GET /.well-known/oauth-protected-resource` (200), `POST /` sin token (401 con
+  `resource_metadata`) y `POST /` con un token real (200).
+- `.mcp.json` (formato `mcpServers`), con la URL sin barra final (igual que `Mcp:ResourceUrl`) y las cabeceras de contexto:
 
 ```json
-"headers": {
-  "x-tenant-id": "667196fc-0e17-43f9-990d-7dc2175e6162",
-  "x-partition-id": "05cbd871-da4e-447b-9d62-89438df8c4a8",
-  "x-domain-id": "497cd8f1-620c-426f-992d-7012147f6e7c"
+{
+  "mcpServers": {
+    "cinema-reservation": {
+      "type": "http",
+      "url": "http://localhost:5003",
+      "tools": ["*"],
+      "headers": {
+        "x-tenant-id": "667196fc-0e17-43f9-990d-7dc2175e6162",
+        "x-partition-id": "05cbd871-da4e-447b-9d62-89438df8c4a8",
+        "x-domain-id": "497cd8f1-620c-426f-992d-7012147f6e7c"
+      }
+    }
+  }
 }
 ```
 
@@ -410,6 +449,7 @@ Que el cliente afirme el tenant no es un riesgo: las APIs validan que el usuario
   otros `4xx` (configuración errónea) mostrando el cuerpo de la respuesta.
 - Los `HttpClient` de Command y Query llevan `Authorization: Bearer` y las cabeceras de contexto como cabeceras por defecto.
 - Se pide el token a `localhost:8080`, el mismo host que usan las APIs como Authority; si no, el `iss` no coincide.
+- Keycloak va por HTTP (`.WithoutHttpsCertificate()`, ver 4.5), igual que el Authority de las APIs: con HTTPS el `iss` no coincidiría.
 - **Realm no importado** (`Realm does not exist`): la causa más probable era el `--tmpfs` sobre `/opt/keycloak/data` en modo
   test, que tapa el montaje de `/opt/keycloak/data/import`. Se recomendó quitar el `tmpfs` solo de Keycloak (con
   `ContainerLifetime.Session` y sin volumen el estado ya es efímero).
@@ -433,6 +473,8 @@ Que el cliente afirme el tenant no es un riesgo: las APIs validan que el usuario
 | 12 | **Tests funcionales con auth falsa; System Tests con Keycloak real** | Keycloak real en todos los tests | Rapidez y determinismo frente a fidelidad | Hay que cubrir las diferencias con Entra en PRE (humo) |
 | 13 | **Password grant solo en clients de desarrollo** | Automatizar el login con navegador | Equivalente no interactivo con un JWT con la misma forma | Se importa también en F5: no exportar ese realm a otros entornos |
 | 14 | **MCP stateless** | Sesiones en memoria | Escalado horizontal en AKS y `HttpContext` siempre disponible | Las tools no pueden usar capacidades que requieran estado de sesión |
+| 16 | **Keycloak por HTTP en local** (`.WithoutHttpsCertificate()`) | HTTPS con el certificado de desarrollo de Aspire | El issuer `https` no coincidía con el Authority `http` y el gateway rechazaba todos los tokens | API experimental de Aspire (`ASPIRECERTIFICATES001`). Solo para local, tests y CI; Entra va siempre por HTTPS |
+| 17 | **Client pre-registrado `vscode-mcp`** en lugar de DCR | Registro dinámico de clients (política *Trusted Hosts* anónima) | VS Code no lo consigue con Keycloak; el client pre-registrado es determinista y vive en el realm | VS Code pide el client id una vez. Entra tampoco soporta DCR, así que el modelo es coherente |
 
 ---
 
@@ -490,7 +532,11 @@ Que el cliente afirme el tenant no es un riesgo: las APIs validan que el usuario
 | Swagger envía token a endpoints anónimos | El requirement es global | Inofensivo; se puede afinar con un `IOperationFilter` |
 | MCP: `401` sin `resource_metadata` | `UseAuthentication` no está antes de `MapMcp`, o falta `RequireAuthorization` | Revisar el orden del pipeline |
 | MCP: el cliente no encuentra el authorization server | `Mcp:ResourceUrl` no coincide con la URL del cliente, o el Authority no es accesible para el navegador | Alinear URLs |
-| MCP: falla el registro dinámico en Keycloak | Política *Trusted Hosts* anónima | Permitir `localhost` y `127.0.0.1` (valorar *Allowed Client Scopes*), o pre-registrar un client público |
+| MCP: VS Code pide un client id | El registro dinámico no se usa con Keycloak | Escribir `vscode-mcp`, el client pre-registrado del realm |
+| MCP: Keycloak responde `Invalid parameter: redirect_uri` | Client id equivocado (por ejemplo el de la audience) o redirect URIs incompletos | Usar `vscode-mcp`; sus redirect URIs deben incluir `http://127.0.0.1:33418` (con y sin `/`) y `https://vscode.dev/redirect` |
+| MCP: login correcto ("Sign-in successful") pero VS Code abre `localhost:5003/authorize` (404) y habla de registro dinámico | El gateway rechaza el token (por ejemplo issuer `https` frente a Authority `http`) y VS Code cae al fallback | Comprobar con curl (metadatos 200, POST sin token 401 con `resource_metadata`, POST con token real 200) y leer el log de JwtBearer. Keycloak por HTTP |
+| Tokens o metadatos con `iss` `https://localhost:8080/...` | Keycloak sirve HTTPS con el certificado de desarrollo | `.WithoutHttpsCertificate()` en el AppHost y descartar tokens y proveedores guardados |
+| VS Code sigue usando credenciales antiguas tras cambiar la configuración | Proveedor de autenticación dinámica guardado (issuer o client antiguos) | *Authentication: Remove Dynamic Authentication Providers* y reiniciar el servidor MCP |
 | MCP: la API recibe `401` desde las tools | `HttpContext` nulo (sin `Stateless`) o handler no añadido al client tipado | Mantener `Stateless = true` y `AddHttpMessageHandler<AuthorizationDelegatingHandler>()` |
 | Un token de Entra de aplicación se trata como usuario | El resolver no distingue `idtyp` | Resolverlo si se aceptan tokens de aplicación |
 | Entra devuelve `401` por issuer o audience | Tokens v1 | Fijar la versión 2 en el manifest de la API |
@@ -505,7 +551,8 @@ Que el cliente afirme el tenant no es un riesgo: las APIs validan que el usuario
 | **Token pass-through en el MCP** | La guía de seguridad de MCP desaconseja reenviar a APIs aguas abajo el token recibido (riesgo de *confused deputy*). Se acepta por ahora por la audience compartida y el límite de confianza único. El cambio a token exchange (Keycloak) u On-Behalf-Of (Entra) queda aislado en `AuthorizationDelegatingHandler` |
 | **Entra ID sin probar** | Local y CI no cubren las diferencias de tokens (v1 y v2, `oid` y `sub`, `scp` y `scope`). Recomendado: test de humo en PRE contra Entra que haga una llamada autenticada y compruebe que se resuelve el actor |
 | **MCP con Entra** | Entra no soporta DCR; hará falta un client pre-registrado y revisar el flujo del cliente MCP |
-| **Validación E2E del MCP** | Pendiente probar con VS Code: política de DCR de Keycloak, scope de audience *default* y tipos exactos del SDK (`ProtectedResourceMetadata` usa cadenas en la versión actual; `Stateless` depende de la versión) |
+| **Otros clientes MCP** | Validado con VS Code. Clientes basados en navegador (por ejemplo el MCP Inspector) pueden requerir CORS en el gateway y su propio client en el realm. Los tipos de `ProtectedResourceMetadata` (cadenas) y `Stateless` dependen de la versión del SDK |
+| **Higiene del realm** | (1) Client `jordiaragonzaragoza.cinema.api`: público, con redirect URIs y web origins `/*` y sin uso real; eliminarlo junto con el scope `jordiaragonzaragoza.cinema.api.all`. (2) La audience se define en cinco sitios (mappers por client y scope `cinema-api-audience`): dejar solo el scope, asignado a `swagger-ui`, `vscode-mcp` y `cinema-system-tests`. (3) `swagger-ui`: la redirect URI `https://localhost:5001/...` no concuerda con el web origin `http://localhost:5001`; contrastar con `launchSettings`. (4) Política anónima de DCR relajada sin uso (`github.com` y otros hosts de confianza, `offline_access`, `host-sending-registration-request-must-match=false`): volver a los valores por defecto. (5) Contraseña del usuario en texto plano en el JSON: debe ser desechable. (6) El fichero es un export completo de unos 76 KB (clients, flujos y proveedores de claves por defecto): valorar reducirlo a lo propio |
 | **Consistencia eventual de permisos** | `ValidateScopeAsync` lee un read model que construye el Projector: un `403` transitorio es posible justo tras sembrar datos |
 | **Gateway ServiceComposer** | Sin construir: handler de propagación, validación en el borde, CORS y aislamiento de red de las APIs |
 | **Audiences por bounded context** | Si un contexto (por ejemplo Payments) exige aislamiento, pasar a audience propia y token exchange; la audience ya es configurable por API |
@@ -558,9 +605,9 @@ Que el cliente afirme el tenant no es un riesgo: las APIs validan que el usuario
 - SharedKernel: `JwtBearerAuthenticationExtensions`, `HttpRestfulApiServiceCollectionExtensions`,
   `HttpRestfulApiApplicationExtensions`, `ConfigureSwaggerOptions`, `SwaggerOAuth2Options`, `ApiOptions`, `CorsExtensions`,
   `AddRequiredHeadersOperationFilter`, `ExecutionContextMiddleware`, `IdentityClaimsOptions`.
-- AppHost: `Program.cs`, `KeycloakAuthenticationExtensions`.
+- AppHost: `Program.cs` (Keycloak con `.WithoutHttpsCertificate()`), `KeycloakAuthenticationExtensions`.
 - MCP Gateway: `Program.cs`, `McpAuthenticationExtensions`, `ConfigureWebApplication`, `AuthorizationDelegatingHandler`,
-  `InfrastructureDependencyInjection`, `ExceptionHandlingFilters`.
+  `InfrastructureDependencyInjection`, `ExceptionHandlingFilters`; en el cliente, `.mcp.json`.
 - Tests: `AuthHandler`, `FunctionalTestsFixture` (Query y Command), `CustomWebApplicationFactory`, `SystemTestsFixture`,
   `KeycloakTokenClient`, `SystemTestUser`.
 - Realm: `containers/keycloak/jordiaragonzaragoza_cinema-realm.json`.

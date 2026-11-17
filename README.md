@@ -67,7 +67,6 @@ SharedKernel is split into focused packages so you only add what you need:
 - Ardalis.Result
 - Ardalis.Specification
 - Ardalis.SmartEnums
-- Ardalis.GuardClauses
 - FluentValidator
 - Serilog
 - StyleCop & SonarAnalyzer
