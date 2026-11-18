@@ -3,6 +3,7 @@
     using System;
     using System.Net;
     using System.Text.Json;
+    using System.Threading;
     using System.Threading.Tasks;
     using Microsoft.AspNetCore.Http;
 
@@ -42,7 +43,7 @@
                 exception.Message,
             };
 
-            await context.Response.WriteAsync(JsonSerializer.Serialize(errorDetails));
+            await context.Response.WriteAsync(JsonSerializer.Serialize(errorDetails), CancellationToken.None);
         }
     }
 }
