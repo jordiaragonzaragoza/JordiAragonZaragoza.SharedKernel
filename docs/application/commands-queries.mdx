@@ -1,0 +1,333 @@
+---
+title: "Commands and queries with SharedKernel CQRS interfaces"
+sidebarTitle: "Commands & Queries"
+description: "Define and dispatch commands and queries using SharedKernel's ICommand, IQuery, ICommandBus, and IQueryBus interfaces backed by MediatR."
+---
+
+SharedKernel implements CQRS (Command Query Responsibility Segregation) through a set of thin marker interfaces that sit on top of MediatR. Every state-changing operation is a **command** that returns an `Ardalis.Result`, and every read operation is a **query** that returns a typed `Result<T>`. You dispatch both through strongly-typed bus abstractions — `ICommandBus` and `IQueryBus` — so your application layer never takes a direct MediatR dependency.
+
+<Note>
+  All command and query results are wrapped in `Ardalis.Result` or `Result<T>`. This lets you communicate success, not-found, validation errors, and unauthorized responses without throwing exceptions across handler boundaries.
+</Note>
+
+---
+
+## Commands
+
+### Interfaces
+
+| Interface | Purpose |
+|---|---|
+| `IBaseCommand` | Marker interface used by pipeline behaviors to identify commands |
+| `ICommand` | Void command — returns `Result` with no payload |
+| `ICommand<TResponse>` | Command with response — returns `Result<TResponse>` |
+| `ICommandHandler<TCommand>` | Handler for a void command |
+| `ICommandHandler<TCommand, TResponse>` | Handler for a command with response |
+
+`ICommand` and `ICommand<TResponse>` both extend `IBaseCommand` and are backed by MediatR's `IRequest<TResult>`. The `TResponse` type parameter is constrained to `notnull`.
+
+### Dispatching with ICommandBus
+
+Inject `ICommandBus` wherever you need to dispatch commands — typically in a controller, minimal-API endpoint, or application service.
+
+```csharp
+public interface ICommandBus
+{
+    Task<Result> SendAsync(ICommand command, CancellationToken cancellationToken = default);
+
+    Task<Result<TResponse>> SendAsync<TResponse>(
+        ICommand<TResponse> command,
+        CancellationToken cancellationToken = default)
+        where TResponse : notnull;
+}
+```
+
+### Examples
+
+<Tabs>
+  <Tab title="Command with result">
+    Define the command record and its handler:
+
+    ```csharp
+    // Command — returns the new product's Guid
+    public record CreateProductCommand(string Name, decimal Price)
+        : ICommand<Guid>;
+
+    // Handler
+    public sealed class CreateProductCommandHandler
+        : ICommandHandler<CreateProductCommand, Guid>
+    {
+        private readonly IProductRepository _repository;
+
+        public CreateProductCommandHandler(IProductRepository repository)
+            => _repository = repository;
+
+        public async Task<Result<Guid>> Handle(
+            CreateProductCommand request,
+            CancellationToken cancellationToken)
+        {
+            var product = Product.Create(request.Name, request.Price);
+            await _repository.AddAsync(product, cancellationToken);
+
+            return Result<Guid>.Success(product.Id);
+        }
+    }
+    ```
+
+    Dispatch from an endpoint:
+
+    ```csharp
+    app.MapPost("/products", async (
+        CreateProductCommand command,
+        ICommandBus bus,
+        CancellationToken ct) =>
+    {
+        var result = await bus.SendAsync(command, ct);
+        return result.IsSuccess
+            ? Results.Created($"/products/{result.Value}", result.Value)
+            : Results.BadRequest(result.Errors);
+    });
+    ```
+  </Tab>
+  <Tab title="Void command">
+    Use `ICommand` (no type parameter) when the operation produces no meaningful return value:
+
+    ```csharp
+    // Command — signals intent, returns no payload
+    public record DeleteProductCommand(Guid ProductId) : ICommand;
+
+    // Handler
+    public sealed class DeleteProductCommandHandler
+        : ICommandHandler<DeleteProductCommand>
+    {
+        private readonly IProductRepository _repository;
+
+        public DeleteProductCommandHandler(IProductRepository repository)
+            => _repository = repository;
+
+        public async Task<Result> Handle(
+            DeleteProductCommand request,
+            CancellationToken cancellationToken)
+        {
+            var product = await _repository.GetByIdAsync(request.ProductId, cancellationToken);
+            if (product is null)
+                return Result.NotFound();
+
+            await _repository.DeleteAsync(product, cancellationToken);
+            return Result.Success();
+        }
+    }
+    ```
+
+    Dispatch from an endpoint:
+
+    ```csharp
+    app.MapDelete("/products/{id:guid}", async (
+        Guid id,
+        ICommandBus bus,
+        CancellationToken ct) =>
+    {
+        var result = await bus.SendAsync(new DeleteProductCommand(id), ct);
+        return result.IsSuccess ? Results.NoContent() : Results.NotFound();
+    });
+    ```
+  </Tab>
+</Tabs>
+
+---
+
+## Queries
+
+### Interfaces
+
+| Interface | Purpose |
+|---|---|
+| `IQuery<TResponse>` | Marks a record as a query; extends `IRequest<Result<TResponse>>` |
+| `IQueryHandler<TQuery, TResponse>` | Handler that returns `Result<TResponse>` |
+
+### Dispatching with IQueryBus
+
+```csharp
+public interface IQueryBus
+{
+    Task<Result<TResponse>> SendAsync<TResponse>(
+        IQuery<TResponse> query,
+        CancellationToken cancellationToken = default);
+}
+```
+
+### Example
+
+```csharp
+// Query
+public record GetProductByIdQuery(Guid ProductId)
+    : IQuery<ProductOutputDto>;
+
+// Handler
+public sealed class GetProductByIdQueryHandler
+    : IQueryHandler<GetProductByIdQuery, ProductOutputDto>
+{
+    private readonly IProductReadRepository _repository;
+
+    public GetProductByIdQueryHandler(IProductReadRepository repository)
+        => _repository = repository;
+
+    public async Task<Result<ProductOutputDto>> Handle(
+        GetProductByIdQuery request,
+        CancellationToken cancellationToken)
+    {
+        var product = await _repository.GetByIdAsync(request.ProductId, cancellationToken);
+        if (product is null)
+            return Result<ProductOutputDto>.NotFound();
+
+        return Result<ProductOutputDto>.Success(
+            new ProductOutputDto(product.Id, product.Name, product.Price));
+    }
+}
+```
+
+Dispatch from an endpoint:
+
+```csharp
+app.MapGet("/products/{id:guid}", async (
+    Guid id,
+    IQueryBus bus,
+    CancellationToken ct) =>
+{
+    var result = await bus.SendAsync(new GetProductByIdQuery(id), ct);
+    return result.IsSuccess ? Results.Ok(result.Value) : Results.NotFound();
+});
+```
+
+---
+
+## Paginated queries
+
+For collection endpoints, implement `IPaginatedQuery` on your query record and return `PaginatedCollectionOutputDto<T>`.
+
+```csharp
+public interface IPaginatedQuery
+{
+    int PageNumber { get; }
+    int PageSize  { get; }
+}
+
+public record class PaginatedCollectionOutputDto<T>(
+    int ActualPage,
+    int TotalPages,
+    int TotalItems,
+    IEnumerable<T> Items);
+```
+
+### Example
+
+```csharp
+public record GetProductsQuery(int PageNumber, int PageSize)
+    : IQuery<PaginatedCollectionOutputDto<ProductOutputDto>>, IPaginatedQuery;
+
+public sealed class GetProductsQueryHandler
+    : IQueryHandler<GetProductsQuery, PaginatedCollectionOutputDto<ProductOutputDto>>
+{
+    private readonly IProductReadRepository _repository;
+
+    public GetProductsQueryHandler(IProductReadRepository repository)
+        => _repository = repository;
+
+    public async Task<Result<PaginatedCollectionOutputDto<ProductOutputDto>>> Handle(
+        GetProductsQuery request,
+        CancellationToken cancellationToken)
+    {
+        var (items, total) = await _repository.GetPagedAsync(
+            request.PageNumber, request.PageSize, cancellationToken);
+
+        var totalPages = (int)Math.Ceiling(total / (double)request.PageSize);
+        var dto = new PaginatedCollectionOutputDto<ProductOutputDto>(
+            request.PageNumber, totalPages, total,
+            items.Select(p => new ProductOutputDto(p.Id, p.Name, p.Price)));
+
+        return Result.Success(dto);
+    }
+}
+```
+
+### Validator
+
+Extend `BasePaginatedQueryValidator<TQuery>` to get built-in page-number and page-size validation for free:
+
+```csharp
+public class GetProductsQueryValidator : BasePaginatedQueryValidator<GetProductsQuery>
+{
+    public GetProductsQueryValidator()
+    {
+        // BasePaginatedQueryValidator already enforces:
+        //   PageNumber >= 0
+        //   PageSize   >= 0
+        // Add extra rules here if needed.
+        RuleFor(x => x.PageSize).LessThanOrEqualTo(100)
+            .WithMessage("PageSize must not exceed 100.");
+    }
+}
+```
+
+---
+
+## File download queries
+
+Use `FileOutputDto` as the `TResponse` type when a query returns a file for download:
+
+```csharp
+public record ExportProductsCsvQuery : IQuery<FileOutputDto>;
+
+public sealed class ExportProductsCsvQueryHandler
+    : IQueryHandler<ExportProductsCsvQuery, FileOutputDto>
+{
+    public async Task<Result<FileOutputDto>> Handle(
+        ExportProductsCsvQuery request,
+        CancellationToken cancellationToken)
+    {
+        var csv = await BuildCsvAsync(cancellationToken);
+        var dto = new FileOutputDto(
+            FileContents: csv,
+            ContentType: "text/csv",
+            FileDownloadName: "products.csv");
+
+        return Result.Success(dto);
+    }
+}
+```
+
+---
+
+## Read models
+
+Query handlers read from **read models** — EF Core projections that live in a separate read database or schema. Implement `IReadModel` for standard read models and `IScopedReadModel` when a read model must be scope/tenant-aware:
+
+```csharp
+// IReadModel extends IBaseModel<Guid> and IScopedReadModel
+public class ProductReadModel : IReadModel
+{
+    public Guid Id       { get; init; }
+    public string Name   { get; init; } = string.Empty;
+    public decimal Price { get; init; }
+    public ScopeInfo Scope { get; init; } = default!;
+}
+```
+
+`IScopedReadModel` exposes a `ScopeInfo Scope` property that the EF Core global query filter and tenant interceptor use to partition data automatically. You never need to filter by scope manually in query handlers.
+
+---
+
+## Input sanitization
+
+If a command or query carries sensitive fields (passwords, tokens, PII), implement `ISanitizableRequest` so the pipeline's logger redacts those values before writing them to the log:
+
+```csharp
+public record LoginCommand(string Username, string Password)
+    : ICommand, ISanitizableRequest
+{
+    public object GetSanitized() =>
+        this with { Password = "***" };
+}
+```
+
+The pipeline's `LoggerBehaviour` automatically calls `GetSanitized()` instead of serializing the raw request when `ISanitizableRequest` is detected.

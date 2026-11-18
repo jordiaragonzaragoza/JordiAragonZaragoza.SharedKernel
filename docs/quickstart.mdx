@@ -1,0 +1,253 @@
+---
+title: "SharedKernel quickstart: build your first DDD aggregate"
+sidebarTitle: "Quickstart"
+description: "Install SharedKernel NuGet packages, register DI services, and build a DDD aggregate root with domain events and a CQRS command handler in minutes."
+---
+
+SharedKernel gives you a suite of battle-tested NuGet packages that wire up Domain-Driven Design (DDD) and Clean Architecture building blocks in .NET so you can focus on your domain instead of boilerplate. In this guide you will install the core packages, register services, model an aggregate root that raises domain events, write a command handler, and dispatch a command through the command bus — all in under ten minutes.
+
+<Note>
+  SharedKernel targets **.NET 10**. Make sure your project file includes `<TargetFramework>net10.0</TargetFramework>` before you begin. Previous versions targeting .NET 7, 8, and 9 are available on their respective branches in the GitHub repository.
+</Note>
+
+<Steps>
+
+<Step title="Install the NuGet packages">
+
+Add the packages that match the layers you need. For a typical application that includes a domain model, application layer, and infrastructure you will need at minimum:
+
+<CodeGroup>
+
+```bash .NET CLI
+dotnet add package JordiAragonZaragoza.SharedKernel
+dotnet add package JordiAragonZaragoza.SharedKernel.Domain
+dotnet add package JordiAragonZaragoza.SharedKernel.Application
+dotnet add package JordiAragonZaragoza.SharedKernel.Application.Contracts
+dotnet add package JordiAragonZaragoza.SharedKernel.Infrastructure
+```
+
+```xml PackageReference (csproj)
+<ItemGroup>
+  <PackageReference Include="JordiAragonZaragoza.SharedKernel" />
+  <PackageReference Include="JordiAragonZaragoza.SharedKernel.Domain" />
+  <PackageReference Include="JordiAragonZaragoza.SharedKernel.Application" />
+  <PackageReference Include="JordiAragonZaragoza.SharedKernel.Application.Contracts" />
+  <PackageReference Include="JordiAragonZaragoza.SharedKernel.Infrastructure" />
+</ItemGroup>
+```
+
+</CodeGroup>
+
+Add extra packages for the layers you use. For example, if you expose an HTTP REST API:
+
+```bash .NET CLI
+dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi
+```
+
+Or if you persist with Entity Framework Core:
+
+```bash .NET CLI
+dotnet add package JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework
+```
+
+See the [Packages reference](/packages) for the full list and guidance on choosing the right combination.
+
+</Step>
+
+<Step title="Register services in Program.cs">
+
+Call the SharedKernel extension methods on `IServiceCollection` during application startup. Each extension method registers the services for a specific layer:
+
+```csharp Program.cs
+using JordiAragonZaragoza.SharedKernel.Application;
+using JordiAragonZaragoza.SharedKernel.Domain;
+using JordiAragonZaragoza.SharedKernel.Infrastructure;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Domain layer: registers the IEventsDispatcherService and any domain-layer services.
+builder.Services.AddSharedKernelDomain();
+
+// Core infrastructure services: IDateTime, IIdGenerator, ICacheService,
+// IExecutionContextService, and IPolicyEnforcer.
+builder.Services.AddSharedKernelInfrastructure();
+
+// MediatR-backed command bus: registers ICommandBus backed by MediatR.
+builder.Services.AddSharedKernelInfrastructureCommandBus();
+
+// MediatR-backed query bus: registers IQueryBus backed by MediatR.
+builder.Services.AddSharedKernelInfrastructureQueryBus();
+
+// Application-layer pipeline behaviours for the command bus:
+// logging, validation, unit-of-work, authorization, performance tracking,
+// activity tracing, and exception handling.
+builder.Services.AddSharedKernelApplicationCommandBus();
+
+// Application-layer pipeline behaviours for the query bus:
+// logging, validation, authorization, performance tracking,
+// activity tracing, and exception handling.
+builder.Services.AddSharedKernelApplicationQueryBus();
+
+// Register your own handlers, validators, and other application services here.
+// SharedKernel relies on MediatR to discover them from the assemblies you register.
+
+var app = builder.Build();
+app.Run();
+```
+
+<Note>
+  `AddSharedKernelInfrastructureCommandBus` / `AddSharedKernelInfrastructureQueryBus` register the MediatR-backed bus implementations. `AddSharedKernelApplicationCommandBus` / `AddSharedKernelApplicationQueryBus` register the cross-cutting pipeline behaviour services (validation, logging, etc.). You need both pairs for a fully wired bus. If your handlers live in separate assemblies, add those assemblies to MediatR's registration as well.
+</Note>
+
+</Step>
+
+<Step title="Define your first aggregate root">
+
+Create a strongly-typed aggregate root ID by extending `BaseAggregateRootId<TIdType>`, then model your aggregate by extending `BaseAggregateRoot<TId, TIdType>`. Define a domain event as a `record` that inherits `BaseDomainEvent`.
+
+```csharp Order.cs
+using JordiAragonZaragoza.SharedKernel.Domain.Entities;
+using JordiAragonZaragoza.SharedKernel.Domain.Events;
+using JordiAragonZaragoza.SharedKernel.Domain.ValueObjects;
+using JordiAragonZaragoza.SharedKernel.Domain.Contracts.Interfaces;
+
+// 1. Strongly-typed aggregate root ID
+public sealed class OrderId : BaseAggregateRootId<Guid>
+{
+    public OrderId(Guid value) : base(value) { }
+
+    // Required by EF Core.
+    private OrderId() { }
+}
+
+// 2. Domain event — use a record so it is immutable by default.
+public sealed record OrderPlaced(Guid AggregateId, string CustomerName, decimal Total)
+    : BaseDomainEvent(AggregateId);
+
+// 3. Aggregate root
+public sealed class Order : BaseAggregateRoot<OrderId, Guid>
+{
+    public string CustomerName { get; private set; } = string.Empty;
+    public decimal Total { get; private set; }
+
+    // Factory method — the single entry-point for creating a new Order.
+    public static Order Place(OrderId id, string customerName, decimal total)
+    {
+        var order = new Order();
+        order.Apply(new OrderPlaced(id.Value, customerName, total));
+        return order;
+    }
+
+    // Required by EF Core.
+    private Order() { }
+
+    // When: projects a domain event onto the aggregate state.
+    protected override void When(IDomainEvent domainEvent)
+    {
+        switch (domainEvent)
+        {
+            case OrderPlaced e:
+                Id = new OrderId(e.AggregateId);
+                CustomerName = e.CustomerName;
+                Total = e.Total;
+                break;
+        }
+    }
+
+    // EnsureValidState: called after every Apply — throw if state is invalid.
+    protected override void EnsureValidState()
+    {
+        if (Total < 0)
+            throw new InvalidOperationException("Order total cannot be negative.");
+    }
+}
+```
+
+`Apply` calls `When` to project the event onto the aggregate, then `EnsureValidState` to enforce invariants, and finally queues the event in the internal events list so your infrastructure layer can dispatch it later.
+
+</Step>
+
+<Step title="Implement a command handler">
+
+Define a command by implementing `ICommand<TResponse>` (with a return value) or `ICommand` (fire-and-forget). Then implement `ICommandHandler<TCommand, TResponse>` to process it. Both interfaces live in `JordiAragonZaragoza.SharedKernel.Application.Contracts`.
+
+```csharp PlaceOrderCommand.cs
+using Ardalis.Result;
+using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
+
+// The command — a plain record carrying the intent.
+public sealed record PlaceOrderCommand(Guid OrderId, string CustomerName, decimal Total)
+    : ICommand<Guid>;
+```
+
+```csharp PlaceOrderCommandHandler.cs
+using Ardalis.Result;
+using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
+
+// The handler — receives the command, coordinates the domain, and returns a result.
+public sealed class PlaceOrderCommandHandler : ICommandHandler<PlaceOrderCommand, Guid>
+{
+    private readonly IRepository<Order, OrderId> repository;
+
+    public PlaceOrderCommandHandler(IRepository<Order, OrderId> repository)
+    {
+        this.repository = repository;
+    }
+
+    public async Task<Result<Guid>> Handle(
+        PlaceOrderCommand command,
+        CancellationToken cancellationToken)
+    {
+        var orderId = new OrderId(command.OrderId);
+        var order = Order.Place(orderId, command.CustomerName, command.Total);
+
+        await this.repository.AddAsync(order, cancellationToken);
+
+        return Result.Success(order.Id.Value);
+    }
+}
+```
+
+`ICommandHandler<TCommand, TResponse>` extends MediatR's `IRequestHandler` and wraps the response in Ardalis `Result<T>`, giving you a structured success/failure envelope without throwing exceptions across layer boundaries.
+
+</Step>
+
+<Step title="Send a command via ICommandBus">
+
+Inject `ICommandBus` wherever you need to dispatch work — a controller, a FastEndpoints endpoint, a background service, or anything else in your composition root. Call `SendAsync` and inspect the `Result<T>` it returns.
+
+```csharp OrdersEndpoint.cs
+using JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces;
+
+public sealed class PlaceOrderEndpoint : BaseApiCommandController
+{
+    [HttpPost("/orders")]
+    public async Task<IActionResult> PlaceOrder(
+        [FromBody] PlaceOrderRequest request,
+        CancellationToken cancellationToken)
+    {
+        var command = new PlaceOrderCommand(
+            Guid.CreateVersion7(),
+            request.CustomerName,
+            request.Total);
+
+        var result = await CommandBus.SendAsync(command, cancellationToken);
+
+        if (!result.IsSuccess)
+            return BadRequest(result.Errors);
+
+        return CreatedAtAction(nameof(PlaceOrder), new { id = result.Value }, result.Value);
+    }
+}
+```
+
+`BaseApiCommandController` (from `JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi`) already exposes a lazy `CommandBus` property so you do not need to declare an explicit constructor parameter in every controller.
+
+</Step>
+
+</Steps>
+
+<Tip>
+  For a complete, production-grade reference that shows every SharedKernel package working together — including event sourcing with KurrentDB, MassTransit integration events over RabbitMQ, and Vertical Slice Architecture — explore the **JordiAragonZaragoza.Cinema** showcase project:
+  [https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.Cinema](https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.Cinema)
+</Tip>

@@ -1,0 +1,78 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "name": "JordiAragonZaragoza.SharedKernel",
+  "theme": "luma",
+  "favicon": "/favicon.svg",
+  "colors": {
+    "primary": "#044c84"
+  },
+  "navbar": {
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/jordiaragonzaragoza/JordiAragonZaragoza.SharedKernel"
+    }
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Documentation",
+        "groups": [
+          {
+            "group": "Get Started",
+            "pages": [
+              "introduction",
+              "quickstart",
+              "packages"
+            ]
+          },
+          {
+            "group": "Core Concepts",
+            "pages": [
+              "concepts/ddd-overview",
+              "concepts/clean-architecture",
+              "concepts/cqrs",
+              "concepts/event-sourcing"
+            ]
+          },
+          {
+            "group": "Domain Layer",
+            "pages": [
+              "domain/entities-aggregates",
+              "domain/value-objects",
+              "domain/domain-events",
+              "domain/business-rules"
+            ]
+          },
+          {
+            "group": "Application Layer",
+            "pages": [
+              "application/commands-queries",
+              "application/pipelines",
+              "application/execution-context",
+              "application/caching",
+              "application/integration-events"
+            ]
+          },
+          {
+            "group": "Infrastructure",
+            "pages": [
+              "infrastructure/setup",
+              "infrastructure/entity-framework",
+              "infrastructure/event-store",
+              "infrastructure/all-stream-catch-up-subscription",
+              "infrastructure/all-stream-persistent-subscription",
+              "infrastructure/messaging"
+            ]
+          },
+          {
+            "group": "Presentation",
+            "pages": [
+              "presentation/http-rest-api",
+              "presentation/integration-bus"
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}

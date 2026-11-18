@@ -1,0 +1,120 @@
+---
+title: "Clean Architecture layers and SharedKernel packages"
+sidebarTitle: "Clean Architecture"
+description: "How SharedKernel organises NuGet packages across the Domain, Application, Infrastructure, and Presentation layers of Clean Architecture."
+---
+
+Clean Architecture organises a codebase into concentric layers where the innermost layer — the domain — has zero external dependencies, and every outer layer depends only on the layers inside it. SharedKernel provides a dedicated set of NuGet packages for each layer, so you install exactly what a project needs and nothing more.
+
+## The four layers
+
+<CardGroup cols={2}>
+  <Card title="Domain" icon="circle-dot">
+    Pure business logic. Aggregates, entities, value objects, domain events, and business rules live here. No frameworks, no infrastructure, no application concerns.
+  </Card>
+  <Card title="Application" icon="circle">
+    Orchestrates use cases. Commands, queries, handlers, pipeline behaviours, and application services live here. Depends only on the Domain layer.
+  </Card>
+  <Card title="Infrastructure" icon="server">
+    Adapts the application to the outside world. Database contexts, event stores, message buses, caching, and external service clients live here. Depends on Application and Domain.
+  </Card>
+  <Card title="Presentation" icon="display">
+    Accepts requests from users or other systems. REST API controllers, middleware, and integration event handlers live here. Depends on Application and Infrastructure.
+  </Card>
+</CardGroup>
+
+## The dependency rule
+
+> **Outer layers may depend on inner layers. Inner layers must never depend on outer layers.**
+
+This means your Domain project never references Entity Framework, MediatR, or any HTTP library. Your Application project never references a database context. Violations of this rule break the isolation that makes the architecture testable and maintainable.
+
+<Warning>
+  If you find yourself adding an infrastructure NuGet package (e.g. `Microsoft.EntityFrameworkCore`) to your Domain project, stop — you are breaking the dependency rule. Model the interface in Domain.Contracts and implement it in Infrastructure instead.
+</Warning>
+
+## SharedKernel package-to-layer mapping
+
+| Layer | Package | Purpose |
+|---|---|---|
+| Domain | `JordiAragonZaragoza.SharedKernel.Domain.Contracts` | Interfaces: `IAggregateRoot`, `IEntity`, `IDomainEvent`, `IBusinessRule`, `IDomainService` |
+| Domain | `JordiAragonZaragoza.SharedKernel.Domain` | Base classes: `BaseAggregateRoot`, `BaseEntity`, `BaseValueObject`, `BaseDomainEvent`, `BaseDomainService` |
+| Application | `JordiAragonZaragoza.SharedKernel.Application.Contracts` | CQRS interfaces: `ICommand`, `IQuery`, `ICommandBus`, `IQueryBus`, `IUnitOfWork` |
+| Application | `JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration` | Cross-service contracts: `IIntegrationEvent`, `IIntegrationCommand` |
+| Application | `JordiAragonZaragoza.SharedKernel.Application` | MediatR pipeline behaviours, base handlers, validators |
+| Infrastructure | `JordiAragonZaragoza.SharedKernel.Infrastructure` | MediatR bus implementations, caching, execution context, `CommandBus`, `QueryBus` |
+| Infrastructure | `JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework` | EF Core base `DbContext`, auditing, outbox pattern for domain events |
+| Infrastructure | `JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore` | KurrentDB event store, `BaseRepository` for event-sourced aggregates |
+| Presentation | `JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi` | `BaseApiController`, exception middleware, `ResponseBuilder`, `CurrentUserService` |
+| Presentation | `JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts` | Shared HTTP API contracts |
+| Presentation | `JordiAragonZaragoza.SharedKernel.Presentation.Integration` | Integration event handler base classes |
+| Presentation | `JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts` | Shared integration contracts |
+
+## Typical project structure
+
+A solution following Clean Architecture with SharedKernel looks like this:
+
+```
+MyService/
+├── MyService.Domain/
+│   # References: SharedKernel.Domain, SharedKernel.Domain.Contracts
+│   ├── Aggregates/
+│   │   └── Order.cs                  # : BaseAggregateRoot<OrderId, Guid>
+│   ├── Events/
+│   │   └── OrderPlaced.cs            # : BaseInMemoryDomainEvent
+│   └── ValueObjects/
+│       └── Money.cs                  # : BaseValueObject
+│
+├── MyService.Application/
+│   # References: SharedKernel.Application, SharedKernel.Application.Contracts
+│   ├── Orders/
+│   │   ├── Commands/
+│   │   │   ├── PlaceOrderCommand.cs  # : ICommand<Guid>
+│   │   │   └── PlaceOrderHandler.cs # : ICommandHandler<PlaceOrderCommand, Guid>
+│   │   └── Queries/
+│   │       ├── GetOrderQuery.cs      # : IQuery<OrderResponse>
+│   │       └── GetOrderHandler.cs   # : IQueryHandler<GetOrderQuery, OrderResponse>
+│   └── EventHandlers/
+│       └── OrderPlacedHandler.cs    # : INotificationHandler<OrderPlaced>
+│
+├── MyService.Infrastructure/
+│   # References: SharedKernel.Infrastructure, SharedKernel.Infrastructure.EntityFramework
+│   ├── Persistence/
+│   │   ├── MyServiceDbContext.cs
+│   │   └── Repositories/
+│   │       └── OrderRepository.cs
+│   └── Services/
+│       └── EmailService.cs
+│
+└── MyService.Presentation/
+    # References: SharedKernel.Presentation.HttpRestfulApi
+    ├── Controllers/
+    │   └── OrdersController.cs       # : BaseApiController
+    └── Program.cs
+```
+
+<Note>
+  SharedKernel is **persistence-agnostic by design**. You can store aggregates in a relational database via `SharedKernel.Infrastructure.EntityFramework` or as an event stream via `SharedKernel.Infrastructure.EventStore` — the aggregate code itself does not change. Choose the persistence strategy in the Infrastructure layer without touching a single line of domain logic.
+</Note>
+
+## Dependency injection wiring
+
+Each SharedKernel package ships an extension method that registers its services with the .NET DI container. Call them during application startup in the correct layer order:
+
+```csharp
+// Program.cs / Startup.cs
+
+builder.Services
+    // Application layer: MediatR, pipeline behaviours, validators
+    .AddApplicationServices(typeof(MyApplicationAssemblyReference).Assembly)
+
+    // Infrastructure layer: buses, caching, EF Core context
+    .AddInfrastructureServices(builder.Configuration)
+
+    // Presentation layer: FastEndpoints / controllers, middleware
+    .AddPresentationServices();
+```
+
+<Tip>
+  Register your own handlers alongside SharedKernel's by passing your assembly to `AddApplicationServices`. MediatR discovers all `IRequestHandler` and `INotificationHandler` implementations automatically.
+</Tip>

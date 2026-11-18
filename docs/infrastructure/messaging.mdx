@@ -1,0 +1,195 @@
+---
+title: "MassTransit and RabbitMQ messaging in SharedKernel"
+sidebarTitle: "Messaging"
+description: "Configure MassTransit over RabbitMQ for integration event and command buses in SharedKernel using AddSharedKernelPresentationIntegrationBusRegistrations."
+---
+
+SharedKernel's integration layer wraps MassTransit over RabbitMQ to give your services a durable, out-of-process message bus for publishing integration events, sending integration commands, and making request/reply integration queries across service boundaries. A single extension method handles all the wiring — binding configuration, registering the typed bus, applying the endpoint name formatter, and connecting consumers — so you only need to supply a connection URL and tell the configurator which consumers your service owns.
+
+## `AddSharedKernelPresentationIntegrationBusRegistrations()`
+
+Call this method from your `Program.cs` to set up the entire integration bus stack:
+
+```csharp
+builder.Services.AddSharedKernelPresentationIntegrationBusRegistrations(
+    targetHostName: "catalog-service");
+```
+
+The `targetHostName` string becomes the RabbitMQ connection name (visible in the RabbitMQ management UI), making it easy to identify which service owns which connection.
+
+**What it registers:**
+
+- `MassTransitIntegrationBusOptions` bound from configuration and validated on startup
+- `MassTransitIntegrationBusConsumersRegistrationConfigurator` (singleton) — holds the consumer registration callback (see [Consumer registration](#consumer-registration) below)
+- MassTransit typed bus `IIntegrationBus` over RabbitMQ with:
+  - Kebab-case endpoint name formatter (see note below)
+  - `AutoStart = true` — the bus starts automatically with the host
+  - RabbitMQ host configured from `MassTransitIntegrationBusOptions.RabbitMq.Url`
+  - All consumer endpoints configured via `ConfigureEndpoints`
+
+<Note>
+Endpoint names are formatted in **kebab-case** by default (e.g., a consumer named `OrderShippedEventConsumer` maps to the queue `order-shipped-event`). Keep this in mind when examining your RabbitMQ management dashboard or writing infrastructure-as-code for queue definitions.
+</Note>
+
+## Configuration
+
+### `MassTransitIntegrationBusOptions`
+
+Bind this options class from the `MassTransit:IntegrationBus` configuration section.
+
+| Property | Type | Required | Default | Description |
+|---|---|---|---|---|
+| `RabbitMq` | `RabbitMqOptions` | ✅ | — | RabbitMQ connection settings |
+| `MaximumConcurrencyLevel` | `uint?` | ❌ | `null` | Maximum number of concurrent consumers; `null` uses MassTransit's default |
+| `NumberOfRetries` | `uint` | ❌ | `2` | Number of automatic message retry attempts on consumer failure |
+
+### `RabbitMqOptions`
+
+| Property | Type | Required | Description |
+|---|---|---|---|
+| `Url` | `Uri` | ✅ | Full AMQP connection URI including credentials and virtual host |
+
+### `appsettings.json` example
+
+```json
+{
+  "MassTransit": {
+    "IntegrationBus": {
+      "RabbitMq": {
+        "Url": "amqp://guest:guest@localhost:5672/catalog"
+      },
+      "MaximumConcurrencyLevel": 4,
+      "NumberOfRetries": 3
+    }
+  }
+}
+```
+
+<Tip>
+In production, store the RabbitMQ credentials in a secret manager or environment variable rather than in `appsettings.json`. Use `amqps://` for TLS-secured connections.
+</Tip>
+
+## Consumer registration
+
+Consumers are not registered automatically. You provide a configuration callback through `MassTransitIntegrationBusConsumersRegistrationConfigurator` before calling `AddSharedKernelPresentationIntegrationBusRegistrations`. Register the configurator as a singleton with your consumer list:
+
+```csharp
+// Register consumers before calling AddSharedKernelPresentationIntegrationBusRegistrations
+builder.Services.AddSingleton(
+    new MassTransitIntegrationBusConsumersRegistrationConfigurator(busConfigurator =>
+    {
+        busConfigurator.AddConsumer<OrderShippedIntegrationEventConsumer>();
+        busConfigurator.AddConsumer<PaymentProcessedIntegrationEventConsumer>();
+    }));
+
+builder.Services.AddSharedKernelPresentationIntegrationBusRegistrations("catalog-service");
+```
+
+`MassTransitIntegrationBusConsumersRegistrationConfigurator` wraps an `Action<IBusRegistrationConfigurator>` delegate. When `AddSharedKernelPresentationIntegrationBusRegistrations` runs, it resolves the configurator from the container and calls `Configure(busRegistrationConfigurator)` before the RabbitMQ host is wired up, ensuring your consumers are included in `ConfigureEndpoints`.
+
+This design lets each host assembly register only the consumers it owns without requiring changes to the shared integration package.
+
+## Integration bus interfaces
+
+Once the bus is registered you inject the typed integration bus interfaces into your application services and handlers:
+
+| Interface | Implementation | Description |
+|---|---|---|
+| `IIntegrationEventBus` | `MassTransitIntegrationEventBus` | Publish integration events (fan-out via `IPublishEndpoint`) |
+| `IIntegrationCommandBus` | `MassTransitIntegrationCommandBus` | Send point-to-point integration commands |
+| `IIntegrationQueryBus` | `MassTransitIntegrationQueryBus` | Request/reply integration queries |
+
+### Publishing an integration event
+
+```csharp
+public class OrderShippedDomainEventHandler
+    : IDomainEventHandler<OrderShippedDomainEvent>
+{
+    private readonly IIntegrationEventBus _integrationEventBus;
+
+    public OrderShippedDomainEventHandler(IIntegrationEventBus integrationEventBus)
+        => _integrationEventBus = integrationEventBus;
+
+    public async Task Handle(OrderShippedDomainEvent notification, CancellationToken ct)
+    {
+        var integrationEvent = new OrderShippedIntegrationEvent(
+            notification.OrderId,
+            notification.ShippedAt);
+
+        await _integrationEventBus.PublishAsync(integrationEvent, ct);
+    }
+}
+```
+
+### Implementing a consumer
+
+```csharp
+public class OrderShippedIntegrationEventConsumer
+    : BaseIntegrationEventHandler<OrderShippedIntegrationEvent>
+{
+    private readonly ICommandBus _commandBus;
+
+    public OrderShippedIntegrationEventConsumer(ICommandBus commandBus)
+        => _commandBus = commandBus;
+
+    public override async Task Handle(
+        ConsumeContext<OrderShippedIntegrationEvent> context)
+    {
+        var command = new UpdateFulfillmentStatusCommand(context.Message.OrderId);
+        await _commandBus.SendAsync(command, context.CancellationToken);
+    }
+}
+```
+
+For full details on building consumers, see the [Integration Bus](/presentation/integration-bus) page.
+
+## Complete setup example
+
+<Steps>
+  <Step title="Add the NuGet package">
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.Integration
+    ```
+  </Step>
+  <Step title="Configure appsettings.json">
+    ```json
+    {
+      "MassTransit": {
+        "IntegrationBus": {
+          "RabbitMq": {
+            "Url": "amqp://guest:guest@localhost:5672/"
+          },
+          "NumberOfRetries": 2
+        }
+      }
+    }
+    ```
+  </Step>
+  <Step title="Register consumers and the bus in Program.cs">
+    ```csharp
+    // Register consumer configurator first
+    builder.Services.AddSingleton(
+        new MassTransitIntegrationBusConsumersRegistrationConfigurator(bus =>
+        {
+            bus.AddConsumer<OrderShippedIntegrationEventConsumer>();
+        }));
+
+    // Then register the integration bus
+    builder.Services.AddSharedKernelPresentationIntegrationBusRegistrations(
+        targetHostName: "order-service");
+    ```
+  </Step>
+  <Step title="Inject and use the bus">
+    ```csharp
+    public class SomeHandler
+    {
+        private readonly IIntegrationEventBus _bus;
+
+        public SomeHandler(IIntegrationEventBus bus) => _bus = bus;
+
+        public Task PublishAsync(OrderShippedIntegrationEvent evt, CancellationToken ct)
+            => _bus.PublishAsync(evt, ct);
+    }
+    ```
+  </Step>
+</Steps>

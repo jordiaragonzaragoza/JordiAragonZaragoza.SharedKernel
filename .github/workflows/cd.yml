@@ -128,3 +128,9 @@ jobs:
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts/JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
         dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+
+    - name: Publish JordiAragonZaragoza.SharedKernel.Hosting to NuGet
+      run: |
+        rm -rf nuget/
+        dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Hosting/JordiAragonZaragoza.SharedKernel.Hosting.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
+        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
