@@ -19,34 +19,171 @@ SharedKernel's `JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi` pa
   </Step>
 
   <Step title="Register services">
-    Call the extension method inside your `Program.cs` (or `Startup.cs`) service registration block:
+    Call `AddSharedKernelPresentationHttpRestfulApi` in `Program.cs`. Pass the host configuration, the host environment, and an `ApiOptions` instance with the settings that vary per API:
 
     ```csharp
-    builder.Services.AddSharedKernelPresentationHttpRestfulApi();
+    using JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi;
+    using JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Configuration;
+
+    builder.Services.AddSharedKernelPresentationHttpRestfulApi(
+        builder.Configuration,
+        builder.Environment,
+        new ApiOptions { Title = "Orders API" });
     ```
 
+    The method registers JWT bearer authentication, authorization, the user ID resolver, URL segment API versioning, controllers, lowercase routes, and Swagger generation. When `ApiOptions.EnableCors` is `true`, it also registers the CORS policy.
+
+    | `ApiOptions` property | Default | Purpose |
+    |---|---|---|
+    | `Title` | (required) | Title shown in the Swagger documents |
+    | `DefaultApiVersion` | `2` | API version assumed when the request does not specify one |
+    | `EnableCors` | `false` | Registers and applies the SharedKernel CORS policy. See [CORS](#cors). |
+
     <Note>
-      The call is intentionally lightweight — the package resolves `ICommandBus` and `IQueryBus` from the request service container at runtime rather than constructor-injecting them, so you only need your application-layer buses registered (e.g., via MediatR through `AddSharedKernelApplication`).
+      Base controllers resolve `ICommandBus` and `IQueryBus` from the request service container at runtime, so you only need your buses registered (for example, through `AddSharedKernelInfrastructureCommandBus` and `AddSharedKernelInfrastructureQueryBus`).
     </Note>
   </Step>
 
+  <Step title="Configure authentication">
+    Add the JWT bearer settings and the user ID claim to `appsettings.json`. See [Authentication](#authentication) for every key.
+
+    ```json
+    {
+      "Authentication": {
+        "Schemes": {
+          "Bearer": {
+            "Authority": "https://login.microsoftonline.com/<tenant-id>/v2.0",
+            "Audience": "<api-client-id>"
+          }
+        },
+        "Claims": {
+          "UserIdClaimType": "oid"
+        }
+      }
+    }
+    ```
+  </Step>
+
   <Step title="Add the middleware pipeline">
-    Order matters. Register `ExceptionMiddleware` first so it wraps every downstream error, then `ExecutionContextMiddleware` to populate the actor identity before any controller runs:
+    Call `UseWebApplicationConfigurations` after `builder.Build()`. It adds the middleware in the required order and maps your controllers:
 
     ```csharp
-    app.UseMiddleware<ExceptionMiddleware>();
-    app.UseAuthentication();
-    app.UseAuthorization();
-    app.UseMiddleware<ExecutionContextMiddleware>();
+    var app = builder.Build();
 
-    app.MapControllers();
+    app.UseWebApplicationConfigurations();
+
+    app.Run();
     ```
+
+    The pipeline runs in this order:
+
+    1. Developer exception page in Development, HSTS in other environments.
+    2. `ExceptionMiddleware`.
+    3. Serilog request logging.
+    4. HTTPS redirection.
+    5. CORS, only when `ApiOptions.EnableCors` is `true`.
+    6. Authentication and authorization.
+    7. `ExecutionContextMiddleware`.
+    8. Swagger and Swagger UI, only in Development.
+    9. `MapControllers`.
+
+    Serilog request logging needs Serilog registered in the host. The `JordiAragonZaragoza.SharedKernel.Hosting` package does this for you. See [Host configuration](/packages#hosting).
+
+    To remove the `Server` header from every Kestrel response, call `builder.WebHost.UseWebHostBuilderConfigurations()` before `builder.Build()`.
   </Step>
 
   <Step title="Derive your controllers">
     Inherit `BaseApiCommandController` for write endpoints and `BaseApiQueryController` for read endpoints. Both are decorated with `[ApiController]` and `[Authorize]` — you only need to add routing attributes and your action methods.
   </Step>
 </Steps>
+
+---
+
+## Authentication
+
+`AddSharedKernelPresentationHttpRestfulApi` registers provider-agnostic JWT bearer authentication. Any standard OpenID Connect provider works, such as Keycloak or Microsoft Entra ID. Only configuration changes between providers.
+
+| Configuration key | Required | Purpose |
+|---|---|---|
+| `Authentication:Schemes:Bearer:Authority` | Outside Development | Token issuer URL |
+| `Authentication:Schemes:Bearer:Audience` | Outside Development | Expected `aud` claim of the access token |
+| `Authentication:Schemes:Bearer:RequireHttpsMetadata` | No | Defaults to `false` in Development and `true` elsewhere |
+| `Authentication:Claims:UserIdClaimType` | Yes | Claim that holds the user ID, for example `sub` for Keycloak or `oid` for Entra ID |
+
+SharedKernel validates this configuration at startup:
+
+- Outside Development, the application fails to start when `Authority` or `Audience` is missing. A value that contains `<`, such as an unreplaced `<tenant-id>` placeholder, counts as missing.
+- In every environment, the application fails to start when `Authentication:Claims:UserIdClaimType` is empty.
+
+The JWT handler keeps the original claim names from the token (`MapInboundClaims = false`), so configure the claim type exactly as the provider issues it.
+
+<Tip>
+  Development skips the `Authority` and `Audience` check so functional tests can run with a fake authentication handler.
+</Tip>
+
+### User ID resolution
+
+`ExecutionContextMiddleware` resolves the user through `IUserIdentifierResolver` from the `Presentation.HttpRestfulApi.Contracts` package. The default `ClaimUserIdentifierResolver` reads the claim named in `Authentication:Claims:UserIdClaimType` and accepts it only when its value is a non-empty GUID. There is no fallback between `sub` and `oid`, so each environment must declare its claim.
+
+To resolve users differently, register your own implementation after calling `AddSharedKernelPresentationHttpRestfulApi`:
+
+```csharp
+public sealed class CustomUserIdentifierResolver : IUserIdentifierResolver
+{
+    public bool TryResolve(ClaimsPrincipal principal, out Guid userId)
+    {
+        var value = principal.FindFirst("user_guid")?.Value;
+        return Guid.TryParse(value, out userId) && userId != Guid.Empty;
+    }
+}
+
+builder.Services.AddSingleton<IUserIdentifierResolver, CustomUserIdentifierResolver>();
+```
+
+### Swagger UI login
+
+In Development, Swagger UI always offers a `Bearer` scheme where you paste a JWT. To also log in against your identity provider with the Authorization Code flow and PKCE, configure the `Swagger:OAuth2` section:
+
+```json
+{
+  "Swagger": {
+    "OAuth2": {
+      "AuthorizationUrl": "https://login.example.com/realms/orders/protocol/openid-connect/auth",
+      "TokenUrl": "https://login.example.com/realms/orders/protocol/openid-connect/token",
+      "ClientId": "swagger-ui",
+      "Scopes": [ "openid", "profile" ]
+    }
+  }
+}
+```
+
+| Key | Default | Notes |
+|---|---|---|
+| `AuthorizationUrl` | None | Must be an absolute URL. Without it, Swagger UI offers only the `Bearer` scheme. |
+| `TokenUrl` | None | Must be an absolute URL. Without it, Swagger UI offers only the `Bearer` scheme. |
+| `ClientId` | `swagger-ui` | Public client registered in your identity provider |
+| `Scopes` | `openid`, `profile` | Used when the list is empty |
+
+Every Swagger operation also documents the `x-tenant-id`, `x-partition-id`, `x-domain-id`, `x-correlation-id` and `x-causation-id` headers that `ExecutionContextMiddleware` reads.
+
+### CORS
+
+CORS is off by default, because APIs behind a gateway are called server to server. Set `EnableCors = true` in `ApiOptions` to register and apply the `SharedKernelCorsPolicy` policy. You can also call `AddSharedKernelCors` and `UseSharedKernelCors` directly from any web host, such as a gateway.
+
+List the allowed origins in the `Cors:AllowedOrigins` array:
+
+```json
+{
+  "Cors": {
+    "AllowedOrigins": [ "https://app.example.com" ]
+  }
+}
+```
+
+- Outside Development, the application fails to start when `Cors:AllowedOrigins` is empty.
+- In Development with no origins configured, only loopback origins such as `localhost` are allowed.
+- The policy allows any method and header, exposes `x-correlation-id`, `api-supported-versions` and `api-deprecated-versions`, and caches preflight responses for one hour.
+- The policy does not allow credentials, because tokens travel in the `Authorization` header rather than in cookies.
 
 ---
 
@@ -218,7 +355,7 @@ public class ExceptionMiddleware
 }
 ```
 
-Register it as the **outermost** middleware so it catches exceptions from every layer beneath it:
+`UseWebApplicationConfigurations` registers it before every other SharedKernel middleware. If you build the pipeline yourself, register it as the **outermost** middleware so it catches exceptions from every layer beneath it:
 
 ```csharp
 app.UseMiddleware<ExceptionMiddleware>(); // must be first
@@ -245,7 +382,7 @@ app.UseMiddleware<ExecutionContextMiddleware>();
 
 ### Actor resolution
 
-- **Authenticated requests** — the middleware reads the `oid` claim from the JWT. A missing or invalid `oid` returns `401 Unauthorized`. After the actor is resolved, the middleware validates the user's scope access via `IAuthorizationService.ValidateScopeAsync`; a failed scope check returns `403 Forbidden`.
+- **Authenticated requests**: the middleware resolves the user ID through `IUserIdentifierResolver`, which reads the claim configured in `Authentication:Claims:UserIdClaimType`. A missing claim or a value that is not a GUID returns `401 Unauthorized`. See [User ID resolution](#user-id-resolution). After the actor is resolved, the middleware validates the user's scope access via `IAuthorizationService.ValidateScopeAsync`; a failed scope check returns `403 Forbidden`.
 - **Anonymous endpoints** (`[AllowAnonymous]`) — the middleware creates an `External` actor keyed to the client IP address, enabling traceability for unauthenticated flows like registration or webhooks. External actors are not subject to tenant-header validation; a missing `x-tenant-id` falls back to the system tenant automatically.
 
 ### Infrastructure endpoint bypass
@@ -530,17 +667,18 @@ public class OrdersQueryController : BaseApiQueryController
 ```csharp Program.cs
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Services.AddControllers();
-builder.Services.AddSharedKernelPresentationHttpRestfulApi();
+builder.AddHostConfigurations();
+builder.WebHost.UseWebHostBuilderConfigurations();
+
+builder.Services.AddSharedKernelPresentationHttpRestfulApi(
+    builder.Configuration,
+    builder.Environment,
+    new ApiOptions { Title = "Orders API" });
 // Register your application layer, infrastructure, etc.
 
 var app = builder.Build();
 
-app.UseMiddleware<ExceptionMiddleware>();
-app.UseAuthentication();
-app.UseAuthorization();
-app.UseMiddleware<ExecutionContextMiddleware>();
-app.MapControllers();
+app.UseWebApplicationConfigurations();
 
 app.Run();
 ```

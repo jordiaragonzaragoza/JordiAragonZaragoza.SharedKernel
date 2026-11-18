@@ -166,7 +166,7 @@ Use these packages in your **Presentation** (API / host) project. They provide H
 
 <CardGroup cols={1}>
   <Card title="JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts" icon="file-contract">
-    Presentation-layer contracts: marker interfaces and shared DTOs used by HTTP endpoints.
+    Presentation-layer contracts: marker interfaces, shared DTOs used by HTTP endpoints, and `IUserIdentifierResolver` for resolving the user ID from a token.
 
     ```bash
     dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts
@@ -181,7 +181,8 @@ Use these packages in your **Presentation** (API / host) project. They provide H
     - `ExceptionMiddleware` — converts domain exceptions to RFC 9457 `ProblemDetails` responses
     - `ExecutionContextMiddleware` — populates `IExecutionContextService` from the HTTP context
     - `ResponseBuilderHelper` — maps `Ardalis.Result` values to HTTP status codes
-    - `AddSharedKernelPresentationHttpRestfulApi` — service registration extension
+    - `AddSharedKernelPresentationHttpRestfulApi`: registers JWT bearer authentication, API versioning, controllers, Swagger, and optional CORS
+    - `UseWebApplicationConfigurations`: adds the middleware pipeline and maps controllers
 
     ```bash
     dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi
@@ -206,6 +207,32 @@ Use these packages in your **Presentation** (API / host) project. They provide H
 
     ```bash
     dotnet add package JordiAragonZaragoza.SharedKernel.Presentation.Integration
+    ```
+  </Card>
+</CardGroup>
+
+---
+
+## Hosting
+
+Use this package in any host project (API or worker) to apply SharedKernel's common host configuration.
+
+<CardGroup cols={1}>
+  <Card title="JordiAragonZaragoza.SharedKernel.Hosting" icon="server">
+    Provides `AddHostConfigurations`, an extension on `IHostApplicationBuilder` that:
+
+    - Registers Serilog and reads its settings from the `Serilog` section of your configuration
+    - Enables dependency injection validation (`ValidateOnBuild` and `ValidateScopes`) so missing or mis-scoped registrations fail at startup
+
+    ```bash
+    dotnet add package JordiAragonZaragoza.SharedKernel.Hosting
+    ```
+
+    ```csharp
+    using JordiAragonZaragoza.SharedKernel.Hosting.Configuration;
+
+    var builder = WebApplication.CreateBuilder(args);
+    builder.AddHostConfigurations();
     ```
   </Card>
 </CardGroup>

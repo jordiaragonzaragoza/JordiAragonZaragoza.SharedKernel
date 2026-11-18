@@ -134,8 +134,8 @@ For External actors without an `x-tenant-id`, `SystemConstants.SystemTenantId` i
 
 1. **Infrastructure Bypass** — Routes with known prefixes (`/swagger`, `/health`, etc.) skip all context logic.
 2. **Resolve Actor**:
-   - JWT with a valid `oid` → `ActorType.User`, `actorId = user:{guid}`
-   - JWT without a valid `oid` → **401**
+   - JWT with a valid user ID claim (configured in `Authentication:Claims:UserIdClaimType`) → `ActorType.User`, `actorId = user:{guid}`
+   - JWT without a valid user ID claim → **401**
    - No JWT \+ `[AllowAnonymous]` → `ActorType.External`, `actorId = external:{ip}`
    - No JWT without `[AllowAnonymous]` → **401**
 3. **Resolve Tenant**:
