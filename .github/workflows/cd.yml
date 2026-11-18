@@ -4,12 +4,16 @@ on:
   push:
     tags:
       - 'v*'
+
 jobs:
-  build:
+  build-and-publish:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
       with:
         fetch-depth: 0
 
@@ -24,12 +28,17 @@ jobs:
           echo "should_publish=false" >> "$GITHUB_OUTPUT"
           echo "Tag is not on the release branch. Skipping deployment."
         fi
-    
+
     - name: Setup .NET Core
       if: steps.verify-release.outputs.should_publish == 'true'
-      uses: actions/setup-dotnet@v3
+      uses: actions/setup-dotnet@v4
       with:
-          dotnet-version: '10.x'
+        dotnet-version: '10.x'
+
+    - name: Get version
+      if: steps.verify-release.outputs.should_publish == 'true'
+      id: version
+      uses: battila7/get-version-action@v2.2.1
 
     - name: Install dependencies
       if: steps.verify-release.outputs.should_publish == 'true'
@@ -39,98 +48,114 @@ jobs:
       if: steps.verify-release.outputs.should_publish == 'true'
       run: dotnet build --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --no-restore
 
-    - name: Get version
+    - name: NuGet login (OIDC → temp API key)
       if: steps.verify-release.outputs.should_publish == 'true'
-      id: version
-      uses: battila7/get-version-action@v2.2.1
+      uses: NuGet/login@v1
+      id: login
+      with:
+        user: ${{ secrets.NUGET_USER }}
 
     - name: Publish JordiAragonZaragoza.SharedKernel to NuGet
       if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel/JordiAragonZaragoza.SharedKernel.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
 
     - name: Publish JordiAragonZaragoza.SharedKernel.Application to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Application/JordiAragonZaragoza.SharedKernel.Application.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
 
     - name: Publish JordiAragonZaragoza.SharedKernel.Application.Contracts to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Application.Contracts/JordiAragonZaragoza.SharedKernel.Application.Contracts.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
 
     - name: Publish JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration/JordiAragonZaragoza.SharedKernel.Application.Contracts.Integration.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
 
     - name: Publish JordiAragonZaragoza.SharedKernel.Contracts to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Contracts/JordiAragonZaragoza.SharedKernel.Contracts.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
 
     - name: Publish JordiAragonZaragoza.SharedKernel.Domain to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Domain/JordiAragonZaragoza.SharedKernel.Domain.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
 
     - name: Publish JordiAragonZaragoza.SharedKernel.Domain.Contracts to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Domain.Contracts/JordiAragonZaragoza.SharedKernel.Domain.Contracts.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
 
     - name: Publish JordiAragonZaragoza.SharedKernel.Infrastructure to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Infrastructure/JordiAragonZaragoza.SharedKernel.Infrastructure.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
 
     - name: Publish JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework/JordiAragonZaragoza.SharedKernel.Infrastructure.EntityFramework.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
 
     - name: Publish JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore/JordiAragonZaragoza.SharedKernel.Infrastructure.EventStore.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
 
     - name: Publish JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi/JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
 
     - name: Publish JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts/JordiAragonZaragoza.SharedKernel.Presentation.HttpRestfulApi.Contracts.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
 
     - name: Publish JordiAragonZaragoza.SharedKernel.Presentation.Integration to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Presentation.Integration/JordiAragonZaragoza.SharedKernel.Presentation.Integration.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
 
     - name: Publish JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts/JordiAragonZaragoza.SharedKernel.Presentation.Integration.Contracts.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
 
     - name: Publish JordiAragonZaragoza.SharedKernel.Hosting to NuGet
+      if: steps.verify-release.outputs.should_publish == 'true'
       run: |
         rm -rf nuget/
         dotnet pack --no-build src/JordiAragonZaragoza.SharedKernel.Hosting/JordiAragonZaragoza.SharedKernel.Hosting.csproj --configuration Release -p:PackageVersion=${{steps.version.outputs.version-without-v}} --output nuget
-        dotnet nuget push nuget/*.nupkg -k '${{ secrets.NUGET_API_KEY }}' --skip-duplicate -s https://api.nuget.org/v3/index.json
+        dotnet nuget push nuget/*.nupkg --api-key ${{ steps.login.outputs.NUGET_API_KEY }} --skip-duplicate --source https://api.nuget.org/v3/index.json
