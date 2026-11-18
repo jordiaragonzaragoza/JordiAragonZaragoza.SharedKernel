@@ -121,8 +121,7 @@
             switch (result.Status)
             {
                 case ResultStatus.Ok:
-                    return (result is Result) ? controller.NoContent()
-                        : controller.Ok(result.GetValue());
+                    return (result is Result) ? controller.NoContent() : controller.Ok(result.GetValue());
                 case ResultStatus.NotFound: return NotFoundEntity(controller, result);
                 case ResultStatus.Unauthorized: return Unauthorized(controller);
                 case ResultStatus.Forbidden: return Forbidden(controller);
