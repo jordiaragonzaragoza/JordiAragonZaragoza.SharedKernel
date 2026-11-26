@@ -71,19 +71,17 @@
         /// <returns>Number of records updated (1 if successful).</returns>
         public override async Task<int> UpdateAsync(TReadModel entity, CancellationToken cancellationToken = default)
         {
-            await this.CacheServiceRemoveByPrefixAsync(cancellationToken);
-
             await this.ReloadAndApplyChangesAsync(entity, cancellationToken);
 
             await this.DbContext.SaveChangesAsync(cancellationToken);
+
+            await this.CacheServiceRemoveByPrefixAsync(cancellationToken);
 
             return 1;
         }
 
         public override async Task<int> UpdateRangeAsync(IEnumerable<TReadModel> entities, CancellationToken cancellationToken = default)
         {
-            await this.CacheServiceRemoveByPrefixAsync(cancellationToken);
-
             var entityList = entities.ToList();
             foreach (var entity in entityList)
             {
@@ -91,6 +89,8 @@
             }
 
             await this.DbContext.SaveChangesAsync(cancellationToken);
+
+            await this.CacheServiceRemoveByPrefixAsync(cancellationToken);
 
             return entityList.Count;
         }

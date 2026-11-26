@@ -20,6 +20,51 @@
             ⚠️ Warning. Another microservice of yours is NOT external, other bounded contexts of the same system are NOT external.
             </summary>
         </member>
+        <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.AuthorizationRequirement">
+            <summary>
+            The requirements declared by ONE [Authorize] attribute. A request is authorized only when
+            EVERY requirement (one per attribute) is satisfied; inside a requirement:
+            the user must hold ANY of the roles (when there are any), ALL the permissions
+            and ALL the policies must pass. Same model as ASP.NET Core.
+            </summary>
+            <param name="AnyOfRoles">Roles of which the user must hold at least one. Empty means no role requirement.</param>
+            <param name="AllOfPermissions">Permissions the user must hold all of.</param>
+            <param name="AllOfPolicies">Policies that must all succeed.</param>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.AuthorizationRequirement.#ctor(System.Collections.Generic.IReadOnlyCollection{System.String},System.Collections.Generic.IReadOnlyCollection{System.String},System.Collections.Generic.IReadOnlyCollection{System.String})">
+            <summary>
+            The requirements declared by ONE [Authorize] attribute. A request is authorized only when
+            EVERY requirement (one per attribute) is satisfied; inside a requirement:
+            the user must hold ANY of the roles (when there are any), ALL the permissions
+            and ALL the policies must pass. Same model as ASP.NET Core.
+            </summary>
+            <param name="AnyOfRoles">Roles of which the user must hold at least one. Empty means no role requirement.</param>
+            <param name="AllOfPermissions">Permissions the user must hold all of.</param>
+            <param name="AllOfPolicies">Policies that must all succeed.</param>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.AuthorizationRequirement.AnyOfRoles">
+            <summary>Roles of which the user must hold at least one. Empty means no role requirement.</summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.AuthorizationRequirement.AllOfPermissions">
+            <summary>Permissions the user must hold all of.</summary>
+        </member>
+        <member name="P:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.AuthorizationRequirement.AllOfPolicies">
+            <summary>Policies that must all succeed.</summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.AuthorizationRequirement.GetMissingPermissions(System.Collections.Generic.IReadOnlySet{System.String})">
+            <summary>
+            Returns the required permissions that are not among the held ones.
+            </summary>
+            <param name="heldPermissions">The permissions the user holds.</param>
+            <returns>The missing permissions; empty when all of them are held.</returns>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.AuthorizationRequirement.IsRoleRequirementSatisfied(System.Collections.Generic.IReadOnlySet{System.String})">
+            <summary>
+            Checks the role requirement: satisfied when no role is required or the user holds at least one of them.
+            </summary>
+            <param name="heldRoles">The roles the user holds.</param>
+            <returns>True when the role requirement is satisfied.</returns>
+        </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ExecutorType">
             <summary>
             Represents the system that is actually running the action.
@@ -50,6 +95,25 @@
             conditions — this is application orchestration over domain/read
             model data, not a domain invariant.
             </summary>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IAuthorizationService.ValidateScopeAsync(System.Guid,JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.ScopeContext,System.Threading.CancellationToken)">
+            <summary>
+            Checks that the user has at least one assignment covering the scope.
+            </summary>
+            <param name="userId">The user to check.</param>
+            <param name="scope">The requested scope (tenant, partition, cinema).</param>
+            <param name="cancellationToken">A cancellation token.</param>
+            <returns>Success when the user can act in the scope; Forbidden otherwise.</returns>
+        </member>
+        <member name="M:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IAuthorizationService.AuthorizeAsync(System.Collections.Generic.IReadOnlyCollection{JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.AuthorizationRequirement},System.Nullable{System.Guid},System.Threading.CancellationToken)">
+            <summary>
+            Authorizes the current actor against the requirements declared by the [Authorize] attributes.
+            All the requirements must be satisfied (one requirement per attribute).
+            </summary>
+            <param name="requirements">One requirement per [Authorize] attribute.</param>
+            <param name="resourceId">The resource the request refers to, used by policies.</param>
+            <param name="cancellationToken">A cancellation token.</param>
+            <returns>Success when every requirement is satisfied; otherwise the failing result.</returns>
         </member>
         <member name="T:JordiAragonZaragoza.SharedKernel.Application.Contracts.Interfaces.IBaseCommand">
             <summary>

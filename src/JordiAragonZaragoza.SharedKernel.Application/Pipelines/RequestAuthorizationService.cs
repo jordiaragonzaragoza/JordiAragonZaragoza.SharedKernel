@@ -1,6 +1,7 @@
-﻿namespace JordiAragonZaragoza.SharedKernel.Application.Pipelines
+namespace JordiAragonZaragoza.SharedKernel.Application.Pipelines
 {
     using System;
+    using System.Collections.ObjectModel;
     using System.Linq;
     using System.Reflection;
     using System.Threading;
@@ -28,28 +29,34 @@
                 return Result.Success();
             }
 
-            var requiredPermissions = authorizationAttributes
-                .SelectMany(authorizationAttribute => authorizationAttribute.Permissions?.Split(',') ?? [])
-                .ToList().AsReadOnly();
-
-            var requiredRoles = authorizationAttributes
-                .SelectMany(authorizationAttribute => authorizationAttribute.Roles?.Split(',') ?? [])
-                .ToList().AsReadOnly();
-
-            var requiredPolicies = authorizationAttributes
-                .SelectMany(authorizationAttribute => authorizationAttribute.Policies?.Split(',') ?? [])
-                .ToList().AsReadOnly();
+            // One requirement per attribute: the grouping must be preserved so that the roles
+            // of one attribute are alternatives (OR) while the attributes are cumulative (AND).
+            var requirements = authorizationAttributes
+                .Select(attribute => new AuthorizationRequirement(
+                    Split(attribute.Roles),
+                    Split(attribute.Permissions),
+                    Split(attribute.Policies)))
+                .ToList()
+                .AsReadOnly();
 
             Guid? resourceId = request is IPolicyResourceRequest resourceRequest
                 ? resourceRequest.ResourceId
                 : null;
 
             return await this.authorizationService.AuthorizeAsync(
-                requiredRoles,
-                requiredPermissions,
-                requiredPolicies,
+                requirements,
                 resourceId,
                 cancellationToken);
         }
+
+        /// <summary>
+        /// Splits a comma delimited value. Values are trimmed and empty entries are discarded,
+        /// so "a, b" means the same as "a,b" (a leading space would never match).
+        /// </summary>
+        private static ReadOnlyCollection<string> Split(string? commaSeparated)
+            => (commaSeparated?.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries) ?? [])
+                .Distinct(StringComparer.Ordinal)
+                .ToList()
+                .AsReadOnly();
     }
 }
