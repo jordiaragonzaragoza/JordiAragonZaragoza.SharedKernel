@@ -8,7 +8,7 @@ description: "KurrentDbAllStreamCatchUpSubscription implements a catch-up subscr
 
 `KurrentDbAllStreamCatchUpSubscription` implements a **catch-up subscription** to the KurrentDB `$all` stream. It reads every event ever written to the store (catch-up phase) and then continues listening for new events in real time (live phase), all within a single continuous connection.
 
-The subscription is designed to drive **read model projectors**: it dispatches each event to an internal event bus, which fan-outs to registered projectors that update the PostgreSQL read models. A checkpoint is persisted after each successfully processed event so the subscription can resume from the last known position after a restart.
+The subscription is designed to drive **read model projectors**: it dispatches each event to an internal event bus, which fans out to registered projectors that update the PostgreSQL read models. A checkpoint is persisted after each successfully processed event so the subscription can resume from the last known position after a restart.
 
 ### Key differences from a persistent subscription
 

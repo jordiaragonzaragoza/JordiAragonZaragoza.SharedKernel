@@ -237,7 +237,7 @@ Endpoints that accept `External` actors must be explicitly marked with `[AllowAn
 
 ### `ActorType.External` can never invoke commands with `[Authorize]`
 
-`AuthorizeAsync` returns `Forbidden` for External actors — reaching this point represents a configuration error, not a legitimate usecase.
+`AuthorizeAsync` returns `Forbidden` for External actors — reaching this point represents a configuration error, not a legitimate use case.
 
 ### Do not use the Actor as the Executor
 
